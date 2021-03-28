@@ -1,2 +1,3 @@
 # docker-proxy
-Simple edge proxy for docker containers
+
+Simple edge HTTP(s) proxy for docker containers
