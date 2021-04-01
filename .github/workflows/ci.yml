@@ -1,0 +1,53 @@
+name: build
+
+on:
+  push:
+    tags: [v*]
+    branches:
+  pull_request:
+  repository_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: set up go 1.16
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+        id: go
+
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: build and test
+        run: |
+          go test -v -timeout=100s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
+          cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mocks" | grep -v "_mock" > $GITHUB_WORKSPACE/profile.cov
+        working-directory: backend/app
+        env:
+          GOFLAGS: "-mod=vendor"
+          TZ: "America/Chicago"
+
+      - name: install golangci-lint and goveralls
+        run: |
+          curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $GITHUB_WORKSPACE v1.29.0
+          GO111MODULE=off go get -u github.com/mattn/goveralls
+
+      - name: run linters
+        run: $GITHUB_WORKSPACE/golangci-lint run --out-format=github-actions
+        working-directory: backend/app
+        env:
+          GOFLAGS: "-mod=vendor"
+          TZ: "America/Chicago"
+
+      - name: build and deploy image
+        env:
+          GITHUB_PACKAGE_TOKEN: ${{ secrets.PKG_TOKEN }}
+        run: |
+          ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
+          echo GITHUB_REF - $ref
+          docker login docker.pkg.github.com -u umputun -p ${GITHUB_PACKAGE_TOKEN}
+          docker build -t docker.pkg.github.com/umputun/docker-proxy/dpx:${ref} .
+          docker push docker.pkg.github.com/umputun/docker-proxy/dpx:${ref}

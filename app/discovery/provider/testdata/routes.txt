@@ -1,0 +1,4 @@
+^/api/svc1/(.*) http://127.0.0.1:8080/blah1/$1
+^/api/svc2/(.*) http://127.0.0.2:8080/blah2/$1/abc
+/api/svc3/xyz   http://127.0.0.3:8080/blah3/xyz
+
