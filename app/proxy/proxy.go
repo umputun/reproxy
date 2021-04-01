@@ -21,6 +21,7 @@ type Http struct {
 	AssetsWebRoot  string
 	MaxBodySize    int64
 	GzEnabled      bool
+	ProxyHeaders   []string
 	Version        string
 }
 
@@ -41,6 +42,7 @@ func (h *Http) Do(ctx context.Context) error {
 			rest.Ping,
 			logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
 			rest.SizeLimit(h.MaxBodySize),
+			middleware.Headers(h.ProxyHeaders),
 			h.gzipHandler(),
 		),
 		ReadHeaderTimeout: 5 * time.Second,

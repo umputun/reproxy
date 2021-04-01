@@ -20,10 +20,11 @@ import (
 )
 
 var opts struct {
-	Listen      string        `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
-	TimeOut     time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"proxy timeout"`
-	MaxSize     int64         `long:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
-	GzipEnabled bool          `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	Listen       string        `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
+	TimeOut      time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"proxy timeout"`
+	MaxSize      int64         `long:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
+	GzipEnabled  bool          `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers"`
 
 	Assets struct {
 		Location string `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
@@ -44,7 +45,7 @@ var opts struct {
 	} `group:"file" namespace:"file" env-namespace:"FILE"`
 
 	Static struct {
-		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable file provider"`
+		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable static provider"`
 		Rules   []string `long:"rule" env:"RULES" description:"routing rules"`
 	} `group:"static" namespace:"static" env-namespace:"STATIC"`
 
