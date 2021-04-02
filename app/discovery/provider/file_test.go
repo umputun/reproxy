@@ -52,7 +52,7 @@ func TestFile_Events(t *testing.T) {
 }
 
 func TestFile_List(t *testing.T) {
-	f := File{FileName: "testdata/routes.txt"}
+	f := File{FileName: "testdata/config.yml"}
 
 	res, err := f.List()
 	require.NoError(t, err)

@@ -42,11 +42,11 @@ var (
 )
 
 // Channel gets eventsCh with all containers events
-func (s *Docker) Events(ctx context.Context) (res <-chan struct{}) {
+func (d *Docker) Events(ctx context.Context) (res <-chan struct{}) {
 	eventsCh := make(chan struct{})
 	go func() {
 		for {
-			err := s.events(ctx, s.DockerClient, eventsCh)
+			err := d.events(ctx, d.DockerClient, eventsCh)
 			if err == context.Canceled || err == context.DeadlineExceeded {
 				close(eventsCh)
 				return
@@ -59,8 +59,8 @@ func (s *Docker) Events(ctx context.Context) (res <-chan struct{}) {
 }
 
 // List all containers and make url mappers
-func (s *Docker) List() ([]discovery.UrlMapper, error) {
-	containers, err := s.listContainers()
+func (d *Docker) List() ([]discovery.UrlMapper, error) {
+	containers, err := d.listContainers()
 	if err != nil {
 		return nil, err
 	}
@@ -69,28 +69,31 @@ func (s *Docker) List() ([]discovery.UrlMapper, error) {
 	for _, c := range containers {
 		srcURL := fmt.Sprintf("^/api/%s/(.*)", c.Name)
 		destURL := fmt.Sprintf("http://%s:8080/$1", c.Name)
+		server := "*"
 		if v, ok := c.Labels["dpx.route"]; ok {
 			srcURL = v
 		}
 		if v, ok := c.Labels["dpx.dest"]; ok {
 			destURL = fmt.Sprintf("http://%s:8080%s", c.Name, v)
 		}
-
+		if v, ok := c.Labels["dpx.server"]; ok {
+			server = v
+		}
 		srcRegex, err := regexp.Compile(srcURL)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
 		}
 
-		res = append(res, discovery.UrlMapper{SrcMatch: srcRegex, Dst: destURL})
+		res = append(res, discovery.UrlMapper{Server: server, SrcMatch: srcRegex, Dst: destURL})
 	}
 	return res, nil
 }
 
-func (s *Docker) ID() string { return "docker" }
+func (d *Docker) ID() discovery.ProviderID { return discovery.PIDocker }
 
 // activate starts blocking listener for all docker events
 // filters everything except "container" type, detects stop/start events and publishes signals to eventsCh
-func (s *Docker) events(ctx context.Context, client DockerClient, eventsCh chan struct{}) error {
+func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan struct{}) error {
 	dockerEventsCh := make(chan *dclient.APIEvents)
 	if err := client.AddEventListener(dockerEventsCh); err != nil {
 		return errors.Wrap(err, "can't add even listener")
@@ -113,7 +116,7 @@ func (s *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 			log.Printf("[DEBUG] api event %+v", ev)
 			containerName := strings.TrimPrefix(ev.Actor.Attributes["name"], "/")
 
-			if contains(containerName, s.Excludes) {
+			if contains(containerName, d.Excludes) {
 				log.Printf("[DEBUG] container %s excluded", containerName)
 				continue
 			}
@@ -123,9 +126,9 @@ func (s *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 	}
 }
 
-func (s *Docker) listContainers() (res []containerInfo, err error) {
+func (d *Docker) listContainers() (res []containerInfo, err error) {
 
-	containers, err := s.DockerClient.ListContainers(dclient.ListContainersOptions{All: false})
+	containers, err := d.DockerClient.ListContainers(dclient.ListContainersOptions{All: false})
 	if err != nil {
 		return nil, errors.Wrap(err, "can't list containers")
 	}
@@ -136,7 +139,7 @@ func (s *Docker) listContainers() (res []containerInfo, err error) {
 			continue
 		}
 		containerName := strings.TrimPrefix(c.Names[0], "/")
-		if contains(containerName, s.Excludes) {
+		if contains(containerName, d.Excludes) {
 			log.Printf("[DEBUG] container %s excluded", containerName)
 			continue
 		}

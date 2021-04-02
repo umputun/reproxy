@@ -6,7 +6,7 @@ import (
 )
 
 // Headers middleware adds headers to request
-func Headers(headers []string) func(http.Handler) http.Handler {
+func Headers(headers ...string) func(http.Handler) http.Handler {
 
 	return func(h http.Handler) http.Handler {
 

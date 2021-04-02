@@ -1,15 +1,14 @@
 package provider
 
 import (
-	"bufio"
 	"context"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 
 	"github.com/umputun/docker-proxy/app/discovery"
 )
@@ -66,26 +65,32 @@ func (d *File) Events(ctx context.Context) <-chan struct{} {
 
 // List all src dst pairs
 func (d *File) List() (res []discovery.UrlMapper, err error) {
+
+	var fileConf []struct {
+		SourceServer string `yaml:"server"`
+		SourceRoute  string `yaml:"route"`
+		Dest         string `yaml:"dest"`
+	}
+
 	fh, err := os.Open(d.FileName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "can't open %s", d.FileName)
 	}
 	defer fh.Close()
 
-	s := bufio.NewScanner(fh)
-	for s.Scan() {
-		line := s.Text()
-		elems := strings.Fields(line)
-		if len(elems) != 2 {
-			continue
-		}
-		rx, err := regexp.Compile(elems[0])
-		if err != nil {
-			return nil, errors.Wrapf(err, "can't parse regex %s", elems[0])
-		}
-		res = append(res, discovery.UrlMapper{SrcMatch: rx, Dst: elems[1]})
+	if err = yaml.NewDecoder(fh).Decode(&fileConf); err != nil {
+		return nil, errors.Wrapf(err, "can't parse %s", d.FileName)
 	}
-	return res, s.Err()
+	log.Printf("[DEBUG] file provider %+v", res)
+
+	for _, f := range fileConf {
+		rx, err := regexp.Compile(f.SourceRoute)
+		if err != nil {
+			return nil, errors.Wrapf(err, "can't parse regex %s", f.SourceRoute)
+		}
+		res = append(res, discovery.UrlMapper{Server: f.SourceServer, SrcMatch: rx, Dst: f.Dest})
+	}
+	return res, nil
 }
 
-func (d *File) ID() string { return "file" }
+func (d *File) ID() discovery.ProviderID { return discovery.PIFile }

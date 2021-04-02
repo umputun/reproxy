@@ -13,10 +13,11 @@ import (
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/go-pkgz/lgr"
 	"github.com/pkg/errors"
+	"github.com/umputun/go-flags"
+
 	"github.com/umputun/docker-proxy/app/discovery"
 	"github.com/umputun/docker-proxy/app/discovery/provider"
 	"github.com/umputun/docker-proxy/app/proxy"
-	"github.com/umputun/go-flags"
 )
 
 var opts struct {
@@ -39,7 +40,7 @@ var opts struct {
 
 	File struct {
 		Enabled       bool          `long:"enabled" env:"ENABLED" description:"enable file provider"`
-		Name          string        `long:"name" env:"NAME" default:"dpx.conf" description:"file name"`
+		Name          string        `long:"name" env:"NAME" default:"dpx.yml" description:"file name"`
 		CheckInterval time.Duration `long:"interval" env:"INTERVAL" default:"3s" description:"file check interval"`
 		Delay         time.Duration `long:"delay" env:"DELAY" default:"500ms" description:"file event delay"`
 	} `group:"file" namespace:"file" env-namespace:"FILE"`

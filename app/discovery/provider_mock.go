@@ -21,7 +21,7 @@ var _ Provider = &ProviderMock{}
 // 			EventsFunc: func(ctx context.Context) <-chan struct{} {
 // 				panic("mock out the Events method")
 // 			},
-// 			IDFunc: func() string {
+// 			IDFunc: func() ProviderID {
 // 				panic("mock out the ID method")
 // 			},
 // 			ListFunc: func() ([]UrlMapper, error) {
@@ -38,7 +38,7 @@ type ProviderMock struct {
 	EventsFunc func(ctx context.Context) <-chan struct{}
 
 	// IDFunc mocks the ID method.
-	IDFunc func() string
+	IDFunc func() ProviderID
 
 	// ListFunc mocks the List method.
 	ListFunc func() ([]UrlMapper, error)
@@ -94,7 +94,7 @@ func (mock *ProviderMock) EventsCalls() []struct {
 }
 
 // ID calls IDFunc.
-func (mock *ProviderMock) ID() string {
+func (mock *ProviderMock) ID() ProviderID {
 	if mock.IDFunc == nil {
 		panic("ProviderMock.IDFunc: method is nil but Provider.ID was just called")
 	}

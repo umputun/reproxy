@@ -15,7 +15,7 @@ func TestDocker_List(t *testing.T) {
 		ListContainersFunc: func(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error) {
 			return []dclient.APIContainers{
 				{Names: []string{"c1"}, Status: "start",
-					Labels: map[string]string{"dpx.route": "^/api/123/(.*)", "dpx.dest": "/blah/$1"}},
+					Labels: map[string]string{"dpx.route": "^/api/123/(.*)", "dpx.dest": "/blah/$1", "dpx.server": "example.com"}},
 				{Names: []string{"c2"}, Status: "start"},
 				{Names: []string{"c3"}, Status: "stop"},
 			}, nil
@@ -29,9 +29,12 @@ func TestDocker_List(t *testing.T) {
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://c1:8080/blah/$1", res[0].Dst)
+	assert.Equal(t, "example.com", res[0].Server)
 
 	assert.Equal(t, "^/api/c2/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://c2:8080/$1", res[1].Dst)
+	assert.Equal(t, "*", res[1].Server)
+
 }
 
 func TestDocker_Events(t *testing.T) {

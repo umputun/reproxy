@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-pkgz/rest"
@@ -26,7 +27,7 @@ type Http struct {
 }
 
 type Matcher interface {
-	Match(url string) (string, bool)
+	Match(srv, src string) (string, bool)
 }
 
 func (h *Http) Do(ctx context.Context) error {
@@ -42,7 +43,7 @@ func (h *Http) Do(ctx context.Context) error {
 			rest.Ping,
 			logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
 			rest.SizeLimit(h.MaxBodySize),
-			middleware.Headers(h.ProxyHeaders),
+			middleware.Headers(h.ProxyHeaders...),
 			h.gzipHandler(),
 		),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -117,7 +118,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		u, ok := h.Match(r.URL.Path)
+		server := strings.Split(r.Host, ":")[0]
+		u, ok := h.Match(server, r.URL.Path)
 		if !ok {
 			assetsHandler.ServeHTTP(w, r)
 			return

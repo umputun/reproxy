@@ -21,17 +21,26 @@ type Service struct {
 
 // UrlMapper contains all info about source and destination routes
 type UrlMapper struct {
+	Server     string
 	SrcMatch   *regexp.Regexp
 	Dst        string
-	ProviderID string
+	ProviderID ProviderID
 }
 
 // Provider defines sources of mappers
 type Provider interface {
 	Events(ctx context.Context) (res <-chan struct{})
 	List() (res []UrlMapper, err error)
-	ID() string
+	ID() ProviderID
 }
+
+type ProviderID string
+
+const (
+	PIDocker ProviderID = "docker"
+	PIStatic ProviderID = "static"
+	PIFile   ProviderID = "file"
+)
 
 // NewService makes service with given providers
 func NewService(providers []Provider) *Service {
@@ -41,6 +50,7 @@ func NewService(providers []Provider) *Service {
 // Do runs blocking loop getting events from all providers
 // and updating mappers on each event
 func (s *Service) Do(ctx context.Context) error {
+
 	var evChs []<-chan struct{}
 	for _, p := range s.providers {
 		evChs = append(evChs, p.Events(ctx))
@@ -61,16 +71,20 @@ func (s *Service) Do(ctx context.Context) error {
 }
 
 // Match url to all providers mappers
-func (s *Service) Match(url string) (string, bool) {
+func (s *Service) Match(srv, src string) (string, bool) {
+
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	for _, m := range s.mappers {
-		dest := m.SrcMatch.ReplaceAllString(url, m.Dst)
-		if url != dest {
+		if m.Server != "*" && m.Server != "" && m.Server != srv {
+			continue
+		}
+		dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
+		if src != dest {
 			return dest, true
 		}
 	}
-	return url, false
+	return src, false
 }
 
 func (s *Service) mergeLists() (res []UrlMapper) {
@@ -78,6 +92,9 @@ func (s *Service) mergeLists() (res []UrlMapper) {
 		lst, err := p.List()
 		if err != nil {
 			continue
+		}
+		for i := range lst {
+			lst[i].ProviderID = p.ID()
 		}
 		res = append(res, lst...)
 	}
