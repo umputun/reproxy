@@ -24,13 +24,17 @@ func TestHttp_Do(t *testing.T) {
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("%v", r)
+		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		w.Write([]byte("response"))
+		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
 	svc := discovery.NewService([]discovery.Provider{
-		&provider.Static{Rules: []string{"^/api/(.*)::" + ds.URL + "/123/$1"}}})
+		&provider.Static{Rules: []string{
+			"localhost,^/api/(.*)," + ds.URL + "/123/$1",
+			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1",
+		},
+		}})
 
 	go func() {
 		svc.Do(context.Background())
@@ -43,18 +47,37 @@ func TestHttp_Do(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	client := http.Client{}
-	resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/api/something")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	t.Logf("%+v", resp.Header)
 
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "response", string(body))
-	assert.Equal(t, "dpx", resp.Header.Get("App-Name"))
-	assert.Equal(t, "v1", resp.Header.Get("h1"))
+	{
+		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/api/something")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
 
-	resp, err = client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/bad/something")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /567/something", string(body))
+		assert.Equal(t, "dpx", resp.Header.Get("App-Name"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+	}
+
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/api/something")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /123/something", string(body))
+		assert.Equal(t, "dpx", resp.Header.Get("App-Name"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+	}
+
+	{
+		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/bad/something")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+
+	}
 }

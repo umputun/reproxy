@@ -20,6 +20,7 @@ import (
 type Docker struct {
 	DockerClient DockerClient
 	Excludes     []string
+	Network      string
 }
 
 // DockerClient defines interface listing containers and subscribing to events
@@ -34,6 +35,8 @@ type containerInfo struct {
 	Name   string
 	TS     time.Time
 	Labels map[string]string
+	IP     string
+	Port   int
 }
 
 var (
@@ -68,13 +71,13 @@ func (d *Docker) List() ([]discovery.UrlMapper, error) {
 	var res []discovery.UrlMapper
 	for _, c := range containers {
 		srcURL := fmt.Sprintf("^/api/%s/(.*)", c.Name)
-		destURL := fmt.Sprintf("http://%s:8080/$1", c.Name)
+		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, c.Port)
 		server := "*"
 		if v, ok := c.Labels["dpx.route"]; ok {
 			srcURL = v
 		}
 		if v, ok := c.Labels["dpx.dest"]; ok {
-			destURL = fmt.Sprintf("http://%s:8080%s", c.Name, v)
+			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
 		}
 		if v, ok := c.Labels["dpx.server"]; ok {
 			server = v
@@ -128,6 +131,13 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 
 func (d *Docker) listContainers() (res []containerInfo, err error) {
 
+	portExposed := func(c dclient.APIContainers) (int, bool) {
+		if len(c.Ports) == 0 {
+			return 0, false
+		}
+		return int(c.Ports[0].PrivatePort), true
+	}
+
 	containers, err := d.DockerClient.ListContainers(dclient.ListContainersOptions{All: false})
 	if err != nil {
 		return nil, errors.Wrap(err, "can't list containers")
@@ -143,14 +153,34 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 			log.Printf("[DEBUG] container %s excluded", containerName)
 			continue
 		}
-		event := containerInfo{
+
+		var ip string
+		for k, v := range c.Networks.Networks {
+			if k == d.Network { // match on network name
+				ip = v.IPAddress
+				break
+			}
+		}
+		if ip == "" {
+			continue
+		}
+
+		port, ok := portExposed(c)
+		if !ok {
+			continue
+		}
+
+		ci := containerInfo{
 			Name:   containerName,
 			ID:     c.ID,
 			TS:     time.Unix(c.Created/1000, 0),
 			Labels: c.Labels,
+			IP:     ip,
+			Port:   port,
 		}
-		log.Printf("[DEBUG] running container added, %+v", event)
-		res = append(res, event)
+
+		log.Printf("[DEBUG] running container added, %+v", ci)
+		res = append(res, ci)
 	}
 	log.Print("[DEBUG] completed list")
 	return res, nil

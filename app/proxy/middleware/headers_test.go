@@ -12,7 +12,7 @@ func TestHeaders(t *testing.T) {
 	req := httptest.NewRequest("GET", "/something", nil)
 	w := httptest.NewRecorder()
 
-	h := Headers([]string{"h1:v1", "bad", "h2:v2"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	h := Headers("h1:v1", "bad", "h2:v2")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	h.ServeHTTP(w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
