@@ -16,14 +16,14 @@ import (
 type sslMode int8
 
 const (
-	// None defines to run http server only
-	None sslMode = iota
+	// SSLNone defines to run http server only
+	SSLNone sslMode = iota
 
-	// Static defines to run both https and http server. Redirect http to https
-	Static
+	// SSLStatic defines to run both https and http server. Redirect http to https
+	SSLStatic
 
-	// Auto defines to run both https and http server. Redirect http to https. Https server with autocert support
-	Auto
+	// SSLAuto defines to run both https and http server. Redirect http to https. Https server with autocert support
+	SSLAuto
 )
 
 // SSLConfig holds all ssl params for rest server
@@ -31,7 +31,6 @@ type SSLConfig struct {
 	SSLMode      sslMode
 	Cert         string
 	Key          string
-	Port         int
 	ACMELocation string
 	ACMEEmail    string
 	FQDNs        []string
@@ -41,7 +40,7 @@ type SSLConfig struct {
 // with default middlewares. Used in 'static' ssl mode.
 func (h *Http) httpToHTTPSRouter() http.Handler {
 	log.Printf("[DEBUG] create https-to-http redirect routes")
-	return h.wrap(h.redirectHandler(), R.Recoverer(log.Default()))
+	return R.Wrap(h.redirectHandler(), R.Recoverer(log.Default()))
 }
 
 // httpChallengeRouter creates new router which performs ACME "http-01" challenge response
@@ -50,7 +49,7 @@ func (h *Http) httpToHTTPSRouter() http.Handler {
 // Used in 'auto' ssl mode.
 func (h *Http) httpChallengeRouter(m *autocert.Manager) http.Handler {
 	log.Printf("[DEBUG] create http-challenge routes")
-	return h.wrap(m.HTTPHandler(h.redirectHandler()), R.Recoverer(log.Default()))
+	return R.Wrap(m.HTTPHandler(h.redirectHandler()), R.Recoverer(log.Default()))
 }
 
 func (h *Http) redirectHandler() http.Handler {

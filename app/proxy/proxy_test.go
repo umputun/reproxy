@@ -37,12 +37,12 @@ func TestHttp_Do(t *testing.T) {
 		}})
 
 	go func() {
-		svc.Do(context.Background())
+		svc.Run(context.Background())
 	}()
 
 	h.Matcher = svc
 	go func() {
-		h.Do(ctx)
+		h.Run(ctx)
 	}()
 	time.Sleep(10 * time.Millisecond)
 

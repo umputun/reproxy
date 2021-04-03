@@ -1,6 +1,6 @@
 // Package discovery provides a common interface for all providers and Match to
 // transform source to destination URL.
-// Do func starts event loop checking all providers and retrieving lists of rules.
+// Run func starts event loop checking all providers and retrieving lists of rules.
 // All lists combined into a merged one.
 package discovery
 
@@ -47,9 +47,9 @@ func NewService(providers []Provider) *Service {
 	return &Service{providers: providers}
 }
 
-// Do runs blocking loop getting events from all providers
+// Run runs blocking loop getting events from all providers
 // and updating mappers on each event
-func (s *Service) Do(ctx context.Context) error {
+func (s *Service) Run(ctx context.Context) error {
 
 	var evChs []<-chan struct{}
 	for _, p := range s.providers {

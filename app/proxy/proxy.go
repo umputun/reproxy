@@ -11,9 +11,9 @@ import (
 	"github.com/go-pkgz/lgr"
 	log "github.com/go-pkgz/lgr"
 	"github.com/go-pkgz/rest"
+	R "github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
-
-	"github.com/umputun/docker-proxy/app/proxy/middleware"
+	"github.com/pkg/errors"
 )
 
 type Http struct {
@@ -33,40 +33,12 @@ type Matcher interface {
 	Match(srv, src string) (string, bool)
 }
 
-func (h *Http) Do(ctx context.Context) error {
-	log.Printf("[INFO] run proxy on %s", h.Address)
-	if h.AssetsLocation != "" {
-		log.Printf("[DEBUG] assets file server enabled for %s", h.AssetsLocation)
-	}
-
-	httpServer := &http.Server{
-		Addr: h.Address,
-		Handler: h.wrap(h.proxyHandler(),
-			rest.Recoverer(lgr.Default()),
-			rest.AppInfo("dpx", "umputun", h.Version),
-			rest.Ping,
-			logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
-			rest.SizeLimit(h.MaxBodySize),
-			middleware.Headers(h.ProxyHeaders...),
-			h.gzipHandler(),
-		),
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      120 * time.Second,
-		IdleTimeout:       30 * time.Second,
-	}
-
-	go func() {
-		<-ctx.Done()
-		if err := httpServer.Close(); err != nil {
-			log.Printf("[ERROR] failed to close proxy server, %v", err)
-		}
-	}()
-
-	return httpServer.ListenAndServe()
-}
-
 // Run the lister and request's router, activate rest server
-func (h *Http) Run(ctx context.Context) {
+func (h *Http) Run(ctx context.Context) error {
+
+	if h.AssetsLocation != "" {
+		log.Printf("[DEBUG] assets file server enabled for %s, webroot %s", h.AssetsLocation, h.AssetsWebRoot)
+	}
 
 	var httpServer, httpsServer *http.Server
 
@@ -84,24 +56,23 @@ func (h *Http) Run(ctx context.Context) {
 		}
 	}()
 
-	handler := h.wrap(h.proxyHandler(),
-		rest.Recoverer(lgr.Default()),
-		rest.AppInfo("dpx", "umputun", h.Version),
-		rest.Ping,
+	handler := R.Wrap(h.proxyHandler(),
+		R.Recoverer(lgr.Default()),
+		R.AppInfo("dpx", "umputun", h.Version),
+		R.Ping,
 		logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
-		rest.SizeLimit(h.MaxBodySize),
-		middleware.Headers(h.ProxyHeaders...),
+		R.SizeLimit(h.MaxBodySize),
+		R.Headers(h.ProxyHeaders...),
 		h.gzipHandler(),
 	)
 
 	switch h.SSLConfig.SSLMode {
-	case None:
+	case SSLNone:
 		log.Printf("[INFO] activate http proxy server on %s", h.Address)
 		httpServer = h.makeHTTPServer(h.Address, handler)
 		httpServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
-		err := httpServer.ListenAndServe()
-		log.Printf("[WARN] http server terminated, %s", err)
-	case Static:
+		return httpServer.ListenAndServe()
+	case SSLStatic:
 		log.Printf("[INFO] activate https server in 'static' mode on %s", h.Address)
 
 		httpsServer = h.makeHTTPSServer(h.Address, handler)
@@ -115,9 +86,8 @@ func (h *Http) Run(ctx context.Context) {
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http redirect server terminated, %s", err)
 		}()
-		err := httpServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key)
-		log.Printf("[WARN] https server terminated, %s", err)
-	case Auto:
+		return httpServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key)
+	case SSLAuto:
 		log.Printf("[INFO] activate https server in 'auto' mode on %s", h.Address)
 
 		m := h.makeAutocertManager()
@@ -133,9 +103,9 @@ func (h *Http) Run(ctx context.Context) {
 			log.Printf("[WARN] http challenge server terminated, %s", err)
 		}()
 
-		err := httpsServer.ListenAndServeTLS("", "")
-		log.Printf("[WARN] https server terminated, %s", err)
+		return httpsServer.ListenAndServeTLS("", "")
 	}
+	return errors.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
 }
 
 func (h *Http) toHttp(address string) string {
@@ -143,24 +113,15 @@ func (h *Http) toHttp(address string) string {
 }
 
 func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
-	gzHandler := func(next http.Handler) http.Handler {
+	if h.GzEnabled {
+		return R.Gzip
+	}
+
+	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 		})
 	}
-	if h.GzEnabled {
-		gzHandler = middleware.Gzip
-	}
-	return gzHandler
-}
-
-// wrap convert a list of middlewares to nested calls, in reversed order
-func (h *Http) wrap(p http.Handler, mws ...func(http.Handler) http.Handler) http.Handler {
-	res := p
-	for i := len(mws) - 1; i >= 0; i-- {
-		res = mws[i](res)
-	}
-	return res
 }
 
 func (h *Http) proxyHandler() http.HandlerFunc {

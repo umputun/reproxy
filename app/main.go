@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -11,7 +10,7 @@ import (
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/go-pkgz/lgr"
+	log "github.com/go-pkgz/lgr"
 	"github.com/pkg/errors"
 	"github.com/umputun/go-flags"
 
@@ -26,6 +25,14 @@ var opts struct {
 	MaxSize      int64         `long:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
 	GzipEnabled  bool          `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers"`
+
+	SSL struct {
+		Type         string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
+		Cert         string `long:"cert" env:"CERT" description:"path to cert.pem file"`
+		Key          string `long:"key" env:"KEY" description:"path to key.pem file"`
+		ACMELocation string `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
+		ACMEEmail    string `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
+	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
 		Location string `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
@@ -52,6 +59,16 @@ var opts struct {
 	} `group:"static" namespace:"static" env-namespace:"STATIC"`
 
 	Dbg bool `long:"dbg" env:"DEBUG" description:"debug mode"`
+}
+
+// SSLGroup defines options group for server ssl params
+type SSLGroup struct {
+	Type         string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
+	Port         int    `long:"port" env:"PORT" description:"port number for https server" default:"8443"`
+	Cert         string `long:"cert" env:"CERT" description:"path to cert.pem file"`
+	Key          string `long:"key" env:"KEY" description:"path to key.pem file"`
+	ACMELocation string `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
+	ACMEEmail    string `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
 }
 
 var revision = "unknown"
@@ -84,10 +101,15 @@ func main() {
 
 	svc := discovery.NewService(providers)
 	go func() {
-		if err := svc.Do(context.Background()); err != nil {
+		if err := svc.Run(context.Background()); err != nil {
 			log.Fatalf("[ERROR] discovery failed, %v", err)
 		}
 	}()
+
+	sslConfig, err := makeSSLConfig()
+	if err != nil {
+		log.Fatalf("[ERROR] failed to make config of ssl server params, %v", err)
+	}
 
 	px := &proxy.Http{
 		Version:        revision,
@@ -98,8 +120,9 @@ func main() {
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
 		GzEnabled:      opts.GzipEnabled,
+		SSLConfig:      sslConfig,
 	}
-	if err := px.Do(context.Background()); err != nil {
+	if err := px.Run(context.Background()); err != nil {
 		log.Fatalf("[ERROR] proxy server failed, %v", err)
 	}
 }
@@ -133,13 +156,34 @@ func makeProviders() ([]discovery.Provider, error) {
 	return res, nil
 }
 
-func setupLog(dbg bool) {
-
-	logOpts := []lgr.Option{lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
-	if dbg {
-		logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+func makeSSLConfig() (config proxy.SSLConfig, err error) {
+	switch opts.SSL.Type {
+	case "none":
+		config.SSLMode = proxy.SSLNone
+	case "static":
+		if opts.SSL.Cert == "" {
+			return config, errors.New("path to cert.pem is required")
+		}
+		if opts.SSL.Key == "" {
+			return config, errors.New("path to key.pem is required")
+		}
+		config.SSLMode = proxy.SSLStatic
+		config.Cert = opts.SSL.Cert
+		config.Key = opts.SSL.Key
+	case "auto":
+		config.SSLMode = proxy.SSLAuto
+		config.ACMELocation = opts.SSL.ACMELocation
+		config.ACMEEmail = opts.SSL.ACMEEmail
 	}
-	lgr.SetupStdLogger(logOpts...)
+	return config, err
+}
+
+func setupLog(dbg bool) {
+	if dbg {
+		log.Setup(log.Debug, log.CallerFile, log.CallerFunc, log.Msec, log.LevelBraces)
+		return
+	}
+	log.Setup(log.Msec, log.LevelBraces)
 }
 
 func catchSignal() {

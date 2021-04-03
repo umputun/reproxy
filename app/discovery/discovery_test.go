@@ -46,7 +46,7 @@ func TestService_Do(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	err := svc.Do(ctx)
+	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.Equal(t, 3, len(svc.mappers))
@@ -100,7 +100,7 @@ func TestService_Match(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	err := svc.Do(ctx)
+	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.Equal(t, 3, len(svc.mappers))
