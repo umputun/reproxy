@@ -24,7 +24,7 @@ var opts struct {
 	TimeOut      time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"proxy timeout"`
 	MaxSize      int64         `long:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
 	GzipEnabled  bool          `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers"`
+	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
 
 	SSL struct {
 		Type          string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
@@ -44,7 +44,7 @@ var opts struct {
 		Enabled  bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
 		Host     string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
 		Network  string   `long:"network" env:"NETWORK" default:"default" description:"docker network"`
-		Excluded []string `long:"exclude" env:"EXCLUDE" description:"excluded containers"`
+		Excluded []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
 	} `group:"docker" namespace:"docker" env-namespace:"DOCKER"`
 
 	File struct {
@@ -56,7 +56,7 @@ var opts struct {
 
 	Static struct {
 		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable static provider"`
-		Rules   []string `long:"rule" env:"RULES" description:"routing rules"`
+		Rules   []string `long:"rule" env:"RULES" description:"routing rules" env-delim:","`
 	} `group:"static" namespace:"static" env-namespace:"STATIC"`
 
 	Dbg bool `long:"dbg" env:"DEBUG" description:"debug mode"`
