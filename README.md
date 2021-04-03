@@ -1,4 +1,4 @@
-# docker-proxy (dpx)
+# docker-proxy (dpx) [![build](https://github.com/umputun/docker-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/docker-proxy/actions/workflows/ci.yml)
 
 Simple edge HTTP(s) proxy for various providers (docker, static, file). One or more providers supply information 
 about requested server, requested url and destination url. 
