@@ -2,10 +2,9 @@ name: build
 
 on:
   push:
-    tags: [v*]
     branches:
+    tags:
   pull_request:
-  repository_dispatch:
 
 jobs:
   build:
