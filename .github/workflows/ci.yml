@@ -24,7 +24,7 @@ jobs:
         run: |
           go test -v -timeout=100s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
           cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mocks" | grep -v "_mock" > $GITHUB_WORKSPACE/profile.cov
-        working-directory: backend/app
+        working-directory: app
         env:
           GOFLAGS: "-mod=vendor"
           TZ: "America/Chicago"
@@ -36,7 +36,7 @@ jobs:
 
       - name: run linters
         run: $GITHUB_WORKSPACE/golangci-lint run --out-format=github-actions
-        working-directory: backend/app
+        working-directory: app
         env:
           GOFLAGS: "-mod=vendor"
           TZ: "America/Chicago"
