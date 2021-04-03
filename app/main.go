@@ -27,11 +27,12 @@ var opts struct {
 	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers"`
 
 	SSL struct {
-		Type         string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
-		Cert         string `long:"cert" env:"CERT" description:"path to cert.pem file"`
-		Key          string `long:"key" env:"KEY" description:"path to key.pem file"`
-		ACMELocation string `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
-		ACMEEmail    string `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
+		Type          string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
+		Cert          string `long:"cert" env:"CERT" description:"path to cert.pem file"`
+		Key           string `long:"key" env:"KEY" description:"path to key.pem file"`
+		ACMELocation  string `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
+		ACMEEmail     string `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
+		RedirHttpPort int    `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
@@ -161,10 +162,12 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.SSLMode = proxy.SSLStatic
 		config.Cert = opts.SSL.Cert
 		config.Key = opts.SSL.Key
+		config.RedirHttpPort = opts.SSL.RedirHttpPort
 	case "auto":
 		config.SSLMode = proxy.SSLAuto
 		config.ACMELocation = opts.SSL.ACMELocation
 		config.ACMEEmail = opts.SSL.ACMEEmail
+		config.RedirHttpPort = opts.SSL.RedirHttpPort
 	}
 	return config, err
 }

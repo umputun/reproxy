@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Http is a proxy server for both http and https
 type Http struct {
 	Matcher
 	Address        string
@@ -29,6 +32,8 @@ type Http struct {
 	Version        string
 }
 
+// Matcher source info (server and route) to the destination url
+// If no match found return ok=false
 type Matcher interface {
 	Match(srv, src string) (string, bool)
 }
@@ -78,11 +83,11 @@ func (h *Http) Run(ctx context.Context) error {
 		httpsServer = h.makeHTTPSServer(h.Address, handler)
 		httpsServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
-		httpServer = h.makeHTTPServer(h.toHttp(h.Address), h.httpToHTTPSRouter())
+		httpServer = h.makeHTTPServer(h.toHttp(h.Address, h.SSLConfig.RedirHttpPort), h.httpToHTTPSRouter())
 		httpServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
 		go func() {
-			log.Printf("[INFO] activate http redirect server on %s", h.toHttp(h.Address))
+			log.Printf("[INFO] activate http redirect server on %s", h.toHttp(h.Address, h.SSLConfig.RedirHttpPort))
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http redirect server terminated, %s", err)
 		}()
@@ -94,11 +99,11 @@ func (h *Http) Run(ctx context.Context) error {
 		httpsServer = h.makeHTTPSAutocertServer(h.Address, handler, m)
 		httpsServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
-		httpServer = h.makeHTTPServer(h.toHttp(h.Address), h.httpChallengeRouter(m))
+		httpServer = h.makeHTTPServer(h.toHttp(h.Address, h.SSLConfig.RedirHttpPort), h.httpChallengeRouter(m))
 		httpServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
 		go func() {
-			log.Printf("[INFO] activate http challenge server on port %s", h.toHttp(h.Address))
+			log.Printf("[INFO] activate http challenge server on port %s", h.toHttp(h.Address, h.SSLConfig.RedirHttpPort))
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http challenge server terminated, %s", err)
 		}()
@@ -108,8 +113,9 @@ func (h *Http) Run(ctx context.Context) error {
 	return errors.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
 }
 
-func (h *Http) toHttp(address string) string {
-	return strings.Replace(address, ":443", ":80", 1)
+func (h *Http) toHttp(address string, httpPort int) string {
+	rx := regexp.MustCompile(`(.*):(\d*)`)
+	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
 }
 
 func (h *Http) gzipHandler() func(next http.Handler) http.Handler {

@@ -28,12 +28,13 @@ const (
 
 // SSLConfig holds all ssl params for rest server
 type SSLConfig struct {
-	SSLMode      sslMode
-	Cert         string
-	Key          string
-	ACMELocation string
-	ACMEEmail    string
-	FQDNs        []string
+	SSLMode       sslMode
+	Cert          string
+	Key           string
+	ACMELocation  string
+	ACMEEmail     string
+	FQDNs         []string
+	RedirHttpPort int
 }
 
 // httpToHTTPSRouter creates new router which does redirect from http to https server

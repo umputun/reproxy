@@ -37,14 +37,12 @@ func TestHttp_Do(t *testing.T) {
 		}})
 
 	go func() {
-		err := svc.Run(context.Background())
-		assert.Equal(t, context.DeadlineExceeded, err)
+		_ = svc.Run(context.Background())
 	}()
 
 	h.Matcher = svc
 	go func() {
-		err := h.Run(ctx)
-		assert.Equal(t, context.DeadlineExceeded, err)
+		_ = h.Run(ctx)
 	}()
 	time.Sleep(10 * time.Millisecond)
 
@@ -85,4 +83,26 @@ func TestHttp_Do(t *testing.T) {
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
 
 	}
+}
+
+func TestHttp_toHttp(t *testing.T) {
+
+	tbl := []struct {
+		addr string
+		port int
+		res  string
+	}{
+		{"localhost:1234", 80, "localhost:80"},
+		{"m.example.com:443", 8080, "m.example.com:8080"},
+		{"192.168.1.1:1443", 8080, "192.168.1.1:8080"},
+	}
+
+	h := Http{}
+	for i, tt := range tbl {
+		tt := tt
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			assert.Equal(t, tt.res, h.toHttp(tt.addr, tt.port))
+		})
+	}
+
 }
