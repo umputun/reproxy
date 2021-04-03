@@ -22,7 +22,7 @@ import (
 var opts struct {
 	Listen       string        `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
 	TimeOut      time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"proxy timeout"`
-	MaxSize      int64         `long:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
+	MaxSize      int64         `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
 	GzipEnabled  bool          `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
 
