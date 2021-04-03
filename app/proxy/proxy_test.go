@@ -13,8 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/umputun/docker-proxy/app/discovery"
-	"github.com/umputun/docker-proxy/app/discovery/provider"
+
+	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/discovery/provider"
 )
 
 func TestHttp_Do(t *testing.T) {

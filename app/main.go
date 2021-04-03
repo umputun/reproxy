@@ -14,9 +14,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/umputun/go-flags"
 
-	"github.com/umputun/docker-proxy/app/discovery"
-	"github.com/umputun/docker-proxy/app/discovery/provider"
-	"github.com/umputun/docker-proxy/app/proxy"
+	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/discovery/provider"
+	"github.com/umputun/reproxy/app/proxy"
 )
 
 var opts struct {

@@ -1,4 +1,4 @@
-module github.com/umputun/docker-proxy
+module github.com/umputun/reproxy
 
 go 1.16
 

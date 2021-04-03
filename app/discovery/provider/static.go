@@ -7,7 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/umputun/docker-proxy/app/discovery"
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 // Static provider, rules are server,from,to

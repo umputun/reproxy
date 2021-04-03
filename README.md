@@ -1,6 +1,6 @@
-# docker-proxy (dpx) [![build](https://github.com/umputun/docker-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/docker-proxy/actions/workflows/ci.yml)
+# reproxy [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)
 
-Simple edge HTTP(s) proxy for various providers (docker, static, file). One or more providers supply information 
+Simple edge reverse HTTP(s) proxy for various providers (docker, static, file). One or more providers supply information 
 about requested server, requested url and destination url. 
 
 Server can be FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url

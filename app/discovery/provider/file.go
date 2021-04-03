@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
-	"github.com/umputun/docker-proxy/app/discovery"
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 // File implements file-based provider

@@ -11,7 +11,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/pkg/errors"
 
-	"github.com/umputun/docker-proxy/app/discovery"
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 //go:generate moq -out docker_client_mock.go -skip-ensure -fmt goimports . DockerClient
