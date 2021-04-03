@@ -20,8 +20,8 @@ func TestService_Do(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{SrcMatch: regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
-				{SrcMatch: regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
+				{Server: "*", SrcMatch: regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
+				{Server: "*", SrcMatch: regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {
@@ -34,7 +34,7 @@ func TestService_Do(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{SrcMatch: regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{Server: "localhost", SrcMatch: regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {
@@ -51,6 +51,7 @@ func TestService_Do(t *testing.T) {
 	assert.Equal(t, context.DeadlineExceeded, err)
 	assert.Equal(t, 3, len(svc.mappers))
 	assert.Equal(t, PIFile, svc.mappers[0].ProviderID)
+	assert.Equal(t, "*", svc.mappers[0].Server)
 	assert.Equal(t, "^/api/svc1/(.*)", svc.mappers[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.1:8080/blah1/$1", svc.mappers[0].Dst)
 

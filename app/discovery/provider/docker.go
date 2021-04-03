@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	dclient "github.com/fsouza/go-dockerclient"
+	dc "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
 	"github.com/pkg/errors"
 
@@ -16,7 +16,11 @@ import (
 
 //go:generate moq -out docker_client_mock.go -skip-ensure -fmt goimports . DockerClient
 
-// Docker emits all changes from all containers states
+// Docker provide watch compatible changes from containers
+// and maps by default from ^/api/%s/(.*) to http://%s:%d/$1, i.e. http://example.com/api/my_container/something
+// will be mapped to http://172.17.42.1:8080/something. Ip will be the internal ip of the container and port - exposed the one
+// Alternatively labels can alter this. dpx.route sets source route, and dpx.dest sets the destination. Optional dpx.server enforces
+// match by server name (hostname).
 type Docker struct {
 	DockerClient DockerClient
 	Excludes     []string
@@ -25,8 +29,8 @@ type Docker struct {
 
 // DockerClient defines interface listing containers and subscribing to events
 type DockerClient interface {
-	ListContainers(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error)
-	AddEventListener(listener chan<- *dclient.APIEvents) error
+	ListContainers(opts dc.ListContainersOptions) ([]dc.APIContainers, error)
+	AddEventListener(listener chan<- *dc.APIEvents) error
 }
 
 // containerInfo is simplified docker.APIEvents for containers only
@@ -98,7 +102,7 @@ func (d *Docker) ID() discovery.ProviderID { return discovery.PIDocker }
 // activate starts blocking listener for all docker events
 // filters everything except "container" type, detects stop/start events and publishes signals to eventsCh
 func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan struct{}) error {
-	dockerEventsCh := make(chan *dclient.APIEvents)
+	dockerEventsCh := make(chan *dc.APIEvents)
 	if err := client.AddEventListener(dockerEventsCh); err != nil {
 		return errors.Wrap(err, "can't add even listener")
 	}
@@ -132,14 +136,14 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 
 func (d *Docker) listContainers() (res []containerInfo, err error) {
 
-	portExposed := func(c dclient.APIContainers) (int, bool) {
+	portExposed := func(c dc.APIContainers) (int, bool) {
 		if len(c.Ports) == 0 {
 			return 0, false
 		}
 		return int(c.Ports[0].PrivatePort), true
 	}
 
-	containers, err := d.DockerClient.ListContainers(dclient.ListContainersOptions{All: false})
+	containers, err := d.DockerClient.ListContainers(dc.ListContainersOptions{All: false})
 	if err != nil {
 		return nil, errors.Wrap(err, "can't list containers")
 	}

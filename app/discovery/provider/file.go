@@ -25,7 +25,7 @@ type File struct {
 func (d *File) Events(ctx context.Context) <-chan struct{} {
 	res := make(chan struct{})
 
-	// no need to queue multiple events or wait
+	// no need to queue multiple events
 	trySubmit := func(ch chan struct{}) {
 		select {
 		case ch <- struct{}{}:

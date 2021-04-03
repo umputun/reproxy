@@ -6,6 +6,7 @@ package discovery
 
 import (
 	"context"
+	"log"
 	"regexp"
 	"sync"
 )
@@ -63,10 +64,14 @@ func (s *Service) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ch:
-			m := s.mergeLists()
+			log.Printf("[DEBUG] new update event received")
+			lst := s.mergeLists()
+			for _, m := range lst {
+				log.Printf("[INFO] match for %s: %s %s %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+			}
 			s.lock.Lock()
-			s.mappers = make([]UrlMapper, len(m))
-			copy(s.mappers, m)
+			s.mappers = make([]UrlMapper, len(lst))
+			copy(s.mappers, lst)
 			s.lock.Unlock()
 		}
 	}

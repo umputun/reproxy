@@ -12,7 +12,7 @@ import (
 
 // Static provider, rules are server,from,to
 type Static struct {
-	Rules []string
+	Rules []string // each rule is 2 or 3 elements comma separated. [server,]source url,destination
 }
 
 // Events returns channel updating once
