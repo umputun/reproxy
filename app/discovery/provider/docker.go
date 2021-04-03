@@ -48,14 +48,15 @@ var (
 func (d *Docker) Events(ctx context.Context) (res <-chan struct{}) {
 	eventsCh := make(chan struct{})
 	go func() {
+		// loop over to recover from failed events call
 		for {
-			err := d.events(ctx, d.DockerClient, eventsCh)
+			err := d.events(ctx, d.DockerClient, eventsCh) // publish events to eventsCh
 			if err == context.Canceled || err == context.DeadlineExceeded {
 				close(eventsCh)
 				return
 			}
 			log.Printf("[WARN] docker events listener failed, restarted, %v", err)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond) // prevent busy loop on restart event listener
 		}
 	}()
 	return eventsCh

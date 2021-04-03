@@ -118,6 +118,7 @@ func TestService_Match(t *testing.T) {
 	}
 
 	for i, tt := range tbl {
+		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res, ok := svc.Match(tt.server, tt.src)
 			assert.Equal(t, tt.ok, ok)

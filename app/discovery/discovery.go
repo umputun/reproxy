@@ -34,8 +34,10 @@ type Provider interface {
 	ID() ProviderID
 }
 
+// ProviderID holds provider identifier to emulate enum of them
 type ProviderID string
 
+// enum of all provider ids
 const (
 	PIDocker ProviderID = "docker"
 	PIStatic ProviderID = "static"

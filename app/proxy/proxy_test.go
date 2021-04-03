@@ -37,12 +37,14 @@ func TestHttp_Do(t *testing.T) {
 		}})
 
 	go func() {
-		svc.Run(context.Background())
+		err := svc.Run(context.Background())
+		assert.Equal(t, context.DeadlineExceeded, err)
 	}()
 
 	h.Matcher = svc
 	go func() {
-		h.Run(ctx)
+		err := h.Run(ctx)
+		assert.Equal(t, context.DeadlineExceeded, err)
 	}()
 	time.Sleep(10 * time.Millisecond)
 
@@ -51,6 +53,7 @@ func TestHttp_Do(t *testing.T) {
 	{
 		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/api/something")
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		t.Logf("%+v", resp.Header)
 
@@ -64,6 +67,7 @@ func TestHttp_Do(t *testing.T) {
 	{
 		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/api/something")
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		t.Logf("%+v", resp.Header)
 
@@ -77,6 +81,7 @@ func TestHttp_Do(t *testing.T) {
 	{
 		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/bad/something")
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
 
 	}

@@ -61,16 +61,6 @@ var opts struct {
 	Dbg bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 }
 
-// SSLGroup defines options group for server ssl params
-type SSLGroup struct {
-	Type         string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
-	Port         int    `long:"port" env:"PORT" description:"port number for https server" default:"8443"`
-	Cert         string `long:"cert" env:"CERT" description:"path to cert.pem file"`
-	Key          string `long:"key" env:"KEY" description:"path to key.pem file"`
-	ACMELocation string `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
-	ACMEEmail    string `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
-}
-
 var revision = "unknown"
 
 func main() {
@@ -101,8 +91,8 @@ func main() {
 
 	svc := discovery.NewService(providers)
 	go func() {
-		if err := svc.Run(context.Background()); err != nil {
-			log.Fatalf("[ERROR] discovery failed, %v", err)
+		if e := svc.Run(context.Background()); e != nil {
+			log.Fatalf("[ERROR] discovery failed, %v", e)
 		}
 	}()
 
@@ -121,6 +111,7 @@ func main() {
 		AssetsWebRoot:  opts.Assets.WebRoot,
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,
+		ProxyHeaders:   opts.ProxyHeaders,
 	}
 	if err := px.Run(context.Background()); err != nil {
 		log.Fatalf("[ERROR] proxy server failed, %v", err)

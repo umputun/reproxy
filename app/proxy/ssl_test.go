@@ -28,7 +28,7 @@ func TestSSL_Redirect(t *testing.T) {
 
 		// allow self-signed certificate
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint
 		},
 	}
 
