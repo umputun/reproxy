@@ -120,7 +120,7 @@ func (h *Http) toHttp(address string, httpPort int) string {
 
 func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 	if h.GzEnabled {
-		return R.Gzip
+		return R.Gzip()
 	}
 
 	return func(next http.Handler) http.Handler {
