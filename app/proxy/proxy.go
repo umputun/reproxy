@@ -37,6 +37,7 @@ type Http struct {
 // If no match found return ok=false
 type Matcher interface {
 	Match(srv, src string) (string, bool)
+	Servers() (servers []string)
 }
 
 // Run the lister and request's router, activate rest server
@@ -72,6 +73,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.gzipHandler(),
 	)
 
+	h.SSLConfig.FQDNs = h.Servers() // fill all servers
 	switch h.SSLConfig.SSLMode {
 	case SSLNone:
 		log.Printf("[INFO] activate http proxy server on %s", h.Address)

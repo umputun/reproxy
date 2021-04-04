@@ -94,6 +94,19 @@ func (s *Service) Match(srv, src string) (string, bool) {
 	return src, false
 }
 
+// Servers return list of all servers, skips "*" (catch-all/default)
+func (s *Service) Servers() (servers []string) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	for _, m := range s.mappers {
+		if m.Server == "*" || m.Server == "" {
+			continue
+		}
+		servers = append(servers, m.Server)
+	}
+	return servers
+}
+
 func (s *Service) mergeLists() (res []UrlMapper) {
 	for _, p := range s.providers {
 		lst, err := p.List()
