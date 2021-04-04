@@ -1,7 +1,7 @@
 # reproxy [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)
 
 Simple edge reverse HTTP(s) proxy for various providers (docker, static, file). One or more providers supply information 
-about requested server, requested url and destination url. 
+about requested server, requested url and destination url. Distributed as a single binary and a docker container.
 
 Server can be FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url
 may have regex matched groups, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
@@ -11,7 +11,7 @@ ACME (Let's Encrypt) certificates. Optional assets server can be used to serve s
 
 Starting dpx requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
-example with a static provider: `dbx --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
+example with a static provider: `reproxy --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
 
 ## Providers
 
@@ -25,7 +25,7 @@ Each rule is 2 or 3 comma-separated elements `[server,]sourceurl,destination`. F
 
 ## File
 
-`dbx --file.enabled --file.name=config.yml`
+`reproxy --file.enabled --file.name=config.yml`
 
 example of `config.yml`:
 

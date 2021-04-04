@@ -48,5 +48,5 @@ jobs:
           ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
           echo GITHUB_REF - $ref
           docker login docker.pkg.github.com -u umputun -p ${GITHUB_PACKAGE_TOKEN}
-          docker build -t docker.pkg.github.com/umputun/docker-proxy/dpx:${ref} .
-          docker push docker.pkg.github.com/umputun/docker-proxy/dpx:${ref}
+          docker build -t docker.pkg.github.com/umputun/reproxy/reproxy:${ref} .
+          docker push docker.pkg.github.com/umputun/reproxy/reproxy:${ref}
