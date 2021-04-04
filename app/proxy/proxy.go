@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -142,6 +143,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			r.URL.Scheme = uu.Scheme
 			r.Header.Add("X-Forwarded-Host", uu.Host)
 			r.Header.Add("X-Origin-Host", r.Host)
+			h.setXRealIP(r)
 		},
 	}
 
@@ -195,4 +197,18 @@ func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
+}
+
+func (h *Http) setXRealIP(r *http.Request) {
+
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return
+	}
+
+	userIP := net.ParseIP(ip)
+	if userIP == nil {
+		return
+	}
+	r.Header.Add("X-Real-IP", ip)
 }

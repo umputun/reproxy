@@ -27,6 +27,7 @@ func TestHttp_Do(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
+		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -50,7 +51,9 @@ func TestHttp_Do(t *testing.T) {
 	client := http.Client{}
 
 	{
-		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/api/something")
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
