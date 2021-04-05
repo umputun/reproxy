@@ -1,0 +1,14 @@
+[Unit]
+Description=Reverse proxy service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/usr/bin/reproxy -f /etc/reproxy.yml -u
+
+[Install]
+WantedBy=multi-user.target
