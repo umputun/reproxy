@@ -60,5 +60,8 @@ func TestFile_List(t *testing.T) {
 	assert.Equal(t, 3, len(res))
 	assert.Equal(t, "^/api/svc1/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", res[1].Dst)
+	assert.Equal(t, "http://127.0.0.3:8080/ping", res[1].PingURL)
 	assert.Equal(t, "http://127.0.0.2:8080/blah2/$1/abc", res[2].Dst)
+	assert.Equal(t, "", res[2].PingURL)
+
 }

@@ -11,15 +11,15 @@ import (
 func TestStatic_List(t *testing.T) {
 
 	tbl := []struct {
-		rule             string
-		server, src, dst string
-		err              bool
+		rule                   string
+		server, src, dst, ping string
+		err                    bool
 	}{
-		{"example.com,123,456", "example.com", "123", "456", false},
-		{"*,123,456", "*", "123", "456", false},
-		{"123,456", "*", "123", "456", false},
-		{"123", "", "", "", true},
-		{"example.com , 123, 456 ", "example.com", "123", "456", false},
+		{"example.com,123,456, ping ", "example.com", "123", "456", "ping", false},
+		{"*,123,456,", "*", "123", "456", "", false},
+		{"123,456", "", "", "", "", true},
+		{"123", "", "", "", "", true},
+		{"example.com , 123, 456 ,ping", "example.com", "123", "456", "ping", false},
 	}
 
 	for i, tt := range tbl {
@@ -35,6 +35,7 @@ func TestStatic_List(t *testing.T) {
 			assert.Equal(t, tt.server, res[0].Server)
 			assert.Equal(t, tt.src, res[0].SrcMatch.String())
 			assert.Equal(t, tt.dst, res[0].Dst)
+			assert.Equal(t, tt.ping, res[0].PingURL)
 		})
 	}
 

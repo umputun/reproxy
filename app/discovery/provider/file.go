@@ -69,6 +69,7 @@ func (d *File) List() (res []discovery.UrlMapper, err error) {
 	var fileConf map[string][]struct {
 		SourceRoute string `yaml:"route"`
 		Dest        string `yaml:"dest"`
+		Ping        string `yaml:"ping"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -90,7 +91,8 @@ func (d *File) List() (res []discovery.UrlMapper, err error) {
 			if srv == "default" {
 				srv = "*"
 			}
-			res = append(res, discovery.UrlMapper{Server: srv, SrcMatch: rx, Dst: f.Dest})
+			mapper := discovery.UrlMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping}
+			res = append(res, mapper)
 		}
 	}
 	return res, nil

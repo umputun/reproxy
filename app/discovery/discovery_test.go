@@ -20,8 +20,8 @@ func TestService_Do(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{Server: "*", SrcMatch: regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
-				{Server: "*", SrcMatch: regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {
@@ -34,7 +34,7 @@ func TestService_Do(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{Server: "localhost", SrcMatch: regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {
@@ -74,8 +74,8 @@ func TestService_Match(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{SrcMatch: regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
-				{Server: "m.example.com", SrcMatch: regexp.MustCompile("^/api/svc2/(.*)"),
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
 			}, nil
 		},
@@ -89,7 +89,7 @@ func TestService_Match(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{SrcMatch: regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {
@@ -137,8 +137,8 @@ func TestService_Servers(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{SrcMatch: regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
-				{Server: "m.example.com", SrcMatch: regexp.MustCompile("^/api/svc2/(.*)"),
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
 			}, nil
 		},
@@ -152,7 +152,7 @@ func TestService_Servers(t *testing.T) {
 		},
 		ListFunc: func() ([]UrlMapper, error) {
 			return []UrlMapper{
-				{Server: "xx.reproxy.io", SrcMatch: regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{Server: "xx.reproxy.io", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {

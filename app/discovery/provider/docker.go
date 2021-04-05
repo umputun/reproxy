@@ -77,22 +77,29 @@ func (d *Docker) List() ([]discovery.UrlMapper, error) {
 	for _, c := range containers {
 		srcURL := fmt.Sprintf("^/api/%s/(.*)", c.Name)
 		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, c.Port)
+		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, c.Port)
 		server := "*"
-		if v, ok := c.Labels["dpx.route"]; ok {
+
+		if v, ok := c.Labels["reproxy.route"]; ok {
 			srcURL = v
 		}
-		if v, ok := c.Labels["dpx.dest"]; ok {
+		if v, ok := c.Labels["reproxy.dest"]; ok {
 			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
 		}
-		if v, ok := c.Labels["dpx.server"]; ok {
+		if v, ok := c.Labels["reproxy.server"]; ok {
 			server = v
 		}
 		srcRegex, err := regexp.Compile(srcURL)
+
+		if v, ok := c.Labels["reproxy.ping"]; ok {
+			pingURL = v
+		}
+
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
 		}
 
-		res = append(res, discovery.UrlMapper{Server: server, SrcMatch: srcRegex, Dst: destURL})
+		res = append(res, discovery.UrlMapper{Server: server, SrcMatch: *srcRegex, Dst: destURL, PingURL: pingURL})
 	}
 	return res, nil
 }

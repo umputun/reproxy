@@ -23,9 +23,10 @@ type Service struct {
 // UrlMapper contains all info about source and destination routes
 type UrlMapper struct {
 	Server     string
-	SrcMatch   *regexp.Regexp
+	SrcMatch   regexp.Regexp
 	Dst        string
 	ProviderID ProviderID
+	PingURL    string
 }
 
 // Provider defines sources of mappers
@@ -105,6 +106,14 @@ func (s *Service) Servers() (servers []string) {
 		servers = append(servers, m.Server)
 	}
 	return servers
+}
+
+// Mappers return list of all mappers
+func (s *Service) Mappers() (mappers []UrlMapper) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	mappers = append(mappers, s.mappers...)
+	return mappers
 }
 
 func (s *Service) mergeLists() (res []UrlMapper) {
