@@ -66,12 +66,10 @@ func (d *File) Events(ctx context.Context) <-chan struct{} {
 // List all src dst pairs
 func (d *File) List() (res []discovery.UrlMapper, err error) {
 
-	var fileConf []struct {
-		SourceServer string `yaml:"server"`
-		SourceRoute  string `yaml:"route"`
-		Dest         string `yaml:"dest"`
+	var fileConf map[string][]struct {
+		SourceRoute string `yaml:"route"`
+		Dest        string `yaml:"dest"`
 	}
-
 	fh, err := os.Open(d.FileName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "can't open %s", d.FileName)
@@ -83,12 +81,17 @@ func (d *File) List() (res []discovery.UrlMapper, err error) {
 	}
 	log.Printf("[DEBUG] file provider %+v", res)
 
-	for _, f := range fileConf {
-		rx, err := regexp.Compile(f.SourceRoute)
-		if err != nil {
-			return nil, errors.Wrapf(err, "can't parse regex %s", f.SourceRoute)
+	for srv, fl := range fileConf {
+		for _, f := range fl {
+			rx, err := regexp.Compile(f.SourceRoute)
+			if err != nil {
+				return nil, errors.Wrapf(err, "can't parse regex %s", f.SourceRoute)
+			}
+			if srv == "default" {
+				srv = "*"
+			}
+			res = append(res, discovery.UrlMapper{Server: srv, SrcMatch: rx, Dst: f.Dest})
 		}
-		res = append(res, discovery.UrlMapper{Server: f.SourceServer, SrcMatch: rx, Dst: f.Dest})
 	}
 	return res, nil
 }
