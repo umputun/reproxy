@@ -71,7 +71,7 @@ func (h *Http) Run(ctx context.Context) error {
 
 	handler := R.Wrap(h.proxyHandler(),
 		R.Recoverer(lgr.Default()),
-		R.AppInfo("dpx", "umputun", h.Version),
+		R.AppInfo("reproxy", "umputun", h.Version),
 		R.Ping,
 		h.healthMiddleware,
 		logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
