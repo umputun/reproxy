@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"runtime"
@@ -11,6 +12,7 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
+	"github.com/natefinch/lumberjack"
 	"github.com/pkg/errors"
 	"github.com/umputun/go-flags"
 
@@ -40,6 +42,13 @@ var opts struct {
 		WebRoot  string `long:"root" env:"ROOT" default:"/" description:"assets web root"`
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
+	Logger struct {
+		Enabled    bool   `long:"enabled" env:"ENABLED" description:"enable access and error rotated logs"`
+		FileName   string `long:"file" env:"FILE"  default:"access.log" description:"location of access log"`
+		MaxSize    int    `long:"max-size" env:"MAX_SIZE" default:"100" description:"maximum size in megabytes before it gets rotated"`
+		MaxBackups int    `long:"max-backups" env:"MAX_BACKUPS" default:"10" description:"maximum number of old log files to retain"`
+	} `group:"logger" namespace:"logger" env-namespace:"LOGGER"`
+
 	Docker struct {
 		Enabled  bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
 		Host     string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
@@ -65,7 +74,7 @@ var opts struct {
 var revision = "unknown"
 
 func main() {
-	fmt.Printf("docker-proxy (dpx) %s\n", revision)
+	fmt.Printf("reproxy %s\n", revision)
 
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	p.SubcommandsOptional = true
@@ -102,6 +111,14 @@ func main() {
 		log.Fatalf("[ERROR] failed to make config of ssl server params, %v", err)
 	}
 
+	accessLog := makeLogWriter()
+	defer func() {
+		if err := accessLog.Close(); err != nil {
+			log.Printf("[WARN] can't close access log, %v", err)
+		}
+
+	}()
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -113,6 +130,7 @@ func main() {
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,
 		ProxyHeaders:   opts.ProxyHeaders,
+		AccessLog:      accessLog,
 	}
 	if err := px.Run(context.Background()); err != nil {
 		log.Fatalf("[ERROR] proxy server failed, %v", err)
@@ -171,6 +189,24 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 	}
 	return config, err
 }
+
+func makeLogWriter() (accessLog io.WriteCloser) {
+	if !opts.Logger.Enabled {
+		return nopWriteCloser{io.Discard}
+	}
+	log.Printf("[INFO] logger enabled for %s", opts.Logger.FileName)
+	return &lumberjack.Logger{
+		Filename:   opts.Logger.FileName,
+		MaxSize:    opts.Logger.MaxSize,
+		MaxBackups: opts.Logger.MaxSize,
+		Compress:   true,
+		LocalTime:  true,
+	}
+}
+
+type nopWriteCloser struct{ io.Writer }
+
+func (n nopWriteCloser) Close() error { return nil }
 
 func setupLog(dbg bool) {
 	if dbg {

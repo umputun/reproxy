@@ -6,9 +6,10 @@ package discovery
 
 import (
 	"context"
-	"log"
 	"regexp"
 	"sync"
+
+	log "github.com/go-pkgz/lgr"
 )
 
 //go:generate moq -out provider_mock.go -fmt goimports . Provider

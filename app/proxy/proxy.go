@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"context"
-	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-pkgz/lgr"
@@ -19,7 +17,9 @@ import (
 	"github.com/go-pkgz/rest"
 	R "github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
+	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
+
 	"github.com/umputun/reproxy/app/discovery"
 )
 
@@ -35,6 +35,7 @@ type Http struct {
 	ProxyHeaders   []string
 	SSLConfig      SSLConfig
 	Version        string
+	AccessLog      io.Writer
 }
 
 // Matcher source info (server and route) to the destination url
@@ -74,6 +75,7 @@ func (h *Http) Run(ctx context.Context) error {
 		R.Ping,
 		h.healthMiddleware,
 		logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
+		h.accessLogHandler(h.AccessLog),
 		R.SizeLimit(h.MaxBodySize),
 		R.Headers(h.ProxyHeaders...),
 		h.gzipHandler(),
@@ -120,23 +122,6 @@ func (h *Http) Run(ctx context.Context) error {
 		return httpsServer.ListenAndServeTLS("", "")
 	}
 	return errors.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
-}
-
-func (h *Http) toHttp(address string, httpPort int) string {
-	rx := regexp.MustCompile(`(.*):(\d*)`)
-	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
-}
-
-func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
-	if h.GzEnabled {
-		return R.Gzip()
-	}
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-		})
-	}
 }
 
 func (h *Http) proxyHandler() http.HandlerFunc {
@@ -197,6 +182,29 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	}
 }
 
+func (h *Http) toHttp(address string, httpPort int) string {
+	rx := regexp.MustCompile(`(.*):(\d*)`)
+	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
+}
+
+func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
+	if h.GzEnabled {
+		return R.Gzip()
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return handlers.CombinedLoggingHandler(wr, next)
+	}
+}
+
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
@@ -219,74 +227,4 @@ func (h *Http) setXRealIP(r *http.Request) {
 		return
 	}
 	r.Header.Add("X-Real-IP", ip)
-}
-
-func (h *Http) healthMiddleware(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" && strings.HasSuffix(strings.ToLower(r.URL.Path), "/health") {
-			h.healthHandler(w, r)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-	return http.HandlerFunc(fn)
-}
-
-func (h *Http) healthHandler(w http.ResponseWriter, r *http.Request) {
-
-	// runs pings in parallel
-	check := func(mappers []discovery.UrlMapper) (ok bool, valid int, total int, errs []string) {
-		outCh := make(chan error, 8)
-		var pinged int32
-		var wg sync.WaitGroup
-		for _, m := range mappers {
-			if m.PingURL == "" {
-				continue
-			}
-			wg.Add(1)
-			go func(m discovery.UrlMapper) {
-				defer wg.Done()
-
-				atomic.AddInt32(&pinged, 1)
-				client := http.Client{Timeout: 100 * time.Millisecond}
-				resp, err := client.Get(m.PingURL)
-				if err != nil {
-					log.Printf("[WARN] failed to ping for health %s, %v", m.PingURL, err)
-					outCh <- fmt.Errorf("%s, %v", m.PingURL, err)
-					return
-				}
-				if resp.StatusCode != http.StatusOK {
-					log.Printf("[WARN] failed ping status for health %s (%s)", m.PingURL, resp.Status)
-					outCh <- fmt.Errorf("%s, %s", m.PingURL, resp.Status)
-					return
-				}
-			}(m)
-		}
-
-		go func() {
-			wg.Wait()
-			close(outCh)
-		}()
-
-		for e := range outCh {
-			errs = append(errs, e.Error())
-		}
-		return len(errs) == 0, int(atomic.LoadInt32(&pinged)) - len(errs), len(mappers), errs
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	ok, valid, total, errs := check(h.Mappers())
-	if !ok {
-		w.WriteHeader(http.StatusExpectationFailed)
-		_, err := fmt.Fprintf(w, `{"status": "failed", "passed": %d, "failed":%d, "errors": "%+v"}`, valid, total-valid, errs)
-		if err != nil {
-			log.Printf("[WARN] failed %v", err)
-		}
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprintf(w, `{"status": "ok", "services": %d}`, valid)
-	if err != nil {
-		log.Printf("[WARN] failed to send halth, %v", err)
-	}
 }

@@ -1,5 +1,5 @@
 *.test
 *.out
-.runconf
+access.log
 var/
 dist/
