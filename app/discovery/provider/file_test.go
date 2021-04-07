@@ -15,7 +15,7 @@ func TestFile_Events(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	tmp, err := ioutil.TempFile(os.TempDir(), "dpx-events")
+	tmp, err := ioutil.TempFile(os.TempDir(), "reproxy-events")
 	require.NoError(t, err)
 	tmp.Close()
 	defer os.Remove(tmp.Name())

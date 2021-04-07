@@ -16,7 +16,6 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/go-pkgz/rest"
 	R "github.com/go-pkgz/rest"
-	"github.com/go-pkgz/rest/logger"
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
 
@@ -26,16 +25,17 @@ import (
 // Http is a proxy server for both http and https
 type Http struct {
 	Matcher
-	Address        string
-	TimeOut        time.Duration
-	AssetsLocation string
-	AssetsWebRoot  string
-	MaxBodySize    int64
-	GzEnabled      bool
-	ProxyHeaders   []string
-	SSLConfig      SSLConfig
-	Version        string
-	AccessLog      io.Writer
+	Address          string
+	TimeOut          time.Duration
+	AssetsLocation   string
+	AssetsWebRoot    string
+	MaxBodySize      int64
+	GzEnabled        bool
+	ProxyHeaders     []string
+	SSLConfig        SSLConfig
+	Version          string
+	AccessLog        io.Writer
+	DisableSignature bool
 }
 
 // Matcher source info (server and route) to the destination url
@@ -71,10 +71,9 @@ func (h *Http) Run(ctx context.Context) error {
 
 	handler := R.Wrap(h.proxyHandler(),
 		R.Recoverer(lgr.Default()),
-		R.AppInfo("reproxy", "umputun", h.Version),
+		h.signatureHandler,
 		R.Ping,
 		h.healthMiddleware,
-		logger.New(logger.Prefix("[DEBUG] PROXY")).Handler,
 		h.accessLogHandler(h.AccessLog),
 		R.SizeLimit(h.MaxBodySize),
 		R.Headers(h.ProxyHeaders...),
@@ -199,6 +198,15 @@ func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 	}
 }
 
+func (h *Http) signatureHandler(next http.Handler) http.Handler {
+	if h.DisableSignature {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+	return R.AppInfo("reproxy", "umputun", h.Version)(next)
+}
+
 func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return handlers.CombinedLoggingHandler(wr, next)
@@ -217,7 +225,12 @@ func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 
 func (h *Http) setXRealIP(r *http.Request) {
 
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	remoteIP := r.Header.Get("X-Forwarded-For")
+	if remoteIP == "" {
+		remoteIP = r.RemoteAddr
+	}
+
+	ip, _, err := net.SplitHostPort(remoteIP)
 	if err != nil {
 		return
 	}

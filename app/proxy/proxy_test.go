@@ -21,7 +21,7 @@ import (
 
 func TestHttp_Do(t *testing.T) {
 	port := rand.Intn(10000) + 40000
-	h := Http{TimeOut: 200 * time.Millisecond, Address: fmt.Sprintf("127.0.0.1:%d", port)}
+	h := Http{TimeOut: 200 * time.Millisecond, Address: fmt.Sprintf("127.0.0.1:%d", port), AccessLog: io.Discard}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -63,7 +63,7 @@ func TestHttp_Do(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "dpx", resp.Header.Get("App-Name"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	}
 
@@ -77,7 +77,7 @@ func TestHttp_Do(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /123/something", string(body))
-		assert.Equal(t, "dpx", resp.Header.Get("App-Name"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	}
 

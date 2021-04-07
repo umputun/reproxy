@@ -19,8 +19,8 @@ import (
 // Docker provide watch compatible changes from containers
 // and maps by default from ^/api/%s/(.*) to http://%s:%d/$1, i.e. http://example.com/api/my_container/something
 // will be mapped to http://172.17.42.1:8080/something. Ip will be the internal ip of the container and port - exposed the one
-// Alternatively labels can alter this. dpx.route sets source route, and dpx.dest sets the destination. Optional dpx.server enforces
-// match by server name (hostname).
+// Alternatively labels can alter this. reproxy.route sets source route, and reproxy.dest sets the destination.
+// Optional reproxy.server enforces match by server name (hostname).
 type Docker struct {
 	DockerClient DockerClient
 	Excludes     []string
