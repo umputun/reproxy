@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"runtime"
@@ -194,7 +195,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 
 func makeAccessLogWriter() (accessLog io.WriteCloser) {
 	if !opts.Logger.Enabled {
-		return nopWriteCloser{io.Discard}
+		return nopWriteCloser{ioutil.Discard}
 	}
 	log.Printf("[INFO] logger enabled for %s", opts.Logger.FileName)
 	return &lumberjack.Logger{
