@@ -58,10 +58,19 @@ func TestFile_List(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("%+v", res)
 	assert.Equal(t, 3, len(res))
-	assert.Equal(t, "^/api/svc1/(.*)", res[0].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", res[1].Dst)
-	assert.Equal(t, "http://127.0.0.3:8080/ping", res[1].PingURL)
+
+	assert.Equal(t, "/api/svc3/xyz", res[0].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", res[0].Dst)
+	assert.Equal(t, "http://127.0.0.3:8080/ping", res[0].PingURL)
+	assert.Equal(t, "*", res[0].Server)
+
+	assert.Equal(t, "^/api/svc1/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.1:8080/blah1/$1", res[1].Dst)
+	assert.Equal(t, "", res[1].PingURL)
+	assert.Equal(t, "*", res[1].Server)
+
+	assert.Equal(t, "^/api/svc2/(.*)", res[2].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:8080/blah2/$1/abc", res[2].Dst)
 	assert.Equal(t, "", res[2].PingURL)
-
+	assert.Equal(t, "srv.example.com", res[2].Server)
 }

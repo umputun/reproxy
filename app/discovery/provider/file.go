@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"regexp"
+	"sort"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
@@ -95,6 +96,12 @@ func (d *File) List() (res []discovery.UrlMapper, err error) {
 			res = append(res, mapper)
 		}
 	}
+	sort.Slice(res, func(i, j int) bool {
+		if res[i].Server == res[j].Server {
+			return res[i].SrcMatch.String() < res[j].SrcMatch.String()
+		}
+		return res[i].Server < res[j].Server
+	})
 	return res, nil
 }
 
