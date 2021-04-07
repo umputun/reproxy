@@ -58,7 +58,7 @@ var opts struct {
 
 	File struct {
 		Enabled       bool          `long:"enabled" env:"ENABLED" description:"enable file provider"`
-		Name          string        `long:"name" env:"NAME" default:"dpx.yml" description:"file name"`
+		Name          string        `long:"name" env:"NAME" default:"reproxy.yml" description:"file name"`
 		CheckInterval time.Duration `long:"interval" env:"INTERVAL" default:"3s" description:"file check interval"`
 		Delay         time.Duration `long:"delay" env:"DELAY" default:"500ms" description:"file event delay"`
 	} `group:"file" namespace:"file" env-namespace:"FILE"`
@@ -68,7 +68,8 @@ var opts struct {
 		Rules   []string `long:"rule" env:"RULES" description:"routing rules" env-delim:","`
 	} `group:"static" namespace:"static" env-namespace:"STATIC"`
 
-	Dbg bool `long:"dbg" env:"DEBUG" description:"debug mode"`
+	NoSignature bool `long:"no-signature" env:"NO_SIGNATURE" description:"disable reproxy signature headers"`
+	Dbg         bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 }
 
 var revision = "unknown"
@@ -111,7 +112,7 @@ func main() {
 		log.Fatalf("[ERROR] failed to make config of ssl server params, %v", err)
 	}
 
-	accessLog := makeLogWriter()
+	accessLog := makeAccessLogWriter()
 	defer func() {
 		if err := accessLog.Close(); err != nil {
 			log.Printf("[WARN] can't close access log, %v", err)
@@ -120,17 +121,18 @@ func main() {
 	}()
 
 	px := &proxy.Http{
-		Version:        revision,
-		Matcher:        svc,
-		Address:        opts.Listen,
-		TimeOut:        opts.TimeOut,
-		MaxBodySize:    opts.MaxSize,
-		AssetsLocation: opts.Assets.Location,
-		AssetsWebRoot:  opts.Assets.WebRoot,
-		GzEnabled:      opts.GzipEnabled,
-		SSLConfig:      sslConfig,
-		ProxyHeaders:   opts.ProxyHeaders,
-		AccessLog:      accessLog,
+		Version:          revision,
+		Matcher:          svc,
+		Address:          opts.Listen,
+		TimeOut:          opts.TimeOut,
+		MaxBodySize:      opts.MaxSize,
+		AssetsLocation:   opts.Assets.Location,
+		AssetsWebRoot:    opts.Assets.WebRoot,
+		GzEnabled:        opts.GzipEnabled,
+		SSLConfig:        sslConfig,
+		ProxyHeaders:     opts.ProxyHeaders,
+		AccessLog:        accessLog,
+		DisableSignature: opts.NoSignature,
 	}
 	if err := px.Run(context.Background()); err != nil {
 		log.Fatalf("[ERROR] proxy server failed, %v", err)
@@ -190,7 +192,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 	return config, err
 }
 
-func makeLogWriter() (accessLog io.WriteCloser) {
+func makeAccessLogWriter() (accessLog io.WriteCloser) {
 	if !opts.Logger.Enabled {
 		return nopWriteCloser{io.Discard}
 	}
@@ -198,7 +200,7 @@ func makeLogWriter() (accessLog io.WriteCloser) {
 	return &lumberjack.Logger{
 		Filename:   opts.Logger.FileName,
 		MaxSize:    opts.Logger.MaxSize,
-		MaxBackups: opts.Logger.MaxSize,
+		MaxBackups: opts.Logger.MaxBackups,
 		Compress:   true,
 		LocalTime:  true,
 	}
