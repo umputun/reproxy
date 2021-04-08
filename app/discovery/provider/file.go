@@ -14,8 +14,7 @@ import (
 	"github.com/umputun/reproxy/app/discovery"
 )
 
-// File implements file-based provider
-// Each line contains src:dst pairs, i.e. ^/api/svc1/(.*) http://127.0.0:8080/blah/$1
+// File implements file-based provider, defined with yaml file
 type File struct {
 	FileName      string
 	CheckInterval time.Duration

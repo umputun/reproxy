@@ -16,11 +16,12 @@ import (
 
 //go:generate moq -out docker_client_mock.go -skip-ensure -fmt goimports . DockerClient
 
-// Docker provide watch compatible changes from containers
-// and maps by default from ^/api/%s/(.*) to http://%s:%d/$1, i.e. http://example.com/api/my_container/something
-// will be mapped to http://172.17.42.1:8080/something. Ip will be the internal ip of the container and port - exposed the one
+// Docker provider watches compatible for stop/start changes from containers and maps by
+// default from ^/api/%s/(.*) to http://%s:%d/$1, i.e. http://example.com/api/my_container/something
+// will be mapped to http://172.17.42.1:8080/something. Ip will be the internal ip of the container and port exposed
+// in the Dockerfile.
 // Alternatively labels can alter this. reproxy.route sets source route, and reproxy.dest sets the destination.
-// Optional reproxy.server enforces match by server name (hostname).
+// Optional reproxy.server enforces match by server name (hostname) and reproxy.ping sets the health check url
 type Docker struct {
 	DockerClient DockerClient
 	Excludes     []string

@@ -8,7 +8,7 @@ Type=simple
 Restart=always
 RestartSec=1
 User=root
-ExecStart=/usr/bin/reproxy -f /etc/reproxy.yml -u
+ExecStart=/usr/bin/reproxy --file.enabled --file.name=/etc/reproxy.yml
 
 [Install]
 WantedBy=multi-user.target

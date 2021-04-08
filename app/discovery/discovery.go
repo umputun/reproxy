@@ -53,7 +53,7 @@ func NewService(providers []Provider) *Service {
 }
 
 // Run runs blocking loop getting events from all providers
-// and updating mappers on each event
+// and updating all mappers on each event
 func (s *Service) Run(ctx context.Context) error {
 
 	var evChs []<-chan struct{}
@@ -79,7 +79,7 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// Match url to all providers mappers
+// Match url to all mappers
 func (s *Service) Match(srv, src string) (string, bool) {
 
 	s.lock.RLock()
