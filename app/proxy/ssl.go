@@ -34,7 +34,7 @@ type SSLConfig struct {
 	ACMELocation  string
 	ACMEEmail     string
 	FQDNs         []string
-	RedirHttpPort int
+	RedirHTTPPort int
 }
 
 // httpToHTTPSRouter creates new router which does redirect from http to https server

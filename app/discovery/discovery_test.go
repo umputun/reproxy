@@ -18,8 +18,8 @@ func TestService_Do(t *testing.T) {
 			res <- struct{}{}
 			return res
 		},
-		ListFunc: func() ([]UrlMapper, error) {
-			return []UrlMapper{
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
 				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
 				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
 			}, nil
@@ -32,8 +32,8 @@ func TestService_Do(t *testing.T) {
 		EventsFunc: func(ctx context.Context) <-chan struct{} {
 			return make(chan struct{}, 1)
 		},
-		ListFunc: func() ([]UrlMapper, error) {
-			return []UrlMapper{
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
 				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
@@ -73,8 +73,8 @@ func TestService_Match(t *testing.T) {
 			res <- struct{}{}
 			return res
 		},
-		ListFunc: func() ([]UrlMapper, error) {
-			return []UrlMapper{
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
 				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
@@ -88,8 +88,8 @@ func TestService_Match(t *testing.T) {
 		EventsFunc: func(ctx context.Context) <-chan struct{} {
 			return make(chan struct{}, 1)
 		},
-		ListFunc: func() ([]UrlMapper, error) {
-			return []UrlMapper{
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
 				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
@@ -136,8 +136,8 @@ func TestService_Servers(t *testing.T) {
 			res <- struct{}{}
 			return res
 		},
-		ListFunc: func() ([]UrlMapper, error) {
-			return []UrlMapper{
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
 				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
@@ -151,8 +151,8 @@ func TestService_Servers(t *testing.T) {
 		EventsFunc: func(ctx context.Context) <-chan struct{} {
 			return make(chan struct{}, 1)
 		},
-		ListFunc: func() ([]UrlMapper, error) {
-			return []UrlMapper{
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
 				{Server: "xx.reproxy.io", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
 			}, nil
 		},
@@ -177,35 +177,36 @@ func TestService_Servers(t *testing.T) {
 func TestService_extendRule(t *testing.T) {
 
 	tbl := []struct {
-		inp UrlMapper
-		out UrlMapper
+		inp URLMapper
+		out URLMapper
 	}{
 		{
-			UrlMapper{SrcMatch: *regexp.MustCompile("/")},
-			UrlMapper{SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "/$1"},
+			URLMapper{SrcMatch: *regexp.MustCompile("/")},
+			URLMapper{SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "/$1"},
 		},
 		{
-			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("/api/blah/"), Dst: "http://localhost:8080/"},
-			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("^/api/blah/(.*)"), Dst: "http://localhost:8080/$1"},
 		},
 		{
-			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("/api/blah/(.*)/xxx/(.*_)"), Dst: "http://localhost:8080/$1/$2"},
-			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("/api/blah/(.*)/xxx/(.*_)"), Dst: "http://localhost:8080/$1/$2"},
 		},
 		{
-			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
-			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
 		},
 	}
 
 	svc := &Service{}
 	for i, tt := range tbl {
+		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.extendRule(tt.inp)
 			assert.Equal(t, tt.out, res)

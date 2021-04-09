@@ -171,7 +171,7 @@ func TestHttp_toHttp(t *testing.T) {
 	for i, tt := range tbl {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			assert.Equal(t, tt.res, h.toHttp(tt.addr, tt.port))
+			assert.Equal(t, tt.res, h.toHTTP(tt.addr, tt.port))
 		})
 	}
 

@@ -35,7 +35,7 @@ var opts struct {
 		Key           string   `long:"key" env:"KEY" description:"path to key.pem file"`
 		ACMELocation  string   `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
 		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
-		RedirHttpPort int      `long:"http-port" env:"HTTP_PORT" default:"80" description:"http port for redirect to https and acme challenge test"`
+		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" default:"80" description:"http port for redirect to https and acme challenge test"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
@@ -90,12 +90,6 @@ func main() {
 
 	setupLog(opts.Dbg)
 	catchSignal()
-	defer func() {
-		if x := recover(); x != nil {
-			log.Printf("[WARN] run time panic:\n%v", x)
-			panic(x)
-		}
-	}()
 
 	providers, err := makeProviders()
 	if err != nil {
@@ -114,12 +108,18 @@ func main() {
 		log.Fatalf("[ERROR] failed to make config of ssl server params, %v", err)
 	}
 
+	defer func() {
+		if x := recover(); x != nil {
+			log.Printf("[WARN] run time panic:\n%v", x)
+			panic(x)
+		}
+	}()
+
 	accessLog := makeAccessLogWriter()
 	defer func() {
 		if err := accessLog.Close(); err != nil {
 			log.Printf("[WARN] can't close access log, %v", err)
 		}
-
 	}()
 
 	px := &proxy.Http{
@@ -137,7 +137,7 @@ func main() {
 		DisableSignature: opts.NoSignature,
 	}
 	if err := px.Run(context.Background()); err != nil {
-		log.Fatalf("[ERROR] proxy server failed, %v", err)
+		log.Fatalf("[ERROR] proxy server failed, %v", err) //nolint gocritic
 	}
 }
 
@@ -184,13 +184,13 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.SSLMode = proxy.SSLStatic
 		config.Cert = opts.SSL.Cert
 		config.Key = opts.SSL.Key
-		config.RedirHttpPort = opts.SSL.RedirHttpPort
+		config.RedirHTTPPort = opts.SSL.RedirHTTPPort
 	case "auto":
 		config.SSLMode = proxy.SSLAuto
 		config.ACMELocation = opts.SSL.ACMELocation
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = opts.SSL.FQDNs
-		config.RedirHttpPort = opts.SSL.RedirHttpPort
+		config.RedirHTTPPort = opts.SSL.RedirHTTPPort
 	}
 	return config, err
 }

@@ -12,9 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-pkgz/lgr"
 	log "github.com/go-pkgz/lgr"
-	"github.com/go-pkgz/rest"
 	R "github.com/go-pkgz/rest"
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
@@ -24,7 +22,7 @@ import (
 )
 
 // Http is a proxy server for both http and https
-type Http struct {
+type Http struct { //nolint golint
 	Matcher
 	Address          string
 	TimeOut          time.Duration
@@ -44,7 +42,7 @@ type Http struct {
 type Matcher interface {
 	Match(srv, src string) (string, bool)
 	Servers() (servers []string)
-	Mappers() (mappers []discovery.UrlMapper)
+	Mappers() (mappers []discovery.URLMapper)
 }
 
 // Run the lister and request's router, activate rest server
@@ -71,7 +69,7 @@ func (h *Http) Run(ctx context.Context) error {
 	}()
 
 	handler := R.Wrap(h.proxyHandler(),
-		R.Recoverer(lgr.Default()),
+		R.Recoverer(log.Default()),
 		h.signatureHandler,
 		R.Ping,
 		h.healthMiddleware,
@@ -97,11 +95,11 @@ func (h *Http) Run(ctx context.Context) error {
 		httpsServer = h.makeHTTPSServer(h.Address, handler)
 		httpsServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
-		httpServer = h.makeHTTPServer(h.toHttp(h.Address, h.SSLConfig.RedirHttpPort), h.httpToHTTPSRouter())
+		httpServer = h.makeHTTPServer(h.toHTTP(h.Address, h.SSLConfig.RedirHTTPPort), h.httpToHTTPSRouter())
 		httpServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
 		go func() {
-			log.Printf("[INFO] activate http redirect server on %s", h.toHttp(h.Address, h.SSLConfig.RedirHttpPort))
+			log.Printf("[INFO] activate http redirect server on %s", h.toHTTP(h.Address, h.SSLConfig.RedirHTTPPort))
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http redirect server terminated, %s", err)
 		}()
@@ -114,11 +112,11 @@ func (h *Http) Run(ctx context.Context) error {
 		httpsServer = h.makeHTTPSAutocertServer(h.Address, handler, m)
 		httpsServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
-		httpServer = h.makeHTTPServer(h.toHttp(h.Address, h.SSLConfig.RedirHttpPort), h.httpChallengeRouter(m))
+		httpServer = h.makeHTTPServer(h.toHTTP(h.Address, h.SSLConfig.RedirHTTPPort), h.httpChallengeRouter(m))
 		httpServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
 
 		go func() {
-			log.Printf("[INFO] activate http challenge server on port %s", h.toHttp(h.Address, h.SSLConfig.RedirHttpPort))
+			log.Printf("[INFO] activate http challenge server on port %s", h.toHTTP(h.Address, h.SSLConfig.RedirHTTPPort))
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http challenge server terminated, %s", err)
 		}()
@@ -154,7 +152,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	})
 
 	if h.AssetsLocation != "" && h.AssetsWebRoot != "" {
-		fs, err := rest.FileServer(h.AssetsWebRoot, h.AssetsLocation)
+		fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
 		if err == nil {
 			assetsHandler = func(w http.ResponseWriter, r *http.Request) {
 				fs.ServeHTTP(w, r)
@@ -186,7 +184,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	}
 }
 
-func (h *Http) toHttp(address string, httpPort int) string {
+func (h *Http) toHTTP(address string, httpPort int) string {
 	rx := regexp.MustCompile(`(.*):(\d*)`)
 	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
 }

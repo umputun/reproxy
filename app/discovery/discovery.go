@@ -18,12 +18,12 @@ import (
 // Service implements discovery with multiple providers and url matcher
 type Service struct {
 	providers []Provider
-	mappers   []UrlMapper
+	mappers   []URLMapper
 	lock      sync.RWMutex
 }
 
-// UrlMapper contains all info about source and destination routes
-type UrlMapper struct {
+// URLMapper contains all info about source and destination routes
+type URLMapper struct {
 	Server     string
 	SrcMatch   regexp.Regexp
 	Dst        string
@@ -34,7 +34,7 @@ type UrlMapper struct {
 // Provider defines sources of mappers
 type Provider interface {
 	Events(ctx context.Context) (res <-chan struct{})
-	List() (res []UrlMapper, err error)
+	List() (res []URLMapper, err error)
 	ID() ProviderID
 }
 
@@ -57,7 +57,7 @@ func NewService(providers []Provider) *Service {
 // and updating all mappers on each event
 func (s *Service) Run(ctx context.Context) error {
 
-	var evChs []<-chan struct{}
+	evChs := make([]<-chan struct{}, 0, len(s.providers))
 	for _, p := range s.providers {
 		evChs = append(evChs, p.Events(ctx))
 	}
@@ -73,7 +73,7 @@ func (s *Service) Run(ctx context.Context) error {
 				log.Printf("[INFO] match for %s: %s %s %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
 			}
 			s.lock.Lock()
-			s.mappers = make([]UrlMapper, len(lst))
+			s.mappers = make([]URLMapper, len(lst))
 			copy(s.mappers, lst)
 			s.lock.Unlock()
 		}
@@ -111,14 +111,14 @@ func (s *Service) Servers() (servers []string) {
 }
 
 // Mappers return list of all mappers
-func (s *Service) Mappers() (mappers []UrlMapper) {
+func (s *Service) Mappers() (mappers []URLMapper) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	mappers = append(mappers, s.mappers...)
 	return mappers
 }
 
-func (s *Service) mergeLists() (res []UrlMapper) {
+func (s *Service) mergeLists() (res []URLMapper) {
 	for _, p := range s.providers {
 		lst, err := p.List()
 		if err != nil {
@@ -134,13 +134,13 @@ func (s *Service) mergeLists() (res []UrlMapper) {
 }
 
 // extendRule from /something/blah->http://example.com/api to ^/something/blah/(.*)->http://example.com/api/$1
-func (s *Service) extendRule(m UrlMapper) UrlMapper {
+func (s *Service) extendRule(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
 	if strings.Contains(m.Dst, "$1") || strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
 		return m
 	}
-	res := UrlMapper{
+	res := URLMapper{
 		Server:     m.Server,
 		Dst:        strings.TrimSuffix(m.Dst, "/") + "/$1",
 		ProviderID: m.ProviderID,

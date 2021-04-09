@@ -134,7 +134,7 @@ func NewCompressor(level int, types ...string) *Compressor {
 
 // SetEncoder can be used to set the implementation of a compression algorithm.
 //
-// The encoding should be a standardised identifier. See:
+// The encoding should be a standardized identifier. See:
 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding
 //
 // For example, add the Brotli algortithm:
@@ -354,7 +354,7 @@ func (cw *compressResponseWriter) Flush() {
 	// If the underlying writer has a compression flush signature,
 	// call this Flush() method instead
 	if f, ok := cw.writer().(compressFlusher); ok {
-		f.Flush()
+		_ = f.Flush()
 
 		// Also flush the underlying response writer
 		if f, ok := cw.ResponseWriter.(http.Flusher); ok {

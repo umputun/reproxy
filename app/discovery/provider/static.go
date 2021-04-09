@@ -23,19 +23,19 @@ func (s *Static) Events(_ context.Context) <-chan struct{} {
 }
 
 // List all src dst pairs
-func (s *Static) List() (res []discovery.UrlMapper, err error) {
+func (s *Static) List() (res []discovery.URLMapper, err error) {
 
-	parse := func(inp string) (discovery.UrlMapper, error) {
+	parse := func(inp string) (discovery.URLMapper, error) {
 		elems := strings.Split(inp, ",")
 		if len(elems) != 4 {
-			return discovery.UrlMapper{}, errors.Errorf("invalid rule %q", inp)
+			return discovery.URLMapper{}, errors.Errorf("invalid rule %q", inp)
 		}
 		rx, err := regexp.Compile(strings.TrimSpace(elems[1]))
 		if err != nil {
-			return discovery.UrlMapper{}, errors.Wrapf(err, "can't parse regex %s", elems[1])
+			return discovery.URLMapper{}, errors.Wrapf(err, "can't parse regex %s", elems[1])
 		}
 
-		return discovery.UrlMapper{
+		return discovery.URLMapper{
 			Server:   strings.TrimSpace(elems[0]),
 			SrcMatch: *rx,
 			Dst:      strings.TrimSpace(elems[2]),
@@ -53,4 +53,5 @@ func (s *Static) List() (res []discovery.UrlMapper, err error) {
 	return res, nil
 }
 
+// ID returns providers id
 func (s *Static) ID() discovery.ProviderID { return discovery.PIStatic }

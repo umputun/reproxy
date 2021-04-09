@@ -25,10 +25,10 @@ func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func (h *Http) healthHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 
 	// runs pings in parallel
-	check := func(mappers []discovery.UrlMapper) (ok bool, valid int, total int, errs []string) {
+	check := func(mappers []discovery.URLMapper) (ok bool, valid int, total int, errs []string) {
 		outCh := make(chan error, 8)
 		var pinged int32
 		var wg sync.WaitGroup
@@ -37,7 +37,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			wg.Add(1)
-			go func(m discovery.UrlMapper) {
+			go func(m discovery.URLMapper) {
 				defer wg.Done()
 
 				atomic.AddInt32(&pinged, 1)

@@ -1,0 +1,80 @@
+run:
+  timeout: 5m
+  output:
+    format: tab
+  skip-dirs:
+    - vendor
+  skip-files:
+    - app/proxy/middleware/compress.go
+    - app/proxy/middleware/compress_test.go
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  golint:
+    min-confidence: 0.1
+  maligned:
+    suggest-new: true
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - wrapperFunc
+      - hugeParam
+      - rangeValCopy
+      - singleCaseSwitch
+      - ifElseChain
+
+linters:
+  enable:
+    - megacheck
+    - golint
+    - govet
+    - unconvert
+    - megacheck
+    - structcheck
+    - gas
+    - gocyclo
+    - dupl
+    - misspell
+    - unparam
+    - varcheck
+    - deadcode
+    - typecheck
+    - ineffassign
+    - varcheck
+    - stylecheck
+    - gochecknoinits
+    - scopelint
+    - gocritic
+    - nakedret
+    - gosimple
+    - prealloc
+  fast: false
+  disable-all: true
+
+issues:
+  exclude-rules:
+    - text: "at least one file in a package should have a package comment"
+      linters:
+        - stylecheck
+    - text: "should have a package comment, unless it's in another file for this package"
+      linters:
+        - golint
+    - path: _test\.go
+      linters:
+        - gosec
+        - dupl
+  exclude-use-default: false
+
+service:
+  golangci-lint-version: 1.31.x

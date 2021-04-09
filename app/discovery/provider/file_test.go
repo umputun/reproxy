@@ -17,7 +17,7 @@ func TestFile_Events(t *testing.T) {
 
 	tmp, err := ioutil.TempFile(os.TempDir(), "reproxy-events")
 	require.NoError(t, err)
-	tmp.Close()
+	_ = tmp.Close()
 	defer os.Remove(tmp.Name())
 
 	f := File{

@@ -24,7 +24,7 @@ var _ Provider = &ProviderMock{}
 // 			IDFunc: func() ProviderID {
 // 				panic("mock out the ID method")
 // 			},
-// 			ListFunc: func() ([]UrlMapper, error) {
+// 			ListFunc: func() ([]URLMapper, error) {
 // 				panic("mock out the List method")
 // 			},
 // 		}
@@ -41,7 +41,7 @@ type ProviderMock struct {
 	IDFunc func() ProviderID
 
 	// ListFunc mocks the List method.
-	ListFunc func() ([]UrlMapper, error)
+	ListFunc func() ([]URLMapper, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -120,7 +120,7 @@ func (mock *ProviderMock) IDCalls() []struct {
 }
 
 // List calls ListFunc.
-func (mock *ProviderMock) List() ([]UrlMapper, error) {
+func (mock *ProviderMock) List() ([]URLMapper, error) {
 	if mock.ListFunc == nil {
 		panic("ProviderMock.ListFunc: method is nil but Provider.List was just called")
 	}

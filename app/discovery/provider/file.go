@@ -64,7 +64,7 @@ func (d *File) Events(ctx context.Context) <-chan struct{} {
 }
 
 // List all src dst pairs
-func (d *File) List() (res []discovery.UrlMapper, err error) {
+func (d *File) List() (res []discovery.URLMapper, err error) {
 
 	var fileConf map[string][]struct {
 		SourceRoute string `yaml:"route"`
@@ -91,7 +91,7 @@ func (d *File) List() (res []discovery.UrlMapper, err error) {
 			if srv == "default" {
 				srv = "*"
 			}
-			mapper := discovery.UrlMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping}
+			mapper := discovery.URLMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping}
 			res = append(res, mapper)
 		}
 	}
@@ -104,4 +104,5 @@ func (d *File) List() (res []discovery.UrlMapper, err error) {
 	return res, nil
 }
 
+// ID returns providers id
 func (d *File) ID() discovery.ProviderID { return discovery.PIFile }

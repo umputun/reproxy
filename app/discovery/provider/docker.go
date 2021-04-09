@@ -63,13 +63,13 @@ func (d *Docker) Events(ctx context.Context) (res <-chan struct{}) {
 }
 
 // List all containers and make url mappers
-func (d *Docker) List() ([]discovery.UrlMapper, error) {
+func (d *Docker) List() ([]discovery.URLMapper, error) {
 	containers, err := d.listContainers()
 	if err != nil {
 		return nil, err
 	}
 
-	var res []discovery.UrlMapper
+	res := make([]discovery.URLMapper, 0, len(containers))
 	for _, c := range containers {
 		srcURL := fmt.Sprintf("^/api/%s/(.*)", c.Name)
 		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, c.Port)
@@ -95,11 +95,12 @@ func (d *Docker) List() ([]discovery.UrlMapper, error) {
 			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
 		}
 
-		res = append(res, discovery.UrlMapper{Server: server, SrcMatch: *srcRegex, Dst: destURL, PingURL: pingURL})
+		res = append(res, discovery.URLMapper{Server: server, SrcMatch: *srcRegex, Dst: destURL, PingURL: pingURL})
 	}
 	return res, nil
 }
 
+// ID returns providers id
 func (d *Docker) ID() discovery.ProviderID { return discovery.PIDocker }
 
 // activate starts blocking listener for all docker events
