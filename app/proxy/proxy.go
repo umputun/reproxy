@@ -80,7 +80,10 @@ func (h *Http) Run(ctx context.Context) error {
 		h.gzipHandler(),
 	)
 
-	h.SSLConfig.FQDNs = h.Servers() // fill all servers
+	if len(h.SSLConfig.FQDNs) == 0 {
+		h.SSLConfig.FQDNs = h.Servers() // fill all discovered if nothing defined
+	}
+
 	switch h.SSLConfig.SSLMode {
 	case SSLNone:
 		log.Printf("[INFO] activate http proxy server on %s", h.Address)
@@ -104,6 +107,7 @@ func (h *Http) Run(ctx context.Context) error {
 		return httpServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key)
 	case SSLAuto:
 		log.Printf("[INFO] activate https server in 'auto' mode on %s", h.Address)
+		log.Printf("[DEBUG] FQDNs %v", h.SSLConfig.FQDNs)
 
 		m := h.makeAutocertManager()
 		httpsServer = h.makeHTTPSAutocertServer(h.Address, handler, m)
