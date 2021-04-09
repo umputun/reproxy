@@ -75,7 +75,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "can't open %s", d.FileName)
 	}
-	defer fh.Close()
+	defer fh.Close() //nolint gosec
 
 	if err = yaml.NewDecoder(fh).Decode(&fileConf); err != nil {
 		return nil, errors.Wrapf(err, "can't parse %s", d.FileName)
@@ -101,7 +101,9 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		}
 		return res[i].Server < res[j].Server
 	})
-	return res, nil
+
+	err = fh.Close()
+	return res, err
 }
 
 // ID returns providers id
