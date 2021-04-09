@@ -7,6 +7,7 @@ package discovery
 import (
 	"context"
 	"regexp"
+	"strings"
 	"sync"
 
 	log "github.com/go-pkgz/lgr"
@@ -124,10 +125,34 @@ func (s *Service) mergeLists() (res []UrlMapper) {
 			continue
 		}
 		for i := range lst {
+			lst[i] = s.extendRule(lst[i])
 			lst[i].ProviderID = p.ID()
 		}
 		res = append(res, lst...)
 	}
+	return res
+}
+
+// extendRule from /something/blah->http://example.com/api to ^/something/blah/(.*)->http://example.com/api/$1
+func (s *Service) extendRule(m UrlMapper) UrlMapper {
+
+	src := m.SrcMatch.String()
+	if strings.Contains(m.Dst, "$1") || strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
+		return m
+	}
+	res := UrlMapper{
+		Server:     m.Server,
+		Dst:        strings.TrimSuffix(m.Dst, "/") + "/$1",
+		ProviderID: m.ProviderID,
+		PingURL:    m.PingURL,
+	}
+
+	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
+	if err != nil {
+		log.Printf("[WARN] can't extend %s, %v", m.SrcMatch.String(), err)
+		return m
+	}
+	res.SrcMatch = *rx
 	return res
 }
 

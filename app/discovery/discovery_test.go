@@ -49,11 +49,12 @@ func TestService_Do(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.mappers))
-	assert.Equal(t, PIFile, svc.mappers[0].ProviderID)
-	assert.Equal(t, "*", svc.mappers[0].Server)
-	assert.Equal(t, "^/api/svc1/(.*)", svc.mappers[0].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.1:8080/blah1/$1", svc.mappers[0].Dst)
+	mappers := svc.Mappers()
+	assert.Equal(t, 3, len(mappers))
+	assert.Equal(t, PIFile, mappers[0].ProviderID)
+	assert.Equal(t, "*", mappers[0].Server)
+	assert.Equal(t, "^/api/svc1/(.*)", mappers[0].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.1:8080/blah1/$1", mappers[0].Dst)
 
 	assert.Equal(t, 1, len(p1.EventsCalls()))
 	assert.Equal(t, 1, len(p2.EventsCalls()))
@@ -170,5 +171,45 @@ func TestService_Servers(t *testing.T) {
 
 	servers := svc.Servers()
 	assert.Equal(t, []string{"m.example.com", "xx.reproxy.io"}, servers)
+
+}
+
+func TestService_extendRule(t *testing.T) {
+
+	tbl := []struct {
+		inp UrlMapper
+		out UrlMapper
+	}{
+		{
+			UrlMapper{SrcMatch: *regexp.MustCompile("/")},
+			UrlMapper{SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "/$1"},
+		},
+		{
+			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+				SrcMatch: *regexp.MustCompile("/api/blah/"), Dst: "http://localhost:8080/"},
+			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+				SrcMatch: *regexp.MustCompile("^/api/blah/(.*)"), Dst: "http://localhost:8080/$1"},
+		},
+		{
+			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+				SrcMatch: *regexp.MustCompile("/api/blah/(.*)/xxx/(.*_)"), Dst: "http://localhost:8080/$1/$2"},
+			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+				SrcMatch: *regexp.MustCompile("/api/blah/(.*)/xxx/(.*_)"), Dst: "http://localhost:8080/$1/$2"},
+		},
+		{
+			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
+			UrlMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
+				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
+		},
+	}
+
+	svc := &Service{}
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res := svc.extendRule(tt.inp)
+			assert.Equal(t, tt.out, res)
+		})
+	}
 
 }
