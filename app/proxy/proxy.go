@@ -18,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/proxy/middleware"
 )
 
 // Http is a proxy server for both http and https
@@ -191,7 +190,7 @@ func (h *Http) toHTTP(address string, httpPort int) string {
 
 func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 	if h.GzEnabled {
-		return middleware.Compress(5)
+		return handlers.CompressHandler
 	}
 
 	return func(next http.Handler) http.Handler {
