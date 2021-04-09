@@ -84,9 +84,9 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 
 	for srv, fl := range fileConf {
 		for _, f := range fl {
-			rx, err := regexp.Compile(f.SourceRoute)
-			if err != nil {
-				return nil, errors.Wrapf(err, "can't parse regex %s", f.SourceRoute)
+			rx, e := regexp.Compile(f.SourceRoute)
+			if e != nil {
+				return nil, errors.Wrapf(e, "can't parse regex %s", f.SourceRoute)
 			}
 			if srv == "default" {
 				srv = "*"
