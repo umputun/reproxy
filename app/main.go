@@ -13,9 +13,9 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
-	"github.com/natefinch/lumberjack"
 	"github.com/pkg/errors"
 	"github.com/umputun/go-flags"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"

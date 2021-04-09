@@ -7,10 +7,10 @@ require (
 	github.com/go-pkgz/lgr v0.10.4
 	github.com/go-pkgz/rest v1.8.1
 	github.com/gorilla/handlers v1.5.1
-	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
