@@ -31,7 +31,7 @@ type Docker struct {
 // DockerClient defines interface listing containers and subscribing to events
 type DockerClient interface {
 	ListContainers(opts dc.ListContainersOptions) ([]dc.APIContainers, error)
-	AddEventListener(listener chan<- *dc.APIEvents) error
+	AddEventListenerWithOptions(options dc.EventsOptions, listener chan<- *dc.APIEvents) error
 }
 
 // containerInfo is simplified docker.APIEvents for containers only
@@ -44,24 +44,19 @@ type containerInfo struct {
 	Port   int
 }
 
-var (
-	upStatuses   = []string{"start", "restart"}
-	downStatuses = []string{"die", "destroy", "stop", "pause"}
-)
-
-// Channel gets eventsCh with all containers events
+// Events gets eventsCh with all containers-related docker events events
 func (d *Docker) Events(ctx context.Context) (res <-chan struct{}) {
 	eventsCh := make(chan struct{})
 	go func() {
+		defer close(eventsCh)
 		// loop over to recover from failed events call
 		for {
-			err := d.events(ctx, d.DockerClient, eventsCh) // publish events to eventsCh
+			err := d.events(ctx, d.DockerClient, eventsCh) // publish events to eventsCh in a blocking loop
 			if err == context.Canceled || err == context.DeadlineExceeded {
-				close(eventsCh)
 				return
 			}
-			log.Printf("[WARN] docker events listener failed, restarted, %v", err)
-			time.Sleep(100 * time.Millisecond) // prevent busy loop on restart event listener
+			log.Printf("[WARN] docker events listener failed (restarted), %v", err)
+			time.Sleep(1 * time.Second) // prevent busy loop on restart of event listener
 		}
 	}()
 	return eventsCh
@@ -111,10 +106,14 @@ func (d *Docker) ID() discovery.ProviderID { return discovery.PIDocker }
 // filters everything except "container" type, detects stop/start events and publishes signals to eventsCh
 func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan struct{}) error {
 	dockerEventsCh := make(chan *dc.APIEvents)
-	if err := client.AddEventListener(dockerEventsCh); err != nil {
+	err := client.AddEventListenerWithOptions(dc.EventsOptions{
+		Filters: map[string][]string{"type": {"container"}, "event": {"start", "die", "destroy", "restart", "pause"}}},
+		dockerEventsCh)
+	if err != nil {
 		return errors.Wrap(err, "can't add even listener")
 	}
 
+	eventsCh <- struct{}{} // initial emmit
 	for {
 		select {
 		case <-ctx.Done():
@@ -122,12 +121,6 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 		case ev, ok := <-dockerEventsCh:
 			if !ok {
 				return errors.New("events closed")
-			}
-			if ev.Type != "container" {
-				continue
-			}
-			if !contains(ev.Status, upStatuses) && !contains(ev.Status, downStatuses) {
-				continue
 			}
 			log.Printf("[DEBUG] api event %+v", ev)
 			containerName := strings.TrimPrefix(ev.Actor.Attributes["name"], "/")
@@ -158,7 +151,7 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 	log.Printf("[DEBUG] total containers = %d", len(containers))
 
 	for _, c := range containers {
-		if !contains(c.Status, upStatuses) {
+		if !contains(c.State, []string{"running"}) {
 			continue
 		}
 		containerName := strings.TrimPrefix(c.Names[0], "/")

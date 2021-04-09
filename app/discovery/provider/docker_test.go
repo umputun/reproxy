@@ -5,39 +5,39 @@ import (
 	"testing"
 	"time"
 
-	dclient "github.com/fsouza/go-dockerclient"
+	dc "github.com/fsouza/go-dockerclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDocker_List(t *testing.T) {
-	dc := &DockerClientMock{
-		ListContainersFunc: func(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error) {
-			return []dclient.APIContainers{
-				{Names: []string{"c1"}, Status: "start",
-					Networks: dclient.NetworkList{
-						Networks: map[string]dclient.ContainerNetwork{"default": {IPAddress: "127.0.0.2"}},
+	dclient := &DockerClientMock{
+		ListContainersFunc: func(opts dc.ListContainersOptions) ([]dc.APIContainers, error) {
+			return []dc.APIContainers{
+				{Names: []string{"c1"}, State: "running",
+					Networks: dc.NetworkList{
+						Networks: map[string]dc.ContainerNetwork{"bridge": {IPAddress: "127.0.0.2"}},
 					},
-					Ports: []dclient.APIPort{
+					Ports: []dc.APIPort{
 						{PrivatePort: 12345},
 					},
 					Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
 						"reproxy.server": "example.com", "reproxy.ping": "http://localhost/ping"},
 				},
-				{Names: []string{"c2"}, Status: "start",
-					Networks: dclient.NetworkList{
-						Networks: map[string]dclient.ContainerNetwork{"default": {IPAddress: "127.0.0.3"}},
+				{Names: []string{"c2"}, State: "running",
+					Networks: dc.NetworkList{
+						Networks: map[string]dc.ContainerNetwork{"bridge": {IPAddress: "127.0.0.3"}},
 					},
-					Ports: []dclient.APIPort{
+					Ports: []dc.APIPort{
 						{PrivatePort: 12346},
 					},
 				},
-				{Names: []string{"c3"}, Status: "stop"},
-				{Names: []string{"c4"}, Status: "start",
-					Networks: dclient.NetworkList{
-						Networks: map[string]dclient.ContainerNetwork{"other": {IPAddress: "127.0.0.2"}},
+				{Names: []string{"c3"}, State: "stopped"},
+				{Names: []string{"c4"}, State: "running",
+					Networks: dc.NetworkList{
+						Networks: map[string]dc.ContainerNetwork{"other": {IPAddress: "127.0.0.2"}},
 					},
-					Ports: []dclient.APIPort{
+					Ports: []dc.APIPort{
 						{PrivatePort: 12345},
 					},
 				},
@@ -45,10 +45,10 @@ func TestDocker_List(t *testing.T) {
 		},
 	}
 
-	d := Docker{DockerClient: dc, Network: "default"}
+	d := Docker{DockerClient: dclient, Network: "bridge"}
 	res, err := d.List()
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(res))
+	require.Equal(t, 2, len(res))
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
@@ -63,15 +63,15 @@ func TestDocker_List(t *testing.T) {
 }
 
 func TestDocker_Events(t *testing.T) {
-	dc := &DockerClientMock{
-		AddEventListenerFunc: func(listener chan<- *dclient.APIEvents) error {
+	dclient := &DockerClientMock{
+		AddEventListenerWithOptionsFunc: func(options dc.EventsOptions, listener chan<- *dc.APIEvents) error {
 			go func() {
 				time.Sleep(30 * time.Millisecond)
-				listener <- &dclient.APIEvents{Type: "container", Status: "start",
-					Actor: dclient.APIActor{Attributes: map[string]string{"name": "/c1"}}}
+				listener <- &dc.APIEvents{Type: "container", Status: "start",
+					Actor: dc.APIActor{Attributes: map[string]string{"name": "/c1"}}}
 				time.Sleep(30 * time.Millisecond)
-				listener <- &dclient.APIEvents{Type: "bad", Status: "start",
-					Actor: dclient.APIActor{Attributes: map[string]string{"name": "/c2"}}}
+				listener <- &dc.APIEvents{Type: "container", Status: "start",
+					Actor: dc.APIActor{Attributes: map[string]string{"name": "/c2"}}}
 			}()
 			return nil
 		},
@@ -80,7 +80,7 @@ func TestDocker_Events(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	d := Docker{DockerClient: dc}
+	d := Docker{DockerClient: dclient}
 	ch := d.Events(ctx)
 
 	events := 0
@@ -88,5 +88,5 @@ func TestDocker_Events(t *testing.T) {
 		t.Log("event")
 		events++
 	}
-	assert.Equal(t, 1, events)
+	assert.Equal(t, 2+1, events, "initial event plus 2 more")
 }

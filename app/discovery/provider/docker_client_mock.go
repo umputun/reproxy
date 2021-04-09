@@ -15,8 +15,8 @@ import (
 //
 // 		// make and configure a mocked DockerClient
 // 		mockedDockerClient := &DockerClientMock{
-// 			AddEventListenerFunc: func(listener chan<- *dclient.APIEvents) error {
-// 				panic("mock out the AddEventListener method")
+// 			AddEventListenerWithOptionsFunc: func(options dclient.EventsOptions, listener chan<- *dclient.APIEvents) error {
+// 				panic("mock out the AddEventListenerWithOptions method")
 // 			},
 // 			ListContainersFunc: func(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error) {
 // 				panic("mock out the ListContainers method")
@@ -28,16 +28,18 @@ import (
 //
 // 	}
 type DockerClientMock struct {
-	// AddEventListenerFunc mocks the AddEventListener method.
-	AddEventListenerFunc func(listener chan<- *dclient.APIEvents) error
+	// AddEventListenerWithOptionsFunc mocks the AddEventListenerWithOptions method.
+	AddEventListenerWithOptionsFunc func(options dclient.EventsOptions, listener chan<- *dclient.APIEvents) error
 
 	// ListContainersFunc mocks the ListContainers method.
 	ListContainersFunc func(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// AddEventListener holds details about calls to the AddEventListener method.
-		AddEventListener []struct {
+		// AddEventListenerWithOptions holds details about calls to the AddEventListenerWithOptions method.
+		AddEventListenerWithOptions []struct {
+			// Options is the options argument value.
+			Options dclient.EventsOptions
 			// Listener is the listener argument value.
 			Listener chan<- *dclient.APIEvents
 		}
@@ -47,38 +49,42 @@ type DockerClientMock struct {
 			Opts dclient.ListContainersOptions
 		}
 	}
-	lockAddEventListener sync.RWMutex
-	lockListContainers   sync.RWMutex
+	lockAddEventListenerWithOptions sync.RWMutex
+	lockListContainers              sync.RWMutex
 }
 
-// AddEventListener calls AddEventListenerFunc.
-func (mock *DockerClientMock) AddEventListener(listener chan<- *dclient.APIEvents) error {
-	if mock.AddEventListenerFunc == nil {
-		panic("DockerClientMock.AddEventListenerFunc: method is nil but DockerClient.AddEventListener was just called")
+// AddEventListenerWithOptions calls AddEventListenerWithOptionsFunc.
+func (mock *DockerClientMock) AddEventListenerWithOptions(options dclient.EventsOptions, listener chan<- *dclient.APIEvents) error {
+	if mock.AddEventListenerWithOptionsFunc == nil {
+		panic("DockerClientMock.AddEventListenerWithOptionsFunc: method is nil but DockerClient.AddEventListenerWithOptions was just called")
 	}
 	callInfo := struct {
+		Options  dclient.EventsOptions
 		Listener chan<- *dclient.APIEvents
 	}{
+		Options:  options,
 		Listener: listener,
 	}
-	mock.lockAddEventListener.Lock()
-	mock.calls.AddEventListener = append(mock.calls.AddEventListener, callInfo)
-	mock.lockAddEventListener.Unlock()
-	return mock.AddEventListenerFunc(listener)
+	mock.lockAddEventListenerWithOptions.Lock()
+	mock.calls.AddEventListenerWithOptions = append(mock.calls.AddEventListenerWithOptions, callInfo)
+	mock.lockAddEventListenerWithOptions.Unlock()
+	return mock.AddEventListenerWithOptionsFunc(options, listener)
 }
 
-// AddEventListenerCalls gets all the calls that were made to AddEventListener.
+// AddEventListenerWithOptionsCalls gets all the calls that were made to AddEventListenerWithOptions.
 // Check the length with:
-//     len(mockedDockerClient.AddEventListenerCalls())
-func (mock *DockerClientMock) AddEventListenerCalls() []struct {
+//     len(mockedDockerClient.AddEventListenerWithOptionsCalls())
+func (mock *DockerClientMock) AddEventListenerWithOptionsCalls() []struct {
+	Options  dclient.EventsOptions
 	Listener chan<- *dclient.APIEvents
 } {
 	var calls []struct {
+		Options  dclient.EventsOptions
 		Listener chan<- *dclient.APIEvents
 	}
-	mock.lockAddEventListener.RLock()
-	calls = mock.calls.AddEventListener
-	mock.lockAddEventListener.RUnlock()
+	mock.lockAddEventListenerWithOptions.RLock()
+	calls = mock.calls.AddEventListenerWithOptions
+	mock.lockAddEventListenerWithOptions.RUnlock()
 	return calls
 }
 
