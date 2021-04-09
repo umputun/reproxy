@@ -5,13 +5,13 @@ One or more providers supply information about requested server, requested url, 
 Distributed as a single binary or as a docker container.
 
 Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url
-may have regex matched groups, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
+may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
 
-For convenience, requests with the trailing `/` and without regex groups in expanded to `/(.*)` and destinations in those cases 
+For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases 
 expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` ->  `http://127.0.0.1/service/$1`
 
-Both HTTP and HTTPS supported for the server. For HTTPS static certificate can be used as well as automated 
-ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files.
+Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. 
+Optional assets server can be used to serve static files.
 
 Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
@@ -19,7 +19,7 @@ example with a static provider: `reproxy --static.enabled --rule="example.com/ap
 
 ## Install
 
-- for a binary distribution pick the proper file in release section
+- for a binary distribution pick the proper file in the release section
 - docker container available via docker hub (umputun/reproxy) as well as via github container registry (ghcr.io/umputun/reproxy). Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
 
 ## Providers
