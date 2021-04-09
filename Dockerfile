@@ -25,4 +25,4 @@ RUN chmod +x /srv/reproxy
 WORKDIR /srv
 
 CMD ["/srv/reproxy"]
-ENTRYPOINT ["/init.sh"]
+ENTRYPOINT ["/init-root.sh"]
