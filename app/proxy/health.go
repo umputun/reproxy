@@ -9,6 +9,8 @@ import (
 	"time"
 
 	log "github.com/go-pkgz/lgr"
+	"github.com/go-pkgz/rest"
+
 	"github.com/umputun/reproxy/app/discovery"
 )
 
@@ -42,8 +44,9 @@ func (h *Http) healthHandler(w http.ResponseWriter, r *http.Request) {
 				client := http.Client{Timeout: 100 * time.Millisecond}
 				resp, err := client.Get(m.PingURL)
 				if err != nil {
-					log.Printf("[WARN] failed to ping for health %s, %v", m.PingURL, err)
-					outCh <- fmt.Errorf("%s, %v", m.PingURL, err)
+					errMsg := strings.Replace(err.Error(), "\"", "", -1)
+					log.Printf("[WARN] failed to ping for health %s, %s", m.PingURL, errMsg)
+					outCh <- fmt.Errorf("%s, %v", m.PingURL, errMsg)
 					return
 				}
 				if resp.StatusCode != http.StatusOK {
@@ -69,10 +72,15 @@ func (h *Http) healthHandler(w http.ResponseWriter, r *http.Request) {
 	ok, valid, total, errs := check(h.Mappers())
 	if !ok {
 		w.WriteHeader(http.StatusExpectationFailed)
-		_, err := fmt.Fprintf(w, `{"status": "failed", "passed": %d, "failed":%d, "errors": "%+v"}`, valid, total-valid, errs)
-		if err != nil {
-			log.Printf("[WARN] failed %v", err)
-		}
+
+		errResp := struct {
+			Status string   `json:"status,omitempty"`
+			Passed int      `json:"passed,omitempty"`
+			Failed int      `json:"failed,omitempty"`
+			Errors []string `json:"errors,omitempty"`
+		}{Status: "failed", Passed: valid, Failed: total - valid, Errors: errs}
+
+		rest.RenderJSON(w, errResp)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

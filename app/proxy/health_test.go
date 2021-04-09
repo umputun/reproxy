@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
 )
@@ -68,5 +69,5 @@ func TestHttp_healthHandler(t *testing.T) {
 	assert.Equal(t, "failed", res["status"])
 	assert.Equal(t, 1., res["passed"])
 	assert.Equal(t, 1., res["failed"])
-	assert.Contains(t, res["errors"], "400 Bad Request")
+	assert.Contains(t, res["errors"].([]interface{})[0], "400 Bad Request")
 }
