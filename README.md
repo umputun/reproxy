@@ -1,7 +1,8 @@
 # reproxy [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)
 
-Reproxy is simple edge HTTP(s) sever / reverse proxy for various providers (docker, static, file). One or more providers supply information 
-about requested server, requested url and destination url. Distributed as a single binary or as a docker container.
+Reproxy is simple edge HTTP(s) sever / reverse proxy supporting various providers (docker, static, file).
+One or more providers supply information about requested server, requested url, destination url and health check url.
+Distributed as a single binary or as a docker container.
 
 Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url
 may have regex matched groups, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
@@ -15,6 +16,11 @@ ACME (Let's Encrypt) certificates. Optional assets server can be used to serve s
 Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
 example with a static provider: `reproxy --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
+
+## Install
+
+- for a binary distribution pick the proper file in release section
+- docker container available via docker hub (umputun/reproxy) as well as via github container registry (ghcr.io/umputun/reproxy). Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
 
 ## Providers
 
@@ -77,6 +83,13 @@ User may turn assets server on (off by default) to serve static files. As long a
 - `--gzip` enables gizp compression for responses.
 - `--max=N` allows to set the maximum size of request (default 64k)
 - `--header` sets extra header(s) added to each proxied request
+
+## Ping and health checks
+
+reproxy provides 2 endpoints for this purpose:
+
+- `/ping` responds with `pong` and indicates what reproxy up and running
+- `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services. 
 
 ## All Application Options
 
