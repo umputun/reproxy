@@ -53,7 +53,7 @@ var opts struct {
 	Docker struct {
 		Enabled  bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
 		Host     string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
-		Network  string   `long:"network" env:"NETWORK" default:"default" description:"docker network"`
+		Network  string   `long:"network" env:"NETWORK" default:"bridge" description:"docker network"`
 		Excluded []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
 	} `group:"docker" namespace:"docker" env-namespace:"DOCKER"`
 
