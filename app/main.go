@@ -30,12 +30,13 @@ var opts struct {
 	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
 
 	SSL struct {
-		Type          string `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
-		Cert          string `long:"cert" env:"CERT" description:"path to cert.pem file"`
-		Key           string `long:"key" env:"KEY" description:"path to key.pem file"`
-		ACMELocation  string `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
-		ACMEEmail     string `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
-		RedirHttpPort int    `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test"`
+		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
+		Cert          string   `long:"cert" env:"CERT" description:"path to cert.pem file"`
+		Key           string   `long:"key" env:"KEY" description:"path to key.pem file"`
+		ACMELocation  string   `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
+		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
+		RedirHttpPort int      `long:"http-port" env:"HTTP_PORT" default:"80" description:"http port for redirect to https and acme challenge test"`
+		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
@@ -188,6 +189,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.SSLMode = proxy.SSLAuto
 		config.ACMELocation = opts.SSL.ACMELocation
 		config.ACMEEmail = opts.SSL.ACMEEmail
+		config.FQDNs = opts.SSL.FQDNs
 		config.RedirHttpPort = opts.SSL.RedirHttpPort
 	}
 	return config, err
