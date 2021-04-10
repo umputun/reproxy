@@ -18,7 +18,7 @@ Starting reproxy requires at least one provider defined. The rest of parameters 
 
 example with a static provider:
 
-`reproxy --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
+`reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
 
 ## Install
 
@@ -62,10 +62,15 @@ Docker provider works with no extra configuration and by default redirects all r
 
 This default can be changed with labels:
 
-- reproxy.server - server (hostname) to match
-- reproxy.route - source route (location)
-- reproxy.dest - destination URL's location (will be prepended with host and port automatically)
-- reproxy.ping - ping url for the destination container
+- `reproxy.server` - server (hostname) to match
+- `reproxy.route` - source route (location)
+- `reproxy.dest` - destination URL's location (will be prepended with host and port automatically)
+- `reproxy.ping` - ping url for the destination container
+
+By default all containers with exposed port will be considered as routing destinations. There are 2 ways to restrict it:
+
+- Exclude some containers explicitly with `--docker.exclude`, i.e. `--docker.exclude=c1 --docker.exclude=c2 ...`
+- Allow only a particular docker network with `--docker.network`
 
 This is a dynamic provider and any change in container's status will be applied automatically.
 

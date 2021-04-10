@@ -153,6 +153,7 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 
 	for _, c := range containers {
 		if !contains(c.State, []string{"running"}) {
+			log.Printf("[DEBUG] skip container %s due to state %s", c.Names[0], c.State)
 			continue
 		}
 		containerName := strings.TrimPrefix(c.Names[0], "/")
@@ -163,17 +164,19 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 
 		var ip string
 		for k, v := range c.Networks.Networks {
-			if k == d.Network { // match on network name
+			if d.Network == "" || k == d.Network { // match on network name if defined
 				ip = v.IPAddress
 				break
 			}
 		}
 		if ip == "" {
+			log.Printf("[DEBUG] skip container %s, no ip on %+v", c.Names[0], c.Networks.Networks)
 			continue
 		}
 
 		port, ok := portExposed(c)
 		if !ok {
+			log.Printf("[DEBUG] skip container %s, no exposed ports", c.Names[0])
 			continue
 		}
 
