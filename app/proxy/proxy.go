@@ -69,7 +69,7 @@ func (h *Http) Run(ctx context.Context) error {
 
 	handler := R.Wrap(h.proxyHandler(),
 		R.Recoverer(log.Default()),
-		h.signatureHandler,
+		h.signatureHandler(),
 		R.Ping,
 		h.healthMiddleware,
 		h.accessLogHandler(h.AccessLog),
@@ -166,7 +166,6 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				fs.ServeHTTP(w, r)
 			}
 		}
-
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -209,13 +208,15 @@ func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 	}
 }
 
-func (h *Http) signatureHandler(next http.Handler) http.Handler {
+func (h *Http) signatureHandler() func(next http.Handler) http.Handler {
 	if h.DisableSignature {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-		})
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}
 	}
-	return R.AppInfo("reproxy", "umputun", h.Version)(next)
+	return R.AppInfo("reproxy", "umputun", h.Version)
 }
 
 func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handler {
