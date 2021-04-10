@@ -112,6 +112,7 @@ func TestService_Match(t *testing.T) {
 		dest        string
 		ok          bool
 	}{
+		{"example.com", "/api/svc3/xyz/something", "http://127.0.0.3:8080/blah3/xyz/something", true},
 		{"example.com", "/api/svc3/xyz", "http://127.0.0.3:8080/blah3/xyz", true},
 		{"abc.example.com", "/api/svc1/1234", "http://127.0.0.1:8080/blah1/1234", true},
 		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", false},

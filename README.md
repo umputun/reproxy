@@ -29,6 +29,8 @@ example with a static provider:
 
 User can sets multiple providers at the same time.
 
+_See examples of various providers in [examples](https://github.com/umputun/reproxy/tree/master/examples)_
+
 ### Static
 
 This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported.
