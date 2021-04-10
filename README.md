@@ -64,7 +64,7 @@ This default can be changed with labels:
 
 - reproxy.server - server (hostname) to match
 - reproxy.route - source route (location)
-- reproxy.dest - destination URL
+- reproxy.dest - destination URL's location (will be prepended with host and port automatically)
 - reproxy.ping - ping url for the destination container
 
 This is a dynamic provider and any change in container's status will be applied automatically.
