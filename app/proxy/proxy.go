@@ -139,19 +139,18 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			r.Header.Add("X-Origin-Host", r.Host)
 			h.setXRealIP(r)
 		},
-	}
-
-	reverseProxy.Transport = &http.Transport{
-		ResponseHeaderTimeout: h.TimeOut,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		Transport: &http.Transport{
+			ResponseHeaderTimeout: h.TimeOut,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
 	}
 
 	// default assetsHandler disabled, returns error on missing matches
