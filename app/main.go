@@ -164,7 +164,7 @@ func makeProviders() ([]discovery.Provider, error) {
 		res = append(res, &provider.Static{Rules: opts.Static.Rules})
 	}
 
-	if len(res) == 0 {
+	if len(res) == 0 && opts.Assets.Location == "" {
 		return nil, errors.Errorf("no providers enabled")
 	}
 	return res, nil

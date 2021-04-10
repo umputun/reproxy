@@ -88,6 +88,8 @@ By default no request log generated. This can be turned on by setting `--logger.
 
 User may turn assets server on (off by default) to serve static files. As long as `--assets.location` set it will treat every non-proxied request under `assets.root` as a request for static files. 
 
+Assets server can be used without any proxy providers. In this mode reproxy acts as a simple web server for a static context.
+
 ## More options
 
 - `--gzip` enables gizp compression for responses.
