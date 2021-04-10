@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -48,7 +49,54 @@ func TestFile_Events(t *testing.T) {
 		t.Log("event")
 		events++
 	}
+	// expecting events from creation + 3 writes
 	assert.Equal(t, 4, events)
+}
+
+func TestFile_Events_BusyListener(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	tmp, err := ioutil.TempFile(os.TempDir(), "reproxy-events-busy")
+	require.NoError(t, err)
+	_ = tmp.Close()
+	defer os.Remove(tmp.Name())
+
+	f := File{
+		FileName:      tmp.Name(),
+		CheckInterval: 10 * time.Millisecond,
+		Delay:         20 * time.Millisecond,
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 2; i++ {
+			time.Sleep(30 * time.Millisecond)
+			assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
+		}
+	}()
+
+	ch := f.Events(ctx)
+	// exhaust creation and one write event
+	for i := 0; i < 2; i++ {
+		t.Log("event")
+		<- ch
+	}
+
+	// wait until last write definitely has happened
+	wg.Wait()
+	// stay busy for CheckInterval before accepting from channel
+	time.Sleep(10 * time.Millisecond)
+
+	events := 0
+	for range ch {
+		t.Log("event")
+		events++
+	}
+	assert.Equal(t, 1, events)
 }
 
 func TestFile_List(t *testing.T) {
