@@ -28,18 +28,3 @@ services:
     ports:
       - "9092"
     command: python3 -m http.server 9092
-
-#  logger:
-#    image: umputun/docker-logger
-#    hostname: "logger"
-#    environment:
-#      - LOG_FILES=true
-#      - LOG_SYSLOG=false
-#      - EXCLUDE=docker-logger
-#      - MAX_FILES=10
-#      - MAX_SIZE=50
-#      - MAX_AGE=20
-#      - DEBUG=false
-#      - TIME_ZONE=America/Chicago
-#    volumes:
-#      - /var/run/docker.sock:/var/run/docker.sock
