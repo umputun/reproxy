@@ -18,7 +18,7 @@ race_test:
 	cd app && go test -race -mod=vendor -timeout=60s -count 1 ./...
 
 build: info
-	- cd app && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X main.revision=$(REV)" -o ../dist/reproxy
+	- cd app && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X main.revision=$(REV) -s -w" -o ../dist/reproxy
 
 info:
 	- @echo "revision $(REV)"
