@@ -37,7 +37,7 @@ Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination,[ping
 - `*,^/api/(.*),https://api.example.com/$1` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
 - `example.com,/foo/bar,https://api.example.com/zzz` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` 
 
-The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check]() section for more details.
+The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](https://github.com/umputun/reproxy#ping-and-health-checks) section for more details.
 
 ### File
 
