@@ -6,6 +6,7 @@ To run it do `make run` and try to hit it, for example
 - `curl localhost:8080/api/svc2/something`
 - `curl localhost:8080/api/svc3/something`
 - `curl 127.0.0.1:8080/api/svc3/something`
+- `curl 127.0.0.1:8080/static/1.html`
 
 for health check try - `curl localhost:8080/health`
 

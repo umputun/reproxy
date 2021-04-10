@@ -2,7 +2,7 @@ run: install
 	whoami -port 8081 -name=svc1 &
 	whoami -port 8082 -name=svc2 &
 	whoami -port 8083 -name=svc3 &
-	../../dist/reproxy --file.enabled --file.name=reproxy.yml
+	../../dist/reproxy --file.enabled --file.name=reproxy.yml --assets.location=./web --assets.root=/static
 	pkill -9 whoami
 
 kill:
