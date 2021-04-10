@@ -18,7 +18,7 @@ import (
 // Service implements discovery with multiple providers and url matcher
 type Service struct {
 	providers []Provider
-	mappers   []URLMapper
+	mappers   map[string][]URLMapper
 	lock      sync.RWMutex
 }
 
@@ -73,8 +73,10 @@ func (s *Service) Run(ctx context.Context) error {
 				log.Printf("[INFO] match for %s: %s %s %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
 			}
 			s.lock.Lock()
-			s.mappers = make([]URLMapper, len(lst))
-			copy(s.mappers, lst)
+			s.mappers = make(map[string][]URLMapper)
+			for _, m := range lst {
+				s.mappers[m.Server] = append(s.mappers[m.Server], m)
+			}
 			s.lock.Unlock()
 		}
 	}
@@ -85,13 +87,12 @@ func (s *Service) Match(srv, src string) (string, bool) {
 
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	for _, m := range s.mappers {
-		if m.Server != "*" && m.Server != "" && m.Server != srv {
-			continue
-		}
-		dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-		if src != dest {
-			return dest, true
+	for _, srvName := range []string {srv, "*", ""} {
+		for _, m := range s.mappers[srvName] {
+			dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
+			if src != dest {
+				return dest, true
+			}
 		}
 	}
 	return src, false
@@ -101,11 +102,13 @@ func (s *Service) Match(srv, src string) (string, bool) {
 func (s *Service) Servers() (servers []string) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	for _, m := range s.mappers {
-		if m.Server == "*" || m.Server == "" {
+	for key, ms := range s.mappers {
+		if key == "*" || key == "" {
 			continue
 		}
-		servers = append(servers, m.Server)
+		for _, m := range ms {
+			servers = append(servers, m.Server)
+		}
 	}
 	return servers
 }
@@ -114,7 +117,9 @@ func (s *Service) Servers() (servers []string) {
 func (s *Service) Mappers() (mappers []URLMapper) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	mappers = append(mappers, s.mappers...)
+	for _, m := range s.mappers {
+		mappers = append(mappers, m...)
+	}
 	return mappers
 }
 

@@ -105,7 +105,7 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.mappers))
+	assert.Equal(t, 3, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
