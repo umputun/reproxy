@@ -1,0 +1,45 @@
+
+services:
+  reproxy:
+    build: .
+    image: umputun/reproxy:master
+    hostname: "reproxy"
+    ports:
+      - "80:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - LISTEN=0.0.0.0:8080
+      - DOCKER_ENABLED=true
+      - DOCKER_NETWORK=reproxy_default
+      - ASSETS_LOCATION=/web
+      - DEBUG=true
+
+  svc1:
+    image: python:3-alpine
+    hostname: svc1
+    ports:
+      - "9091"
+    command: python3 -m http.server 9091
+
+  svc2:
+    image: python:3-alpine
+    hostname: svc2
+    ports:
+      - "9092"
+    command: python3 -m http.server 9092
+
+#  logger:
+#    image: umputun/docker-logger
+#    hostname: "logger"
+#    environment:
+#      - LOG_FILES=true
+#      - LOG_SYSLOG=false
+#      - EXCLUDE=docker-logger
+#      - MAX_FILES=10
+#      - MAX_SIZE=50
+#      - MAX_AGE=20
+#      - DEBUG=false
+#      - TIME_ZONE=America/Chicago
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
