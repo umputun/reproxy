@@ -22,7 +22,7 @@ func TestDocker_List(t *testing.T) {
 						{PrivatePort: 12345},
 					},
 					Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
-						"reproxy.server": "example.com", "reproxy.ping": "http://localhost/ping"},
+						"reproxy.server": "example.com", "reproxy.ping": "/ping"},
 				},
 				{Names: []string{"c2"}, State: "running",
 					Networks: dc.NetworkList{
@@ -53,7 +53,7 @@ func TestDocker_List(t *testing.T) {
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
 	assert.Equal(t, "example.com", res[0].Server)
-	assert.Equal(t, "http://localhost/ping", res[0].PingURL)
+	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
 
 	assert.Equal(t, "^/api/c2/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:12346/$1", res[1].Dst)

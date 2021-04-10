@@ -137,6 +137,8 @@ func (s *Service) mergeLists() (res []URLMapper) {
 func (s *Service) extendRule(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
+
+	// TODO: Probably should be ok in practice but we better figure a nicer way to do it
 	if strings.Contains(m.Dst, "$1") || strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
 		return m
 	}

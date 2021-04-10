@@ -88,7 +88,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		srcRegex, err := regexp.Compile(srcURL)
 
 		if v, ok := c.Labels["reproxy.ping"]; ok {
-			pingURL = v
+			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
 		}
 
 		if err != nil {
