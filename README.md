@@ -16,7 +16,9 @@ Optional assets server can be used to serve static files.
 
 Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
-example with a static provider: `reproxy --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
+example with a static provider:
+
+`reproxy --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
 
 ## Install
 
