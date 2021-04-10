@@ -18,7 +18,7 @@ Starting reproxy requires at least one provider defined. The rest of parameters 
 
 example with a static provider:
 
-`reproxy --static.enabled --rule="example.com/api/(.*),https://api.example.com/$1"`
+`reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
 
 ## Install
 
