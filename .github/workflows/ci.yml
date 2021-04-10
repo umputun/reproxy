@@ -46,6 +46,7 @@ jobs:
           COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: build and deploy image
+        if: ${{ github.ref == 'refs/heads/master' || startwith(github.ref, 'refs/tags/') }}
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.PKG_TOKEN }}
         run: |
