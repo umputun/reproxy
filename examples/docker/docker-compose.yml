@@ -1,0 +1,45 @@
+# run this example as docker-compose up and try to hit containers:
+#  curl http://localhost/api/svc1/123
+#  curl http://localhost/api/svc2/345
+#  curl http://localhost/whoami/test
+# also try assets server:
+#  curl http://localhost/1.html
+#  curl http://localhost/
+
+services:
+  reproxy:
+    build: .
+    image: umputun/reproxy:master
+    container_name: reproxy
+    hostname: reproxy
+    ports:
+      - "80:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./web:/web
+    environment:
+      - LISTEN=0.0.0.0:8080
+      - DOCKER_ENABLED=true
+      - ASSETS_LOCATION=/web
+      - DEBUG=true
+
+  svc1:
+    image: hashicorp/http-echo
+    hostname: svc1
+    container_name: svc1
+    command: -text="hello world from svc1"
+
+  svc2:
+    image: hashicorp/http-echo
+    hostname: svc2
+    container_name: svc2
+    command: -text="hello world from svc2"
+
+  whoami:
+    image: 'containous/whoami'
+    hostname: whoami
+    container_name: whoami
+    labels:
+      reproxy.server: '*'
+      reproxy.route: '^/whoami/(.*)'
+      reproxy.dest: '/$$1'
