@@ -53,7 +53,7 @@ func TestHttp_healthHandler(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	client := http.Client{}
 	req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", nil)

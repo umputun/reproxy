@@ -42,6 +42,7 @@ func TestHttp_Do(t *testing.T) {
 		_ = svc.Run(context.Background())
 	}()
 
+	time.Sleep(10 * time.Millisecond)
 	h.Matcher = svc
 	go func() {
 		_ = h.Run(ctx)
@@ -113,7 +114,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	go func() {
 		_ = svc.Run(context.Background())
 	}()
-
+	time.Sleep(10 * time.Millisecond)
 	h.Matcher = svc
 	go func() {
 		_ = h.Run(ctx)
