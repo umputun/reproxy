@@ -26,10 +26,12 @@ func (d *File) Events(ctx context.Context) <-chan struct{} {
 	res := make(chan struct{})
 
 	// no need to queue multiple events
-	trySubmit := func(ch chan struct{}) {
+	trySubmit := func(ch chan struct{}) bool {
 		select {
 		case ch <- struct{}{}:
+			return true
 		default:
+			return false
 		}
 	}
 
@@ -50,8 +52,9 @@ func (d *File) Events(ctx context.Context) <-chan struct{} {
 					}
 					log.Printf("[DEBUG] file %s changed, %s -> %s", d.FileName,
 						lastModif.Format(time.RFC3339Nano), fi.ModTime().Format(time.RFC3339Nano))
-					lastModif = fi.ModTime()
-					trySubmit(res)
+					if trySubmit(res) {
+						lastModif = fi.ModTime()
+					}
 				}
 			case <-ctx.Done():
 				close(res)
