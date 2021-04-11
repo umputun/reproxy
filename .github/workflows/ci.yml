@@ -49,9 +49,10 @@ jobs:
         if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.PKG_TOKEN }}
+          USERNAME: ${{ github.actor }}
         run: |
           ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
           echo GITHUB_REF - $ref
-          echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u umputun --password-stdin
-          docker build -t ghcr.io/umputun/reproxy:${ref} .
-          docker push ghcr.io/umputun/reproxy:${ref}
+          echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
+          docker build -t ghcr.io/${USERNAME}/reproxy:${ref} .
+          docker push ghcr.io/${USERNAME}/reproxy:${ref}
