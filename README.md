@@ -5,8 +5,7 @@ Reproxy is simple edge HTTP(s) sever / reverse proxy supporting various provider
 One or more providers supply information about requested server, requested url, destination url and health check url.
 Distributed as a single binary or as a docker container.
 
-Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url
-may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
+Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
 
 For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases 
 expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` ->  `http://127.0.0.1/service/$1`
@@ -22,7 +21,7 @@ example with a static provider:
 
 ## Install
 
-- for a binary distribution pick the proper file in the release section
+- for a binary distribution pick the proper file in the [release section](https://github.com/umputun/reproxy/releases)
 - docker container available via docker hub (umputun/reproxy) as well as via github container registry (ghcr.io/umputun/reproxy). Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
 
 ## Providers
@@ -36,8 +35,8 @@ _See examples of various providers in [examples](https://github.com/umputun/repr
 This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported.
 Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination,[ping-url]`. For example:
 
-- `*,^/api/(.*),https://api.example.com/$1` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
-- `example.com,/foo/bar,https://api.example.com/zzz` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` 
+- `*,^/api/(.*),https://api.example.com/$1,` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
+- `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz`. Uses `https://api.example.com/ping` for the health check 
 
 The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](https://github.com/umputun/reproxy#ping-and-health-checks) section for more details.
 
