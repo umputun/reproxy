@@ -21,9 +21,19 @@ RUN \
 
 FROM alpine:3.13
 
+ENV \
+    TERM=xterm-color           \
+    TIME_ZONE=America/Chicago
+
+RUN \
+    apk add --no-cache --update tzdata curl ca-certificates && \
+    cp /usr/share/zoneinfo/${TIME_ZONE} /etc/localtime && \
+    echo "${TIME_ZONE}" > /etc/timezone && date && \
+    rm -rf /var/cache/apk/*
+
 COPY --from=backend /build/reproxy /srv/reproxy
 RUN chmod +x /srv/reproxy
 LABEL reproxy.enabled="false"
 WORKDIR /srv
 
-CMD ["/srv/reproxy"]
+ENTRYPOINT ["/srv/reproxy"]
