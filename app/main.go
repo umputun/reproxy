@@ -97,11 +97,13 @@ func main() {
 	}
 
 	svc := discovery.NewService(providers)
-	go func() {
-		if e := svc.Run(context.Background()); e != nil {
-			log.Fatalf("[ERROR] discovery failed, %v", e)
-		}
-	}()
+	if len(providers) > 0 {
+		go func() {
+			if e := svc.Run(context.Background()); e != nil {
+				log.Fatalf("[ERROR] discovery failed, %v", e)
+			}
+		}()
+	}
 
 	sslConfig, err := makeSSLConfig()
 	if err != nil {
