@@ -54,5 +54,5 @@ jobs:
           ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
           echo GITHUB_REF - $ref
           echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
-          docker build -t ghcr.io/${USERNAME}/reproxy:${ref} .
+          docker build --build-arg CI=github -t ghcr.io/${USERNAME}/reproxy:${ref} .
           docker push ghcr.io/${USERNAME}/reproxy:${ref}
