@@ -13,6 +13,7 @@ services:
       - DOCKER_ENABLED=true
       - ASSETS_LOCATION=/web
       - DEBUG=true
+      - TIME_ZONE=America/Chicago
 
   svc1:
     image: hashicorp/http-echo
