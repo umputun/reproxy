@@ -1,14 +1,5 @@
-# run this example as docker-compose up and try to hit containers:
-#  curl http://localhost/api/svc1/123
-#  curl http://localhost/api/svc2/345
-#  curl http://localhost/whoami/test
-# also try assets server:
-#  curl http://localhost/1.html
-#  curl http://localhost/
-
 services:
   reproxy:
-    build: .
     image: umputun/reproxy:master
     container_name: reproxy
     hostname: reproxy
