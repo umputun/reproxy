@@ -70,7 +70,7 @@ jobs:
           echo ${DOCKER_HUB_TOKEN} | docker login -u ${USERNAME} --password-stdin
           docker buildx build --push \
               --build-arg CI=github --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GIT_BRANCH=${ref} \
-              --platform linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
+              --platform linux/amd64,linux/arm/v7,linux/arm64 \
               -t ghcr.io/${USERNAME}/reproxy:${ref} -t ${USERNAME}/reproxy:${ref} .
 
       - name: deploy tagged (latest) to ghcr.io and dockerhub
@@ -88,6 +88,6 @@ jobs:
           echo ${DOCKER_HUB_TOKEN} | docker login -u ${USERNAME} --password-stdin
           docker buildx build --push \
               --build-arg CI=github --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GIT_BRANCH=${ref} \
-              --platform linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64 \
+              --platform linux/amd64,linux/arm/v7,linux/arm64 \
               -t ghcr.io/${USERNAME}/reproxy:${ref} -t ghcr.io/${USERNAME}/reproxy:latest \
               -t ${USERNAME}/reproxy:${ref} -t ${USERNAME}/reproxy:latest .
