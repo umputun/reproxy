@@ -50,9 +50,11 @@ jobs:
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.PKG_TOKEN }}
           USERNAME: ${{ github.actor }}
+          GITHUB_SHA: ${{ github.sha}}
+          GITHUB_REF: ${{ github.ref}}
         run: |
           ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
           echo GITHUB_REF - $ref
           echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
-          docker build --build-arg CI=github -t ghcr.io/${USERNAME}/reproxy:${ref} .
+          docker build --build-arg CI=github --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GIT_BRANCH=${ref} -t ghcr.io/${USERNAME}/reproxy:${ref} .
           docker push ghcr.io/${USERNAME}/reproxy:${ref}
