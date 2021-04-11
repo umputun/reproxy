@@ -7,6 +7,7 @@ package discovery
 import (
 	"context"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -87,7 +88,7 @@ func (s *Service) Match(srv, src string) (string, bool) {
 
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	for _, srvName := range []string {srv, "*", ""} {
+	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
 			dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 			if src != dest {
@@ -110,6 +111,7 @@ func (s *Service) Servers() (servers []string) {
 			servers = append(servers, m.Server)
 		}
 	}
+	sort.Strings(servers)
 	return servers
 }
 
