@@ -68,10 +68,11 @@ This default can be changed with labels:
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port  
 - `reproxy.ping` - ping path for the destination container.
 
-By default all containers with exposed port will be considered as routing destinations. There are 2 ways to restrict it:
+By default all containers with exposed port will be considered as routing destinations. There are 3 ways to restrict it:
 
 - Exclude some containers explicitly with `--docker.exclude`, i.e. `--docker.exclude=c1 --docker.exclude=c2 ...`
 - Allow only a particular docker network with `--docker.network`
+- Set the label `reproxy.enabled=false` or `reproxy.enabled=no`
 
 This is a dynamic provider and any change in container's status will be applied automatically.
 

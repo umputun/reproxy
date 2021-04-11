@@ -162,6 +162,13 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 			continue
 		}
 
+		if v, ok := c.Labels["reproxy.enabled"]; ok {
+			if strings.EqualFold(v, "false") || strings.EqualFold(v, "no") {
+				log.Printf("[DEBUG] skip container %s due to reproxy.enabled=%s", containerName, v)
+				continue
+			}
+		}
+
 		var ip string
 		for k, v := range c.Networks.Networks {
 			if d.Network == "" || k == d.Network { // match on network name if defined

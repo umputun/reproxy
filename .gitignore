@@ -3,3 +3,4 @@
 access.log
 var/
 dist/
+docker-compose-private.yml

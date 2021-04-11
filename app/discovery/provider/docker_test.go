@@ -41,6 +41,15 @@ func TestDocker_List(t *testing.T) {
 						{PrivatePort: 12345},
 					},
 				},
+				{Names: []string{"c5"}, State: "running",
+					Networks: dc.NetworkList{
+						Networks: map[string]dc.ContainerNetwork{"bridge": {IPAddress: "127.0.0.122"}},
+					},
+					Ports: []dc.APIPort{
+						{PrivatePort: 2345},
+					},
+					Labels: map[string]string{"reproxy.enabled": "false"},
+				},
 			}, nil
 		},
 	}

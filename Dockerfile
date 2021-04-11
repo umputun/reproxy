@@ -21,7 +21,7 @@ FROM umputun/baseimage:app-latest
 
 COPY --from=backend /build/reproxy /srv/reproxy
 RUN chmod +x /srv/reproxy
-
+LABEL reproxy.enabled="false"
 WORKDIR /srv
 
 CMD ["/srv/reproxy"]
