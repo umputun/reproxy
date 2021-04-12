@@ -51,8 +51,8 @@ const (
 )
 
 // NewService makes service with given providers
-func NewService(providers []Provider) *Service {
-	return &Service{providers: providers, interval: time.Second}
+func NewService(providers []Provider, interval time.Duration) *Service {
+	return &Service{providers: providers, interval: interval}
 }
 
 // Run runs blocking loop getting events from all providers

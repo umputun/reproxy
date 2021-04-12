@@ -36,13 +36,13 @@ func TestHttp_Do(t *testing.T) {
 			"localhost,^/api/(.*)," + ds.URL + "/123/$1,",
 			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1,",
 		},
-		}})
+		}}, time.Millisecond*10)
 
 	go func() {
 		_ = svc.Run(context.Background())
 	}()
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
 	go func() {
 		_ = h.Run(ctx)
@@ -109,12 +109,12 @@ func TestHttp_DoWithAssets(t *testing.T) {
 			"localhost,^/api/(.*)," + ds.URL + "/123/$1,",
 			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1,",
 		},
-		}})
+		}}, time.Millisecond*10)
 
 	go func() {
 		_ = svc.Run(context.Background())
 	}()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
 	go func() {
 		_ = h.Run(ctx)

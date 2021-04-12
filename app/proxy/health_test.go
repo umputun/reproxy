@@ -43,7 +43,7 @@ func TestHttp_healthHandler(t *testing.T) {
 			"localhost,^/api/(.*)," + ds.URL + "/123/$1," + ps.URL + "/123/ping",
 			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1," + ps.URL + "/567/ping",
 		},
-		}})
+		}}, time.Millisecond*10)
 
 	go func() {
 		_ = svc.Run(context.Background())

@@ -98,7 +98,7 @@ func main() {
 		log.Fatalf("[ERROR] failed to make providers, %v", err)
 	}
 
-	svc := discovery.NewService(providers)
+	svc := discovery.NewService(providers, time.Second)
 	if len(providers) > 0 {
 		go func() {
 			if e := svc.Run(context.Background()); e != nil {

@@ -38,8 +38,7 @@ func TestService_Do(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewService([]Provider{p1, p2})
-	svc.interval = time.Millisecond * 100
+	svc := NewService([]Provider{p1, p2}, time.Millisecond*10)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -85,8 +84,7 @@ func TestService_Match(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewService([]Provider{p1, p2})
-	svc.interval = time.Millisecond * 100
+	svc := NewService([]Provider{p1, p2}, time.Millisecond*100)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -147,8 +145,7 @@ func TestService_Servers(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	svc := NewService([]Provider{p1, p2})
-	svc.interval = time.Millisecond * 100
+	svc := NewService([]Provider{p1, p2}, time.Millisecond*100)
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
