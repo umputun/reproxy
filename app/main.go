@@ -67,7 +67,7 @@ var opts struct {
 
 	Static struct {
 		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable static provider"`
-		Rules   []string `long:"rule" env:"RULES" description:"routing rules" env-delim:","`
+		Rules   []string `long:"rule" env:"RULES" description:"routing rules" env-delim:";"`
 	} `group:"static" namespace:"static" env-namespace:"STATIC"`
 
 	NoSignature bool `long:"no-signature" env:"NO_SIGNATURE" description:"disable reproxy signature headers"`
