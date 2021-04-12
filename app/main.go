@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -56,6 +57,7 @@ var opts struct {
 		Host     string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
 		Network  string   `long:"network" env:"NETWORK" default:"" description:"docker network"`
 		Excluded []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
+		AutoAPI  bool     `long:"auto" env:"AUTO" description:"enable automatic routing (without labels)"`
 	} `group:"docker" namespace:"docker" env-namespace:"DOCKER"`
 
 	File struct {
@@ -143,8 +145,19 @@ func main() {
 	}
 }
 
+// make all providers. the order is matter, defines which provider will have priority in case of conflicting rules
+// static first, file second and docker the last one
 func makeProviders() ([]discovery.Provider, error) {
 	var res []discovery.Provider
+
+	if opts.Static.Enabled {
+		var msgs []string
+		for _, rule := range opts.Static.Rules {
+			msgs = append(msgs, "\""+rule+"\"")
+		}
+		log.Printf("[DEBUG] inject static rules: %s", strings.Join(msgs, " "))
+		res = append(res, &provider.Static{Rules: opts.Static.Rules})
+	}
 
 	if opts.File.Enabled {
 		res = append(res, &provider.File{
@@ -160,10 +173,6 @@ func makeProviders() ([]discovery.Provider, error) {
 			return nil, errors.Wrapf(err, "failed to make docker client %s", err)
 		}
 		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded, Network: opts.Docker.Network})
-	}
-
-	if opts.Static.Enabled {
-		res = append(res, &provider.Static{Rules: opts.Static.Rules})
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
