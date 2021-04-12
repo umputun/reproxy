@@ -132,7 +132,7 @@ func (s *Service) mergeLists() (res []URLMapper) {
 			continue
 		}
 		for i := range lst {
-			lst[i] = s.extendRule(lst[i])
+			lst[i] = s.extendMapper(lst[i])
 			lst[i].ProviderID = p.ID()
 		}
 		res = append(res, lst...)
@@ -140,13 +140,19 @@ func (s *Service) mergeLists() (res []URLMapper) {
 	return res
 }
 
-// extendRule from /something/blah->http://example.com/api to ^/something/blah/(.*)->http://example.com/api/$1
-func (s *Service) extendRule(m URLMapper) URLMapper {
+// extendMapper from /something/blah->http://example.com/api to ^/something/blah/(.*)->http://example.com/api/$1
+// also substitutes @ in dest by $. The reason for this substitution - some providers, for example docker
+// treat $ in a special way for variable substitution and user has to escape $, like this reproxy.dest: '/$$1'
+// It can be simplified with @, i.e. reproxy.dest: '/@1'
+func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
 
 	// TODO: Probably should be ok in practice but we better figure a nicer way to do it
-	if strings.Contains(m.Dst, "$1") || strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
+	if strings.Contains(m.Dst, "$1") || strings.Contains(m.Dst, "@1") ||
+		strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
+
+		m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n
 		return m
 	}
 	res := URLMapper{

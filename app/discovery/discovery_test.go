@@ -21,7 +21,7 @@ func TestService_Do(t *testing.T) {
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
 				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
-				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/@1/abc"},
 			}, nil
 		},
 		IDFunc: func() ProviderID {
@@ -209,7 +209,7 @@ func TestService_extendRule(t *testing.T) {
 	for i, tt := range tbl {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res := svc.extendRule(tt.inp)
+			res := svc.extendMapper(tt.inp)
 			assert.Equal(t, tt.out, res)
 		})
 	}
