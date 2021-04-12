@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"log"
 	"regexp"
 	"strings"
 
@@ -16,9 +17,9 @@ type Static struct {
 }
 
 // Events returns channel updating once
-func (s *Static) Events(_ context.Context) <-chan struct{} {
-	res := make(chan struct{}, 1)
-	res <- struct{}{}
+func (s *Static) Events(_ context.Context) <-chan discovery.ProviderID {
+	res := make(chan discovery.ProviderID, 1)
+	res <- discovery.PIStatic
 	return res
 }
 
@@ -45,8 +46,12 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 	}
 
 	for _, r := range s.Rules {
+		if strings.TrimSpace(r) == "" {
+			continue
+		}
 		um, err := parse(r)
 		if err != nil {
+			log.Printf("[DEBUG] invalid rule %s, %v", r, err)
 			return nil, err
 		}
 		res = append(res, um)

@@ -13,9 +13,9 @@ import (
 
 func TestService_Do(t *testing.T) {
 	p1 := &ProviderMock{
-		EventsFunc: func(ctx context.Context) <-chan struct{} {
-			res := make(chan struct{}, 1)
-			res <- struct{}{}
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
 			return res
 		},
 		ListFunc: func() ([]URLMapper, error) {
@@ -28,8 +28,8 @@ func TestService_Do(t *testing.T) {
 		},
 	}
 	p2 := &ProviderMock{
-		EventsFunc: func(ctx context.Context) <-chan struct{} {
-			return make(chan struct{}, 1)
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return make(chan ProviderID, 1)
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
@@ -39,7 +39,7 @@ func TestService_Do(t *testing.T) {
 		},
 	}
 	svc := NewService([]Provider{p1, p2})
-
+	svc.interval = time.Millisecond * 100
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -62,9 +62,9 @@ func TestService_Do(t *testing.T) {
 
 func TestService_Match(t *testing.T) {
 	p1 := &ProviderMock{
-		EventsFunc: func(ctx context.Context) <-chan struct{} {
-			res := make(chan struct{}, 1)
-			res <- struct{}{}
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
 			return res
 		},
 		ListFunc: func() ([]URLMapper, error) {
@@ -76,8 +76,8 @@ func TestService_Match(t *testing.T) {
 		},
 	}
 	p2 := &ProviderMock{
-		EventsFunc: func(ctx context.Context) <-chan struct{} {
-			return make(chan struct{}, 1)
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return make(chan ProviderID, 1)
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
@@ -86,7 +86,7 @@ func TestService_Match(t *testing.T) {
 		},
 	}
 	svc := NewService([]Provider{p1, p2})
-
+	svc.interval = time.Millisecond * 100
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -120,9 +120,9 @@ func TestService_Match(t *testing.T) {
 
 func TestService_Servers(t *testing.T) {
 	p1 := &ProviderMock{
-		EventsFunc: func(ctx context.Context) <-chan struct{} {
-			res := make(chan struct{}, 1)
-			res <- struct{}{}
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
 			return res
 		},
 		ListFunc: func() ([]URLMapper, error) {
@@ -134,8 +134,8 @@ func TestService_Servers(t *testing.T) {
 		},
 	}
 	p2 := &ProviderMock{
-		EventsFunc: func(ctx context.Context) <-chan struct{} {
-			return make(chan struct{}, 1)
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return make(chan ProviderID, 1)
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
@@ -148,6 +148,7 @@ func TestService_Servers(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	svc := NewService([]Provider{p1, p2})
+	svc.interval = time.Millisecond * 100
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)

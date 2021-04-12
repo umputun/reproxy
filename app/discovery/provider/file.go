@@ -22,13 +22,13 @@ type File struct {
 }
 
 // Events returns channel updating on file change only
-func (d *File) Events(ctx context.Context) <-chan struct{} {
-	res := make(chan struct{})
+func (d *File) Events(ctx context.Context) <-chan discovery.ProviderID {
+	res := make(chan discovery.ProviderID)
 
 	// no need to queue multiple events
-	trySubmit := func(ch chan struct{}) bool {
+	trySubmit := func(ch chan discovery.ProviderID) bool {
 		select {
-		case ch <- struct{}{}:
+		case ch <- discovery.PIFile:
 			return true
 		default:
 			return false

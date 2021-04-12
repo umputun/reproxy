@@ -45,8 +45,8 @@ type containerInfo struct {
 }
 
 // Events gets eventsCh with all containers-related docker events events
-func (d *Docker) Events(ctx context.Context) (res <-chan struct{}) {
-	eventsCh := make(chan struct{})
+func (d *Docker) Events(ctx context.Context) (res <-chan discovery.ProviderID) {
+	eventsCh := make(chan discovery.ProviderID)
 	go func() {
 		defer close(eventsCh)
 		// loop over to recover from failed events call
@@ -103,7 +103,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 // activate starts blocking listener for all docker events
 // filters everything except "container" type, detects stop/start events and publishes signals to eventsCh
-func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan struct{}) error {
+func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan discovery.ProviderID) error {
 	dockerEventsCh := make(chan *dc.APIEvents)
 	err := client.AddEventListenerWithOptions(dc.EventsOptions{
 		Filters: map[string][]string{"type": {"container"}, "event": {"start", "die", "destroy", "restart", "pause"}}},
@@ -112,7 +112,7 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 		return errors.Wrap(err, "can't add even listener")
 	}
 
-	eventsCh <- struct{}{} // initial emmit
+	eventsCh <- discovery.PIDocker // initial emmit
 	for {
 		select {
 		case <-ctx.Done():
@@ -128,8 +128,8 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 				log.Printf("[DEBUG] container %s excluded", containerName)
 				continue
 			}
-			log.Printf("[INFO] new event %+v", ev)
-			eventsCh <- struct{}{}
+			log.Printf("[INFO] new docker event: container %s, status %s", containerName, ev.Status)
+			eventsCh <- discovery.PIDocker
 		}
 	}
 }

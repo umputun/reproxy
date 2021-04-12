@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/go-pkgz/lgr"
 )
@@ -21,6 +22,7 @@ type Service struct {
 	providers []Provider
 	mappers   map[string][]URLMapper
 	lock      sync.RWMutex
+	interval  time.Duration
 }
 
 // URLMapper contains all info about source and destination routes
@@ -34,7 +36,7 @@ type URLMapper struct {
 
 // Provider defines sources of mappers
 type Provider interface {
-	Events(ctx context.Context) (res <-chan struct{})
+	Events(ctx context.Context) (res <-chan ProviderID)
 	List() (res []URLMapper, err error)
 }
 
@@ -50,27 +52,34 @@ const (
 
 // NewService makes service with given providers
 func NewService(providers []Provider) *Service {
-	return &Service{providers: providers}
+	return &Service{providers: providers, interval: time.Second}
 }
 
 // Run runs blocking loop getting events from all providers
 // and updating all mappers on each event
 func (s *Service) Run(ctx context.Context) error {
 
-	evChs := make([]<-chan struct{}, 0, len(s.providers))
+	evChs := make([]<-chan ProviderID, 0, len(s.providers))
 	for _, p := range s.providers {
 		evChs = append(evChs, p.Events(ctx))
 	}
 	ch := s.mergeEvents(ctx, evChs...)
+	var evRecv bool
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ch:
-			log.Printf("[DEBUG] new update event received")
+		case ev := <-ch:
+			log.Printf("[DEBUG] new update event received, %s", ev)
+			evRecv = true
+		case <-time.After(s.interval):
+			if !evRecv {
+				continue
+			}
+			evRecv = false
 			lst := s.mergeLists()
 			for _, m := range lst {
-				log.Printf("[INFO] match for %s: %s %s %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+				log.Printf("[INFO] match for %s: %s %s -> %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
 			}
 			s.lock.Lock()
 			s.mappers = make(map[string][]URLMapper)
@@ -169,11 +178,11 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	return res
 }
 
-func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan struct{}) <-chan struct{} {
+func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-chan ProviderID {
 	var wg sync.WaitGroup
-	out := make(chan struct{})
+	out := make(chan ProviderID)
 
-	output := func(ctx context.Context, c <-chan struct{}) {
+	output := func(ctx context.Context, c <-chan ProviderID) {
 		defer wg.Done()
 		for {
 			select {

@@ -4,7 +4,7 @@ GITREV=$(shell git describe --abbrev=7 --always --tags)
 REV=$(GITREV)-$(BRANCH)-$(shell date +%Y%m%d-%H:%M:%S)
 
 docker:
-	docker build -t umputun/reproxy .
+	docker build -t umputun/reproxy:master .
 
 dist:
 	- @mkdir -p dist
