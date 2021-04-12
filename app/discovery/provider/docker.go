@@ -89,18 +89,20 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		if v, ok := c.Labels["reproxy.server"]; ok {
 			server = v
 		}
-		srcRegex, err := regexp.Compile(srcURL)
-
 		if v, ok := c.Labels["reproxy.ping"]; ok {
 			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
 		}
 
+		srcRegex, err := regexp.Compile(srcURL)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
 		}
 
-		res = append(res, discovery.URLMapper{Server: server, SrcMatch: *srcRegex, Dst: destURL,
-			PingURL: pingURL, ProviderID: discovery.PIDocker})
+		// docker server label may have multiple, comma separated servers
+		for _, srv := range strings.Split(server, ",") {
+			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
+				PingURL: pingURL, ProviderID: discovery.PIDocker})
+		}
 	}
 	return res, nil
 }
