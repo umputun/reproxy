@@ -36,7 +36,6 @@ type URLMapper struct {
 type Provider interface {
 	Events(ctx context.Context) (res <-chan struct{})
 	List() (res []URLMapper, err error)
-	ID() ProviderID
 }
 
 // ProviderID holds provider identifier to emulate enum of them
@@ -133,7 +132,6 @@ func (s *Service) mergeLists() (res []URLMapper) {
 		}
 		for i := range lst {
 			lst[i] = s.extendMapper(lst[i])
-			lst[i].ProviderID = p.ID()
 		}
 		res = append(res, lst...)
 	}

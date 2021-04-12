@@ -95,13 +95,11 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
 		}
 
-		res = append(res, discovery.URLMapper{Server: server, SrcMatch: *srcRegex, Dst: destURL, PingURL: pingURL})
+		res = append(res, discovery.URLMapper{Server: server, SrcMatch: *srcRegex, Dst: destURL,
+			PingURL: pingURL, ProviderID: discovery.PIDocker})
 	}
 	return res, nil
 }
-
-// ID returns providers id
-func (d *Docker) ID() discovery.ProviderID { return discovery.PIDocker }
 
 // activate starts blocking listener for all docker events
 // filters everything except "container" type, detects stop/start events and publishes signals to eventsCh

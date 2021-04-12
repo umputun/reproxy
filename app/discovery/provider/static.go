@@ -36,10 +36,11 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 
 		return discovery.URLMapper{
-			Server:   strings.TrimSpace(elems[0]),
-			SrcMatch: *rx,
-			Dst:      strings.TrimSpace(elems[2]),
-			PingURL:  strings.TrimSpace(elems[3]),
+			Server:     strings.TrimSpace(elems[0]),
+			SrcMatch:   *rx,
+			Dst:        strings.TrimSpace(elems[2]),
+			PingURL:    strings.TrimSpace(elems[3]),
+			ProviderID: discovery.PIStatic,
 		}, nil
 	}
 
@@ -52,6 +53,3 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 	}
 	return res, nil
 }
-
-// ID returns providers id
-func (s *Static) ID() discovery.ProviderID { return discovery.PIStatic }

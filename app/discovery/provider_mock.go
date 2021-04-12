@@ -21,9 +21,6 @@ var _ Provider = &ProviderMock{}
 // 			EventsFunc: func(ctx context.Context) <-chan struct{} {
 // 				panic("mock out the Events method")
 // 			},
-// 			IDFunc: func() ProviderID {
-// 				panic("mock out the ID method")
-// 			},
 // 			ListFunc: func() ([]URLMapper, error) {
 // 				panic("mock out the List method")
 // 			},
@@ -37,9 +34,6 @@ type ProviderMock struct {
 	// EventsFunc mocks the Events method.
 	EventsFunc func(ctx context.Context) <-chan struct{}
 
-	// IDFunc mocks the ID method.
-	IDFunc func() ProviderID
-
 	// ListFunc mocks the List method.
 	ListFunc func() ([]URLMapper, error)
 
@@ -50,15 +44,11 @@ type ProviderMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 		}
-		// ID holds details about calls to the ID method.
-		ID []struct {
-		}
 		// List holds details about calls to the List method.
 		List []struct {
 		}
 	}
 	lockEvents sync.RWMutex
-	lockID     sync.RWMutex
 	lockList   sync.RWMutex
 }
 
@@ -90,32 +80,6 @@ func (mock *ProviderMock) EventsCalls() []struct {
 	mock.lockEvents.RLock()
 	calls = mock.calls.Events
 	mock.lockEvents.RUnlock()
-	return calls
-}
-
-// ID calls IDFunc.
-func (mock *ProviderMock) ID() ProviderID {
-	if mock.IDFunc == nil {
-		panic("ProviderMock.IDFunc: method is nil but Provider.ID was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockID.Lock()
-	mock.calls.ID = append(mock.calls.ID, callInfo)
-	mock.lockID.Unlock()
-	return mock.IDFunc()
-}
-
-// IDCalls gets all the calls that were made to ID.
-// Check the length with:
-//     len(mockedProvider.IDCalls())
-func (mock *ProviderMock) IDCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockID.RLock()
-	calls = mock.calls.ID
-	mock.lockID.RUnlock()
 	return calls
 }
 

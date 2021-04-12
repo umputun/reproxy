@@ -94,7 +94,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 			if srv == "default" {
 				srv = "*"
 			}
-			mapper := discovery.URLMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping}
+			mapper := discovery.URLMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping, ProviderID: discovery.PIFile}
 			res = append(res, mapper)
 		}
 	}
@@ -108,6 +108,3 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 	err = fh.Close()
 	return res, err
 }
-
-// ID returns providers id
-func (d *File) ID() discovery.ProviderID { return discovery.PIFile }

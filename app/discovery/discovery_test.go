@@ -20,12 +20,11 @@ func TestService_Do(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
-				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"), Dst: "http://127.0.0.2:8080/blah2/@1/abc"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1",
+					ProviderID: PIFile},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
+					Dst: "http://127.0.0.2:8080/blah2/@1/abc", ProviderID: PIFile},
 			}, nil
-		},
-		IDFunc: func() ProviderID {
-			return PIFile
 		},
 	}
 	p2 := &ProviderMock{
@@ -34,11 +33,9 @@ func TestService_Do(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"),
+					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
 			}, nil
-		},
-		IDFunc: func() ProviderID {
-			return PIDocker
 		},
 	}
 	svc := NewService([]Provider{p1, p2})
@@ -61,9 +58,6 @@ func TestService_Do(t *testing.T) {
 
 	assert.Equal(t, 1, len(p1.ListCalls()))
 	assert.Equal(t, 1, len(p2.ListCalls()))
-
-	assert.Equal(t, 2, len(p1.IDCalls()))
-	assert.Equal(t, 1, len(p2.IDCalls()))
 }
 
 func TestService_Match(t *testing.T) {
@@ -75,13 +69,10 @@ func TestService_Match(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1", ProviderID: PIFile},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
-					Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
+					Dst: "http://127.0.0.2:8080/blah2/$1/abc", ProviderID: PIFile},
 			}, nil
-		},
-		IDFunc: func() ProviderID {
-			return PIFile
 		},
 	}
 	p2 := &ProviderMock{
@@ -90,11 +81,8 @@ func TestService_Match(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
 			}, nil
-		},
-		IDFunc: func() ProviderID {
-			return PIDocker
 		},
 	}
 	svc := NewService([]Provider{p1, p2})
@@ -139,13 +127,10 @@ func TestService_Servers(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1"},
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1", ProviderID: PIFile},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
-					Dst: "http://127.0.0.2:8080/blah2/$1/abc"},
+					Dst: "http://127.0.0.2:8080/blah2/$1/abc", ProviderID: PIFile},
 			}, nil
-		},
-		IDFunc: func() ProviderID {
-			return PIFile
 		},
 	}
 	p2 := &ProviderMock{
@@ -154,11 +139,9 @@ func TestService_Servers(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{Server: "xx.reproxy.io", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz"},
+				{Server: "xx.reproxy.io", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"),
+					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
 			}, nil
-		},
-		IDFunc: func() ProviderID {
-			return PIDocker
 		},
 	}
 
