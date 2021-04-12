@@ -59,11 +59,11 @@ This is a dynamic provider and file change will be applied automatically.
 
 ### Docker
 
-Docker provider works with no extra configuration and by default redirects all requests like  `https://server/api/<container_name>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
+Docker provider works with no extra configuration and by default redirects all requests like `https://server/<container_name>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
 
 This default can be changed with labels:
 
-- `reproxy.server` - server (hostname) to match
+- `reproxy.server` - server (hostname) to match. Also can be a list of comma-separated servers.
 - `reproxy.route` - source route (location)
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port  
 - `reproxy.ping` - ping path for the destination container.
