@@ -26,6 +26,7 @@ type Docker struct {
 	DockerClient DockerClient
 	Excludes     []string
 	Network      string
+	AutoAPI      bool
 }
 
 // DockerClient defines interface listing containers and subscribing to events
@@ -71,7 +72,10 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 	res := make([]discovery.URLMapper, 0, len(containers))
 	for _, c := range containers {
-		srcURL := fmt.Sprintf("^/api/%s/(.*)", c.Name)
+		srcURL := "^/(.*)"
+		if d.AutoAPI {
+			srcURL = fmt.Sprintf("^/api/%s/(.*)", c.Name)
+		}
 		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, c.Port)
 		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, c.Port)
 		server := "*"

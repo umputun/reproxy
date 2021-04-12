@@ -172,7 +172,11 @@ func makeProviders() ([]discovery.Provider, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to make docker client %s", err)
 		}
-		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded, Network: opts.Docker.Network})
+		if opts.Docker.AutoAPI {
+			log.Printf("[INFO] auto-api enabled for docker")
+		}
+		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded,
+			Network: opts.Docker.Network, AutoAPI: opts.Docker.AutoAPI})
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
