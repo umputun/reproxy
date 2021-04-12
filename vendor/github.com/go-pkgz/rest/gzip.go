@@ -64,7 +64,7 @@ func Gzip(contentTypes ...string) func(http.Handler) http.Handler {
 			var gzOk bool
 			ctype := contentType(r)
 			for _, c := range gzCts {
-				if strings.EqualFold(ctype, c) {
+				if strings.HasPrefix(strings.ToLower(ctype), strings.ToLower(c)) {
 					gzOk = true
 					break
 				}

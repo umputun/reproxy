@@ -59,7 +59,7 @@ func Recoverer(l logger.Backend) func(http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rvr := recover(); rvr != nil {
-					l.Logf("request panic, %v", rvr)
+					l.Logf("request panic for %s from %s, %v", r.URL.String(), r.RemoteAddr, rvr)
 					l.Logf(string(debug.Stack()))
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				}

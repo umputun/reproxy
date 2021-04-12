@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/fsouza/go-dockerclient v1.7.2
 	github.com/go-pkgz/lgr v0.10.4
-	github.com/go-pkgz/rest v1.8.1
+	github.com/go-pkgz/rest v1.9.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
