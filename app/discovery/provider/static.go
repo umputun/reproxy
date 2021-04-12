@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"log"
 	"regexp"
 	"strings"
 
@@ -51,7 +50,6 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 		um, err := parse(r)
 		if err != nil {
-			log.Printf("[DEBUG] invalid rule %s, %v", r, err)
 			return nil, err
 		}
 		res = append(res, um)
