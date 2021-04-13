@@ -218,7 +218,7 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 			continue
 		}
 		containerName := strings.TrimPrefix(c.Names[0], "/")
-		if contains(containerName, d.Excludes) {
+		if contains(containerName, d.Excludes) || strings.EqualFold(containerName, "reproxy") {
 			log.Printf("[DEBUG] container %s excluded", containerName)
 			continue
 		}
