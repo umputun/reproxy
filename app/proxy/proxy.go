@@ -169,6 +169,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			TLSHandshakeTimeout:   h.Timeouts.TLSHandshake,
 			ExpectContinueTimeout: h.Timeouts.ExpectContinue,
 		},
+		ErrorLog: log.ToStdLogger(log.Default(), "WARN"),
 	}
 
 	// default assetsHandler disabled, returns error on missing matches
