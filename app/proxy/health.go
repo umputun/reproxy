@@ -16,7 +16,7 @@ import (
 
 func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" && strings.ToLower(r.URL.Path) == "/health" {
+		if r.Method == "GET" && strings.EqualFold(r.URL.Path, "/health") {
 			h.healthHandler(w, r)
 			return
 		}
@@ -94,7 +94,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 func (h *Http) pingHandler(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 
-		if r.Method == "GET" && strings.ToLower(r.URL.Path) == "/ping" {
+		if r.Method == "GET" && strings.EqualFold(r.URL.Path, "/ping") {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("pong"))
