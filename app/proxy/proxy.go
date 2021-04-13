@@ -90,7 +90,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.pingHandler,
 		h.healthMiddleware,
 		h.accessLogHandler(h.AccessLog),
-		h.stdoutLogHandler(h.StdOutEnabled),
+		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		R.SizeLimit(h.MaxBodySize),
 		R.Headers(h.ProxyHeaders...),
 		h.gzipHandler(),
@@ -243,10 +243,20 @@ func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handl
 	}
 }
 
-func (h *Http) stdoutLogHandler(enable bool) func(next http.Handler) http.Handler {
+func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Handler) func(next http.Handler) http.Handler {
 
 	if enable {
-		return logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler
+		return func(next http.Handler) http.Handler {
+			fn := func(w http.ResponseWriter, r *http.Request) {
+				// don't log to stdout GET ~/(.*)/ping$ requests
+				if r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/ping") {
+					next.ServeHTTP(w, r)
+					return
+				}
+				lh(next).ServeHTTP(w, r)
+			}
+			return http.HandlerFunc(fn)
+		}
 	}
 
 	return func(next http.Handler) http.Handler {
