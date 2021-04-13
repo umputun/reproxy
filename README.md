@@ -59,7 +59,7 @@ This is a dynamic provider and file change will be applied automatically.
 
 ### Docker
 
-Docker provider works with no extra configuration and by default redirects all requests like `https://server/<container_name>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
+Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration and by default redirects all requests like `https://server/<container_name>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected. 
 
 This default can be changed with labels:
 
@@ -67,12 +67,15 @@ This default can be changed with labels:
 - `reproxy.route` - source route (location)
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port  
 - `reproxy.ping` - ping path for the destination container.
+- `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
 
-By default all containers with exposed port will be considered as routing destinations. There are 3 ways to restrict it:
+Pls note: without `--docker.auto` the destination container has to have at least one of `reproxy.*` labels to be considered as a potential destination.
+
+With `--docker.auto`, all containers with exposed port will be considered as routing destinations. There are 3 ways to restrict it:
 
 - Exclude some containers explicitly with `--docker.exclude`, i.e. `--docker.exclude=c1 --docker.exclude=c2 ...`
 - Allow only a particular docker network with `--docker.network`
-- Set the label `reproxy.enabled=false` or `reproxy.enabled=no`
+- Set the label `reproxy.enabled=false` or `reproxy.enabled=no` or `reproxy.enabled=0`
 
 This is a dynamic provider and any change in container's status will be applied automatically.
 
@@ -136,8 +139,9 @@ logger:
 docker:
       --docker.enabled              enable docker provider [$DOCKER_ENABLED]
       --docker.host=                docker host (default: unix:///var/run/docker.sock) [$DOCKER_HOST]
-      --docker.network=             docker network (default: bridge) [$DOCKER_NETWORK]
+      --docker.network=             docker network [$DOCKER_NETWORK]
       --docker.exclude=             excluded containers [$DOCKER_EXCLUDE]
+      --docker.auto                 enable automatic routing (without labels) [$DOCKER_AUTO]
 
 file:
       --file.enabled                enable file provider [$FILE_ENABLED]
@@ -151,7 +155,8 @@ static:
 
 Help Options:
   -h, --help                        Show this help message
-  
+
+
 ```
 
 ## Status

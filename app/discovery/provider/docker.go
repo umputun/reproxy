@@ -64,6 +64,7 @@ func (d *Docker) Events(ctx context.Context) (res <-chan discovery.ProviderID) {
 }
 
 // List all containers and make url mappers
+// If AutoAPI enabled all each container and set all params, if not - allow only container with reproxy.* labels
 func (d *Docker) List() ([]discovery.URLMapper, error) {
 	containers, err := d.listContainers()
 	if err != nil {
@@ -72,25 +73,45 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 	res := make([]discovery.URLMapper, 0, len(containers))
 	for _, c := range containers {
+		enabled := false
 		srcURL := "^/(.*)"
 		if d.AutoAPI {
+			enabled = true
 			srcURL = fmt.Sprintf("^/api/%s/(.*)", c.Name)
+
 		}
 		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, c.Port)
 		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, c.Port)
 		server := "*"
 
+		// we don't care about value because disabled will be filtered before
+		if _, ok := c.Labels["reproxy.enabled"]; ok {
+			enabled = true
+		}
+
 		if v, ok := c.Labels["reproxy.route"]; ok {
+			enabled = true
 			srcURL = v
 		}
+
 		if v, ok := c.Labels["reproxy.dest"]; ok {
+			enabled = true
 			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
 		}
+
 		if v, ok := c.Labels["reproxy.server"]; ok {
+			enabled = true
 			server = v
 		}
+
 		if v, ok := c.Labels["reproxy.ping"]; ok {
+			enabled = true
 			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
+		}
+
+		if !enabled {
+			log.Printf("[DEBUG] container %s disabled", c.Name)
+			continue
 		}
 
 		srcRegex, err := regexp.Compile(srcURL)
@@ -167,7 +188,7 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 		}
 
 		if v, ok := c.Labels["reproxy.enabled"]; ok {
-			if strings.EqualFold(v, "false") || strings.EqualFold(v, "no") {
+			if strings.EqualFold(v, "false") || strings.EqualFold(v, "no") || v == "0" {
 				log.Printf("[DEBUG] skip container %s due to reproxy.enabled=%s", containerName, v)
 				continue
 			}

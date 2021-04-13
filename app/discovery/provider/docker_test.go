@@ -31,6 +31,7 @@ func TestDocker_List(t *testing.T) {
 					Ports: []dc.APIPort{
 						{PrivatePort: 12346},
 					},
+					Labels: map[string]string{"reproxy.enabled": "y"},
 				},
 				{Names: []string{"c3"}, State: "stopped"},
 				{Names: []string{"c4"}, State: "running",
