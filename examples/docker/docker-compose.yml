@@ -3,6 +3,8 @@ services:
     image: umputun/reproxy:master
     container_name: reproxy
     hostname: reproxy
+    labels:
+       reproxy.enabled: "false" # don't include reproxy to automatic destinations
     ports:
       - "80:8080"
     volumes:
@@ -11,22 +13,26 @@ services:
     environment:
       - LISTEN=0.0.0.0:8080
       - DOCKER_ENABLED=true
+      - DOCKER_AUTO=true
       - ASSETS_LOCATION=/web
       - DEBUG=true
       - TIME_ZONE=America/Chicago
 
+  # automatic destination, will be mapped for ^/api/svc1/(.*)
   svc1:
     image: hashicorp/http-echo
     hostname: svc1
     container_name: svc1
     command: -text="hello world from svc1"
 
+  # automatic destination, will be mapped for ^/api/svc2/(.*)
   svc2:
     image: hashicorp/http-echo
     hostname: svc2
     container_name: svc2
     command: -text="hello world from svc2"
 
+  # explicit destination, routing match defined by lables
   whoami:
     image: 'containous/whoami'
     hostname: whoami
