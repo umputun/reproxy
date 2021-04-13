@@ -14,6 +14,7 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
+	"github.com/go-pkgz/rest/logger"
 	"github.com/gorilla/handlers"
 	"github.com/pkg/errors"
 
@@ -21,7 +22,7 @@ import (
 )
 
 // Http is a proxy server for both http and https
-type Http struct { //nolint golint
+type Http struct { // nolint golint
 	Matcher
 	Address          string
 	AssetsLocation   string
@@ -32,6 +33,7 @@ type Http struct { //nolint golint
 	SSLConfig        SSLConfig
 	Version          string
 	AccessLog        io.Writer
+	StdOutEnabled    bool
 	DisableSignature bool
 	Timeouts         Timeouts
 }
@@ -88,6 +90,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.pingHandler,
 		h.healthMiddleware,
 		h.accessLogHandler(h.AccessLog),
+		h.stdoutLogHandler(h.StdOutEnabled),
 		R.SizeLimit(h.MaxBodySize),
 		R.Headers(h.ProxyHeaders...),
 		h.gzipHandler(),
@@ -237,6 +240,19 @@ func (h *Http) signatureHandler() func(next http.Handler) http.Handler {
 func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return handlers.CombinedLoggingHandler(wr, next)
+	}
+}
+
+func (h *Http) stdoutLogHandler(enable bool) func(next http.Handler) http.Handler {
+
+	if enable {
+		return logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 

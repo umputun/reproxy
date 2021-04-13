@@ -45,6 +45,7 @@ var opts struct {
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
 	Logger struct {
+		StdOut     bool   `long:"stdout" env:"STDOUT" description:"enable stdout logging"`
 		Enabled    bool   `long:"enabled" env:"ENABLED" description:"enable access and error rotated logs"`
 		FileName   string `long:"file" env:"FILE"  default:"access.log" description:"location of access log"`
 		MaxSize    int    `long:"max-size" env:"MAX_SIZE" default:"100" description:"maximum size in megabytes before it gets rotated"`
@@ -148,6 +149,7 @@ func main() {
 		SSLConfig:        sslConfig,
 		ProxyHeaders:     opts.ProxyHeaders,
 		AccessLog:        accessLog,
+		StdOutEnabled:    opts.Logger.StdOut,
 		DisableSignature: opts.NoSignature,
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
