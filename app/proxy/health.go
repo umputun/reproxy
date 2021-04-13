@@ -27,18 +27,25 @@ func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 
 func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 
+	const concurrent = 8
+	sema := make(chan struct{}, concurrent) // limit health check to 8 concurrent calls
+
 	// runs pings in parallel
 	check := func(mappers []discovery.URLMapper) (ok bool, valid int, total int, errs []string) {
-		outCh := make(chan error, 8)
+		outCh := make(chan error, concurrent)
 		var pinged int32
 		var wg sync.WaitGroup
 		for _, m := range mappers {
 			if m.PingURL == "" {
 				continue
 			}
+			sema <- struct{}{}
 			wg.Add(1)
 			go func(m discovery.URLMapper) {
-				defer wg.Done()
+				defer func() {
+					<-sema
+					wg.Done()
+				}()
 
 				atomic.AddInt32(&pinged, 1)
 				client := http.Client{Timeout: 100 * time.Millisecond}

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestService_Do(t *testing.T) {
+func TestService_Run(t *testing.T) {
 	p1 := &ProviderMock{
 		EventsFunc: func(ctx context.Context) <-chan ProviderID {
 			res := make(chan ProviderID, 1)
