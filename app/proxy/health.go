@@ -46,12 +46,12 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 				if err != nil {
 					errMsg := strings.Replace(err.Error(), "\"", "", -1)
 					log.Printf("[WARN] failed to ping for health %s, %s", m.PingURL, errMsg)
-					outCh <- fmt.Errorf("%s, %v", m.PingURL, errMsg)
+					outCh <- fmt.Errorf("(%s %s) %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
 					return
 				}
 				if resp.StatusCode != http.StatusOK {
 					log.Printf("[WARN] failed ping status for health %s (%s)", m.PingURL, resp.Status)
-					outCh <- fmt.Errorf("%s, %s", m.PingURL, resp.Status)
+					outCh <- fmt.Errorf("(%s %s) %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)
 					return
 				}
 			}(m)
