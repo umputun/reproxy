@@ -35,7 +35,6 @@ RUN \
 COPY init.sh /init.sh
 COPY --from=backend /build/reproxy /srv/reproxy
 RUN chmod +x /srv/reproxy
-LABEL reproxy.enabled="false"
 WORKDIR /srv
 
 ENTRYPOINT ["/init.sh"]
