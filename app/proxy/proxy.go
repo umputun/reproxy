@@ -89,10 +89,11 @@ func (h *Http) Run(ctx context.Context) error {
 		h.signatureHandler(),
 		h.pingHandler,
 		h.healthMiddleware,
+		// R.Headers(h.ProxyHeaders...),
+		h.headersHandler(h.ProxyHeaders),
 		h.accessLogHandler(h.AccessLog),
 		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		R.SizeLimit(h.MaxBodySize),
-		R.Headers(h.ProxyHeaders...),
 		h.gzipHandler(),
 	)
 
@@ -233,6 +234,26 @@ func (h *Http) signatureHandler() func(next http.Handler) http.Handler {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (h *Http) headersHandler(headers []string) func(next http.Handler) http.Handler {
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if len(h.ProxyHeaders) == 0 {
+				next.ServeHTTP(w, r)
+				return
+			}
+			for _, h := range headers {
+				elems := strings.Split(h, ":")
+				if len(elems) != 2 {
+					continue
+				}
+				w.Header().Set(strings.TrimSpace(elems[0]), strings.TrimSpace(elems[1]))
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
