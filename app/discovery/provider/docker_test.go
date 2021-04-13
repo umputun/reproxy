@@ -95,10 +95,11 @@ func TestDocker_ListWithAutoAPI(t *testing.T) {
 						Networks: map[string]dc.ContainerNetwork{"bridge": {IPAddress: "127.0.0.2"}},
 					},
 					Ports: []dc.APIPort{
+						{PrivatePort: 1345},
 						{PrivatePort: 12345},
 					},
 					Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
-						"reproxy.server": "example.com, example2.com", "reproxy.ping": "/ping"},
+						"reproxy.port": "12345", "reproxy.server": "example.com, example2.com", "reproxy.ping": "/ping"},
 				},
 				{Names: []string{"c2"}, State: "running",
 					Networks: dc.NetworkList{

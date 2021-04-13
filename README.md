@@ -66,6 +66,7 @@ This default can be changed with labels:
 - `reproxy.server` - server (hostname) to match. Also can be a list of comma-separated servers.
 - `reproxy.route` - source route (location)
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port  
+- `reproxy.port` - destination port for the discovered container
 - `reproxy.ping` - ping path for the destination container.
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
 

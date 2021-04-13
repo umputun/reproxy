@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ type containerInfo struct {
 	TS     time.Time
 	Labels map[string]string
 	IP     string
-	Port   int
+	Ports  []int
 }
 
 // Events gets eventsCh with all containers-related docker events events
@@ -79,10 +80,16 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		if d.AutoAPI {
 			enabled = true
 			srcURL = fmt.Sprintf("^/api/%s/(.*)", c.Name)
-
 		}
-		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, c.Port)
-		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, c.Port)
+
+		port, err := d.matchedPort(c)
+		if err != nil {
+			log.Printf("[DEBUG] container %s disabled, %v", c.Name, err)
+			continue
+		}
+
+		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, port)
+		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, port)
 		server := "*"
 
 		// we don't care about value because disabled will be filtered before
@@ -97,7 +104,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 		if v, ok := c.Labels["reproxy.dest"]; ok {
 			enabled = true
-			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
+			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 		}
 
 		if v, ok := c.Labels["reproxy.server"]; ok {
@@ -107,7 +114,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 		if v, ok := c.Labels["reproxy.ping"]; ok {
 			enabled = true
-			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, c.Port, v)
+			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 		}
 
 		if !enabled {
@@ -134,6 +141,24 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		return len(res[i].SrcMatch.String()) > len(res[j].SrcMatch.String())
 	})
 	return res, nil
+}
+
+func (d *Docker) matchedPort(c containerInfo) (port int, err error) {
+	port = c.Ports[0] // by default use the first exposed port
+	if v, ok := c.Labels["reproxy.port"]; ok {
+		rp, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, errors.Wrapf(err, "invalid reproxy.port %s", v)
+		}
+		for _, p := range c.Ports {
+			// set port to reproxy.port if matched with one of exposed
+			if p == rp {
+				port = rp
+				break
+			}
+		}
+	}
+	return port, nil
 }
 
 // activate starts blocking listener for all docker events
@@ -171,11 +196,14 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 
 func (d *Docker) listContainers() (res []containerInfo, err error) {
 
-	portExposed := func(c dc.APIContainers) (int, bool) {
+	portsExposed := func(c dc.APIContainers) (ports []int) {
 		if len(c.Ports) == 0 {
-			return 0, false
+			return nil
 		}
-		return int(c.Ports[0].PrivatePort), true
+		for _, p := range c.Ports {
+			ports = append(ports, int(p.PrivatePort))
+		}
+		return ports
 	}
 
 	containers, err := d.DockerClient.ListContainers(dc.ListContainersOptions{All: false})
@@ -214,8 +242,8 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 			continue
 		}
 
-		port, ok := portExposed(c)
-		if !ok {
+		ports := portsExposed(c)
+		if len(ports) == 0 {
 			log.Printf("[DEBUG] skip container %s, no exposed ports", c.Names[0])
 			continue
 		}
@@ -226,7 +254,7 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 			TS:     time.Unix(c.Created/1000, 0),
 			Labels: c.Labels,
 			IP:     ip,
-			Port:   port,
+			Ports:  ports,
 		}
 
 		log.Printf("[DEBUG] running container added, %+v", ci)
