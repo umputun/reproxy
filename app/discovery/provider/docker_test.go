@@ -14,6 +14,16 @@ func TestDocker_List(t *testing.T) {
 	dclient := &DockerClientMock{
 		ListContainersFunc: func(opts dc.ListContainersOptions) ([]dc.APIContainers, error) {
 			return []dc.APIContainers{
+				{Names: []string{"c0"}, State: "running",
+					Networks: dc.NetworkList{
+						Networks: map[string]dc.ContainerNetwork{"bridge": {IPAddress: "127.0.0.2"}},
+					},
+					Ports: []dc.APIPort{
+						{PrivatePort: 12348},
+					},
+					Labels: map[string]string{"reproxy.route": "^/a/(.*)", "reproxy.dest": "/a/$1",
+						"reproxy.server": "example.com", "reproxy.ping": "/ping"},
+				},
 				{Names: []string{"c1"}, State: "running",
 					Networks: dc.NetworkList{
 						Networks: map[string]dc.ContainerNetwork{"bridge": {IPAddress: "127.0.0.2"}},
@@ -58,17 +68,22 @@ func TestDocker_List(t *testing.T) {
 	d := Docker{DockerClient: dclient, Network: "bridge"}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 2, len(res))
+	require.Equal(t, 3, len(res))
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
 	assert.Equal(t, "example.com", res[0].Server)
 	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
 
-	assert.Equal(t, "^/(.*)", res[1].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.3:12346/$1", res[1].Dst)
-	assert.Equal(t, "http://127.0.0.3:12346/ping", res[1].PingURL)
-	assert.Equal(t, "*", res[1].Server)
+	assert.Equal(t, "^/a/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[1].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[1].PingURL)
+	assert.Equal(t, "example.com", res[1].Server)
+
+	assert.Equal(t, "^/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:12346/$1", res[2].Dst)
+	assert.Equal(t, "http://127.0.0.3:12346/ping", res[2].PingURL)
+	assert.Equal(t, "*", res[2].Server)
 }
 
 func TestDocker_ListWithAutoAPI(t *testing.T) {

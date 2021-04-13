@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -125,6 +126,13 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 				PingURL: pingURL, ProviderID: discovery.PIDocker})
 		}
 	}
+
+	// sort by len(SrcMatch) to have shorter matches after longer
+	// this way we can handle possible conflicts with more detailed match triggered before less detailed
+
+	sort.Slice(res, func(i, j int) bool {
+		return len(res[i].SrcMatch.String()) > len(res[j].SrcMatch.String())
+	})
 	return res, nil
 }
 
