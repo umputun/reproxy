@@ -24,11 +24,10 @@ import (
 )
 
 var opts struct {
-	Listen       string        `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
-	TimeOut      time.Duration `short:"t" long:"timeout" env:"TIMEOUT" default:"5s" description:"proxy timeout"`
-	MaxSize      int64         `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
-	GzipEnabled  bool          `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders []string      `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
+	Listen       string   `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
+	MaxSize      int64    `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
+	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
@@ -71,6 +70,18 @@ var opts struct {
 		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable static provider"`
 		Rules   []string `long:"rule" env:"RULES" description:"routing rules" env-delim:";"`
 	} `group:"static" namespace:"static" env-namespace:"STATIC"`
+
+	Timeouts struct {
+		ReadHeader     time.Duration `long:"read-header" env:"READ_HEADER" default:"5s"  description:"read header server timeout"`
+		Write          time.Duration `long:"write" env:"WRITE" default:"30s" description:"write server timeout"`
+		Idle           time.Duration `long:"idle" env:"IDLE" default:"30s" description:"idle server timeout"`
+		Dial           time.Duration `long:"dial" env:"DIAL" default:"30s" description:"dial transport timeout"`
+		KeepAlive      time.Duration `long:"keep-alive" env:"KEEP_ALIVE" default:"30s"  description:"keep-alive transport timeout"`
+		ResponseHeader time.Duration `long:"resp-header" env:"RESP_HEADER" default:"5s"  description:"response header transport timeout"`
+		IdleConn       time.Duration `long:"idle-conn" env:"IDLE_CONN" default:"90s"  description:"idle connection transport timeout"`
+		TLSHandshake   time.Duration `long:"tls" env:"TLS" default:"10s" description:"TLS hanshake transport timeout"`
+		ExpectContinue time.Duration `long:"continue" env:"CONTINUE" default:"1s" description:"expect continue transport timeout"`
+	} `group:"timeout" namespace:"timeout" env-namespace:"TIMEOUT"`
 
 	NoSignature bool `long:"no-signature" env:"NO_SIGNATURE" description:"disable reproxy signature headers"`
 	Dbg         bool `long:"dbg" env:"DEBUG" description:"debug mode"`
@@ -130,7 +141,6 @@ func main() {
 		Version:          revision,
 		Matcher:          svc,
 		Address:          opts.Listen,
-		TimeOut:          opts.TimeOut,
 		MaxBodySize:      opts.MaxSize,
 		AssetsLocation:   opts.Assets.Location,
 		AssetsWebRoot:    opts.Assets.WebRoot,
@@ -139,6 +149,17 @@ func main() {
 		ProxyHeaders:     opts.ProxyHeaders,
 		AccessLog:        accessLog,
 		DisableSignature: opts.NoSignature,
+		Timeouts: proxy.Timeouts{
+			ReadHeader:     opts.Timeouts.ReadHeader,
+			Write:          opts.Timeouts.Write,
+			Idle:           opts.Timeouts.Idle,
+			Dial:           opts.Timeouts.Dial,
+			KeepAlive:      opts.Timeouts.KeepAlive,
+			IdleConn:       opts.Timeouts.IdleConn,
+			TLSHandshake:   opts.Timeouts.TLSHandshake,
+			ExpectContinue: opts.Timeouts.ExpectContinue,
+			ResponseHeader: opts.Timeouts.ResponseHeader,
+		},
 	}
 	if err := px.Run(context.Background()); err != nil {
 		log.Fatalf("[ERROR] proxy server failed, %v", err) //nolint gocritic

@@ -98,6 +98,7 @@ Assets server can be used without any proxy providers. In this mode reproxy acts
 - `--gzip` enables gizp compression for responses.
 - `--max=N` allows to set the maximum size of request (default 64k)
 - `--header` sets extra header(s) added to each proxied request
+- `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](https://github.com/umputun/reproxy#all-application-options)
 
 ## Ping and health checks
 
@@ -110,7 +111,6 @@ reproxy provides 2 endpoints for this purpose:
 
 ```
   -l, --listen=                     listen on host:port (default: 127.0.0.1:8080) [$LISTEN]
-  -t, --timeout=                    proxy timeout (default: 5s) [$TIMEOUT]
   -m, --max=                        max response size (default: 64000) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
@@ -153,9 +153,19 @@ static:
       --static.enabled              enable static provider [$STATIC_ENABLED]
       --static.rule=                routing rules [$STATIC_RULES]
 
+timeout:
+      --timeout.read-header=        read header server timeout (default: 5s) [$TIMEOUT_READ_HEADER]
+      --timeout.write=              write server timeout (default: 30s) [$TIMEOUT_WRITE]
+      --timeout.idle=               idle server timeout (default: 30s) [$TIMEOUT_IDLE]
+      --timeout.dial=               dial transport timeout (default: 30s) [$TIMEOUT_DIAL]
+      --timeout.keep-alive=         keep-alive transport timeout (default: 30s) [$TIMEOUT_KEEP_ALIVE]
+      --timeout.resp-header=        response header transport timeout (default: 5s) [$TIMEOUT_RESP_HEADER]
+      --timeout.idle-conn=          idle connection transport timeout (default: 90s) [$TIMEOUT_IDLE_CONN]
+      --timeout.tls=                TLS hanshake transport timeout (default: 10s) [$TIMEOUT_TLS]
+      --timeout.continue=           expect continue transport timeout (default: 1s) [$TIMEOUT_CONTINUE]
+
 Help Options:
   -h, --help                        Show this help message
-
 
 ```
 

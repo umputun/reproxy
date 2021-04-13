@@ -24,7 +24,6 @@ import (
 type Http struct { //nolint golint
 	Matcher
 	Address          string
-	TimeOut          time.Duration
 	AssetsLocation   string
 	AssetsWebRoot    string
 	MaxBodySize      int64
@@ -34,6 +33,7 @@ type Http struct { //nolint golint
 	Version          string
 	AccessLog        io.Writer
 	DisableSignature bool
+	Timeouts         Timeouts
 }
 
 // Matcher source info (server and route) to the destination url
@@ -42,6 +42,21 @@ type Matcher interface {
 	Match(srv, src string) (string, bool)
 	Servers() (servers []string)
 	Mappers() (mappers []discovery.URLMapper)
+}
+
+// Timeouts consolidate timeouts for both server and transport
+type Timeouts struct {
+	// server timeouts
+	ReadHeader time.Duration
+	Write      time.Duration
+	Idle       time.Duration
+	// transport timeouts
+	Dial           time.Duration
+	KeepAlive      time.Duration
+	IdleConn       time.Duration
+	TLSHandshake   time.Duration
+	ExpectContinue time.Duration
+	ResponseHeader time.Duration
 }
 
 // Run the lister and request's router, activate rest server
@@ -140,16 +155,16 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			h.setXRealIP(r)
 		},
 		Transport: &http.Transport{
-			ResponseHeaderTimeout: h.TimeOut,
+			ResponseHeaderTimeout: h.Timeouts.ResponseHeader,
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
+				Timeout:   h.Timeouts.Dial,
+				KeepAlive: h.Timeouts.KeepAlive,
 			}).DialContext,
 			ForceAttemptHTTP2:     true,
 			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
+			IdleConnTimeout:       h.Timeouts.IdleConn,
+			TLSHandshakeTimeout:   h.Timeouts.TLSHandshake,
+			ExpectContinueTimeout: h.Timeouts.ExpectContinue,
 		},
 	}
 
@@ -229,9 +244,9 @@ func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
 		Handler:           router,
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       30 * time.Second,
+		ReadHeaderTimeout: h.Timeouts.ReadHeader,
+		WriteTimeout:      h.Timeouts.Write,
+		IdleTimeout:       h.Timeouts.Idle,
 	}
 }
 
