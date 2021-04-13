@@ -24,18 +24,18 @@ import (
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address          string
-	AssetsLocation   string
-	AssetsWebRoot    string
-	MaxBodySize      int64
-	GzEnabled        bool
-	ProxyHeaders     []string
-	SSLConfig        SSLConfig
-	Version          string
-	AccessLog        io.Writer
-	StdOutEnabled    bool
-	DisableSignature bool
-	Timeouts         Timeouts
+	Address        string
+	AssetsLocation string
+	AssetsWebRoot  string
+	MaxBodySize    int64
+	GzEnabled      bool
+	ProxyHeaders   []string
+	SSLConfig      SSLConfig
+	Version        string
+	AccessLog      io.Writer
+	StdOutEnabled  bool
+	Signature      bool
+	Timeouts       Timeouts
 }
 
 // Matcher source info (server and route) to the destination url
@@ -228,14 +228,14 @@ func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 }
 
 func (h *Http) signatureHandler() func(next http.Handler) http.Handler {
-	if h.DisableSignature {
-		return func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				next.ServeHTTP(w, r)
-			})
-		}
+	if h.Signature {
+		return R.AppInfo("reproxy", "umputun", h.Version)
 	}
-	return R.AppInfo("reproxy", "umputun", h.Version)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handler {

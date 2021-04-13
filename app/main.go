@@ -84,8 +84,8 @@ var opts struct {
 		ExpectContinue time.Duration `long:"continue" env:"CONTINUE" default:"1s" description:"expect continue transport timeout"`
 	} `group:"timeout" namespace:"timeout" env-namespace:"TIMEOUT"`
 
-	NoSignature bool `long:"no-signature" env:"NO_SIGNATURE" description:"disable reproxy signature headers"`
-	Dbg         bool `long:"dbg" env:"DEBUG" description:"debug mode"`
+	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
+	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 }
 
 var revision = "unknown"
@@ -139,18 +139,18 @@ func main() {
 	}()
 
 	px := &proxy.Http{
-		Version:          revision,
-		Matcher:          svc,
-		Address:          opts.Listen,
-		MaxBodySize:      opts.MaxSize,
-		AssetsLocation:   opts.Assets.Location,
-		AssetsWebRoot:    opts.Assets.WebRoot,
-		GzEnabled:        opts.GzipEnabled,
-		SSLConfig:        sslConfig,
-		ProxyHeaders:     opts.ProxyHeaders,
-		AccessLog:        accessLog,
-		StdOutEnabled:    opts.Logger.StdOut,
-		DisableSignature: opts.NoSignature,
+		Version:        revision,
+		Matcher:        svc,
+		Address:        opts.Listen,
+		MaxBodySize:    opts.MaxSize,
+		AssetsLocation: opts.Assets.Location,
+		AssetsWebRoot:  opts.Assets.WebRoot,
+		GzEnabled:      opts.GzipEnabled,
+		SSLConfig:      sslConfig,
+		ProxyHeaders:   opts.ProxyHeaders,
+		AccessLog:      accessLog,
+		StdOutEnabled:  opts.Logger.StdOut,
+		Signature:      opts.Signature,
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
 			Write:          opts.Timeouts.Write,

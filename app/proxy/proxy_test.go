@@ -21,7 +21,7 @@ import (
 func TestHttp_Do(t *testing.T) {
 	port := rand.Intn(10000) + 40000
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
-		AccessLog: io.Discard}
+		AccessLog: io.Discard, Signature: true}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -94,7 +94,7 @@ func TestHttp_Do(t *testing.T) {
 func TestHttp_DoWithAssets(t *testing.T) {
 	port := rand.Intn(10000) + 40000
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
-		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", DisableSignature: true}
+		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata"}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 

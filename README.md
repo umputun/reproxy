@@ -115,7 +115,7 @@ reproxy provides 2 endpoints for this purpose:
   -m, --max=                        max response size (default: 64000) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
-      --no-signature                disable reproxy signature headers [$NO_SIGNATURE]
+      --signature                   enable reproxy signature headers [$SIGNATURE]
       --dbg                         debug mode [$DEBUG]
 
 ssl:
@@ -132,6 +132,7 @@ assets:
       --assets.root=                assets web root (default: /) [$ASSETS_ROOT]
 
 logger:
+      --logger.stdout               enable stdout logging [$LOGGER_STDOUT]
       --logger.enabled              enable access and error rotated logs [$LOGGER_ENABLED]
       --logger.file=                location of access log (default: access.log) [$LOGGER_FILE]
       --logger.max-size=            maximum size in megabytes before it gets rotated (default: 100) [$LOGGER_MAX_SIZE]
