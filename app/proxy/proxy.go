@@ -85,7 +85,7 @@ func (h *Http) Run(ctx context.Context) error {
 	handler := R.Wrap(h.proxyHandler(),
 		R.Recoverer(log.Default()),
 		h.signatureHandler(),
-		R.Ping,
+		h.pingHandler,
 		h.healthMiddleware,
 		h.accessLogHandler(h.AccessLog),
 		R.SizeLimit(h.MaxBodySize),
