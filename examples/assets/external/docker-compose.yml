@@ -1,0 +1,12 @@
+services:
+  reproxy-external:
+    build: .
+    container_name: reproxy-external
+    hostname: reproxy-external
+    ports:
+      - "80:80"
+    volumes:
+      - ./assets:/web
+    environment:
+      - LISTEN=0.0.0.0:8080
+      - ASSETS_LOCATION=/web
