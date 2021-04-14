@@ -19,6 +19,10 @@ example with a static provider:
 
 `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
 
+example with an automatic docker discovery:
+
+`reproxy --docker.enabled --docker.auto`
+
 ## Install
 
 - for a binary distribution pick the proper file in the [release section](https://github.com/umputun/reproxy/releases)
