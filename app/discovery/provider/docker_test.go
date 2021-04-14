@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 func TestDocker_List(t *testing.T) {
@@ -64,6 +67,62 @@ func TestDocker_List(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.3:12346/$1", res[2].Dst)
 	assert.Equal(t, "http://127.0.0.3:12346/ping", res[2].PingURL)
 	assert.Equal(t, "*", res[2].Server)
+}
+
+func TestDocker_refresh(t *testing.T) {
+	containers := make(chan []containerInfo)
+
+	d := Docker{DockerClient: &DockerClientMock{
+		ListContainersFunc: func() ([]containerInfo, error) {
+			return <-containers, nil
+		},
+	}}
+
+	events := make(chan discovery.ProviderID)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	stub := func(id string) containerInfo {
+		return containerInfo{ID: id, Name: id, State: "running", IP: "127.0.0." + id, Ports: []int{12345}}
+	}
+
+	recv := func() {
+		select {
+		case <-events:
+			return
+		case <-time.After(time.Second):
+			t.Fatal("No refresh notification was received after 1s")
+		}
+	}
+
+	go func() {
+		dockerPollingInterval = time.Microsecond
+		if err := d.events(ctx, events); err != context.Canceled {
+			log.Fatal(err)
+		}
+	}()
+
+	// Start some
+	containers <- []containerInfo{stub("1"), stub("2")}
+	recv()
+
+	// Nothing changed
+	containers <- []containerInfo{stub("1"), stub("2")}
+	time.Sleep(time.Millisecond)
+	assert.Empty(t, events, "unexpected refresh notification")
+
+	// Stopped
+	containers <- []containerInfo{stub("1")}
+	recv()
+
+	// One changed
+	containers <- []containerInfo{
+		{ID: "1", Name: "1", State: "running", IP: "127.42.42.42", Ports: []int{12345}},
+	}
+	recv()
+
+	time.Sleep(time.Millisecond)
+	assert.Empty(t, events, "unexpect refresh notification from events channel")
 }
 
 func TestDockerClient(t *testing.T) {
