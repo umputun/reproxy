@@ -177,12 +177,48 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 	ticker := time.NewTicker(dockerPollingInterval)
 	defer ticker.Stop()
 
+	// Keep track of running containers
+	saved := make(map[string]containerInfo)
+
+	update := func() {
+		containers, err := d.listContainers()
+		if err != nil {
+			log.Printf("[ERROR] failed to fetch running containers: %s", err)
+			return
+		}
+
+		refresh := false
+		seen := make(map[string]bool)
+
+		for _, c := range containers {
+			old, exists := saved[c.ID]
+
+			if !exists || c.IP != old.IP || c.State != old.State || !c.TS.Equal(old.TS) {
+				refresh = true
+			}
+
+			seen[c.ID] = true
+		}
+
+		if len(saved) != len(seen) || refresh {
+			log.Printf("[INFO] changes in running containers detected: refreshing routes")
+			for k := range saved {
+				delete(saved, k)
+			}
+			for _, c := range containers {
+				saved[c.ID] = c
+			}
+			eventsCh <- discovery.PIDocker
+		}
+	}
+
+	update() // Refresh immediately
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			eventsCh <- discovery.PIDocker
+			update()
 		}
 	}
 }
