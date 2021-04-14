@@ -1,9 +1,14 @@
 <!doctype html>
 <title>reproxy</title>
+<header>
+    <link rel="preconnect" href="https://fonts.gstatic.com">.
+    <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@300&display=swap" rel="stylesheet">
+</header>
+
 <style>
     body { text-align: center; padding: 150px; }
     h1 { font-size: 40px; }
-    body { font: 20px Helvetica, sans-serif; color: #333; }
+    body { font-family: 'Inconsolata', monospace; color: #333;font-size: 25px}
     article { display: block; text-align: left; width: 650px; margin: 0 auto; }
     a { color: #dc8100; text-decoration: none; }
     a:hover { color: #333; text-decoration: none; }
@@ -12,22 +17,22 @@
 <article>
     <h1>Simple Reverse Proxy</h1>
     <div>
-        <p>Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure.</p>
+        <p>Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very strai
         <ul>
             <li>Automatic SSL termination with Lets Encrypt</li>
             <li>Support of user-provided ssl certificates</li>
             <li>Simple but flexible proxy rules</li>
             <li>Static, command line proxy rules provider</li>
-            <li>Dynamic, file-based proxy rules provide</li>
+            <li>Dynamic, file-based proxy rules provider</li>
             <li>Docker provider with an automatic discovery</li>
             <li>Optional traffic compression</li>
-            <li>User-defined limits</li>
+            <li>User-defined limits and timeouts</li>
             <li>Single binary distribution</li>
             <li>Docker container distribution</li>
             <li>Builtin static assets server</li>
 
             <li><a href="https://github.com/umputun/reproxy">Open source</a></li>
-        <p>&mdash; reproxy team</p>
+            <p>&mdash; reproxy team</p>
 
     </div>
 </article>
