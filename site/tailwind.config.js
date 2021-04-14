@@ -1,20 +1,44 @@
 const colors = require('tailwindcss/colors')
+const { spacing } = require('tailwindcss/defaultTheme')
 
 module.exports = {
 	mode: 'jit',
-	purge: {
-		content: ['./src/**/*.njk', './src/**/*.js'],
-		options: {
-			safelist: ['mb-2', 'p-2', 'pl-4'],
-		},
-	},
+	purge: ['./src/**/*.njk', './src/**/*.js', '.eleventy.js'],
 	darkMode: 'media',
 	theme: {
 		extend: {
+			container: {
+				center: true,
+				sm: {
+					with: '100%',
+				},
+			},
 			colors: {
 				orange: colors.orange,
 			},
 			typography: (theme) => ({
+				DEFAULT: {
+					css: {
+						paddingLeft: spacing[12],
+						paddingRight: spacing[12],
+						color: theme('colors.gray.700'),
+						a: {
+							color: theme('colors.blue.500'),
+							'&:hover': {
+								color: theme('colors.blue.700'),
+							},
+							code: {
+								color: theme('colors.blue.400'),
+							},
+						},
+						'h2,h3,h4': {
+							'scroll-margin-top': spacing[24],
+						},
+						code: { color: theme('colors.pink.500') },
+						'blockquote p:first-of-type::before': false,
+						'blockquote p:last-of-type::after': false,
+					},
+				},
 				dark: {
 					css: [
 						{
@@ -81,12 +105,8 @@ module.exports = {
 	},
 	variants: {
 		extend: {
-			typography: ['dark'],
+			typography: ['responsive', 'dark'],
 		},
 	},
-	plugins: [
-		require('@tailwindcss/typography')({
-			modifiers: ['sm', 'md', 'lg'],
-		}),
-	],
+	plugins: [require('@tailwindcss/typography')],
 }
