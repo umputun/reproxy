@@ -121,7 +121,7 @@ func (h *Http) Run(ctx context.Context) error {
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http redirect server terminated, %s", err)
 		}()
-		return httpServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key)
+		return httpsServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key)
 	case SSLAuto:
 		log.Printf("[INFO] activate https server in 'auto' mode on %s", h.Address)
 		log.Printf("[DEBUG] FQDNs %v", h.SSLConfig.FQDNs)
