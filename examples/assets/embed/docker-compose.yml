@@ -5,6 +5,3 @@ services:
     hostname: reproxy-embed
     ports:
       - "80:80"
-    environment:
-      - LISTEN=0.0.0.0:8080
-      - ASSETS_LOCATION=/web

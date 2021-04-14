@@ -10,7 +10,8 @@ ENV CGO_ENABLED=0
 ADD . /build
 WORKDIR /build
 
-RUN apk add -u git
+RUN apk add --no-cache --update git tzdata ca-certificates
+
 RUN \
     if [ -z "$CI" ] ; then \
     echo "runs outside of CI" && version=$(git rev-parse --abbrev-ref HEAD)-$(git log -1 --format=%h)-$(date +%Y%m%dT%H:%M:%S); \
@@ -19,23 +20,11 @@ RUN \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
 
-FROM alpine:3.13
+FROM scratch
 
-ENV \
-    TERM=xterm-color           \
-    TIME_ZONE=UTC
-
-RUN \
-    apk add --no-cache --update tzdata curl ca-certificates dumb-init && \
-    cp /usr/share/zoneinfo/${TIME_ZONE} /etc/localtime && \
-    echo "${TIME_ZONE}" > /etc/timezone && date && \
-    ln -s /usr/bin/dumb-init /sbin/dinit && \
-    rm -rf /var/cache/apk/*
-
-COPY init.sh /init.sh
+COPY --from=backend /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=backend /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=backend /build/reproxy /srv/reproxy
-RUN chmod +x /srv/reproxy
-WORKDIR /srv
 
-ENTRYPOINT ["/init.sh"]
-CMD ["/srv/reproxy"]
+WORKDIR /srv
+ENTRYPOINT ["/srv/reproxy"]

@@ -3,20 +3,18 @@ services:
     image: umputun/reproxy:master
     container_name: reproxy
     hostname: reproxy
-    labels:
-       reproxy.enabled: "false" # don't include reproxy to automatic destinations
     ports:
       - "80:8080"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./web:/web
     environment:
+      - TZ=America/Chicago
       - LISTEN=0.0.0.0:8080
       - DOCKER_ENABLED=true
       - DOCKER_AUTO=true
       - ASSETS_LOCATION=/web
       - DEBUG=true
-      - TIME_ZONE=America/Chicago
 
   # automatic destination, will be mapped for ^/api/svc1/(.*)
   svc1:
