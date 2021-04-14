@@ -22,6 +22,7 @@
 		"autoprefixer": "^10.2.5",
 		"cross-env": "^7.0.3",
 		"cssnano": "^5.0.1",
+		"date-fns": "^2.21.0",
 		"html-minifier": "^4.0.0",
 		"markdown-it": "^12.0.4",
 		"markdown-it-anchor": "^7.1.0",

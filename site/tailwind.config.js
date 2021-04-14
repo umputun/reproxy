@@ -3,7 +3,7 @@ const { spacing } = require('tailwindcss/defaultTheme')
 
 module.exports = {
 	mode: 'jit',
-	purge: ['./src/**/*.njk', './src/**/*.js', '.eleventy.js'],
+	purge: ['src/**/*.njk', 'src/**/*.js', '.eleventy.js'],
 	darkMode: 'media',
 	theme: {
 		extend: {

@@ -2,6 +2,7 @@ const htmlmin = require('html-minifier')
 const markdownIt = require('markdown-it')
 const markdownItAnchor = require('markdown-it-anchor')
 const toc = require('@thedigitalman/eleventy-plugin-toc-a11y')
+const fns = require('date-fns')
 
 function getVersion() {
 	return `reproxy-${Date.now()}`
@@ -31,6 +32,14 @@ function transformMarkdown() {
 	})
 }
 
+function getReadableDate(date) {
+	return fns.format(new Date(date), 'LLL dd, yyyy')
+}
+
+function getISODate(date) {
+	return fns.format(new Date(date), 'yyyy-mm-dd')
+}
+
 module.exports = (config) => {
 	config.setUseGitIgnore(false)
 	config.addShortcode('version', getVersion)
@@ -49,6 +58,9 @@ module.exports = (config) => {
 
 	// HTML transformations
 	config.addTransform('htmlmin', transformHTML)
+	// Date formaters
+	config.addFilter('humanizeDate', getReadableDate)
+	config.addFilter('isoDate', getISODate)
 
 	// Markdown
 	config.setLibrary('md', transformMarkdown())
