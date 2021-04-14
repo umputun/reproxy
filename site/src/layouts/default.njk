@@ -6,24 +6,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<meta name="description" content="{{ description }}"/>
 		<meta property="og:title" content="{{ title }}"/>
-		<meta property="og:url" content="{{ metadata.url }}"/>
+		<meta property="og:url" content="{{ url }}"/>
 		<meta property="og:type" content="website"/>
 		<meta property="og:description" content="{{ description }}"/>
-		<meta
-			property="og:image:url"
-			content="{{ metadata.url }}{{ metadata.share }}"
-		/>
-		<meta
-			property="og:image"
-			content="{{ metadata.url }}{{ metadata.share }}"
-		/>
 		<meta name="twitter:title" content="{{ title }}"/>
-		<meta name="twitter:url" content="{{ metadata.url }}"/>
-		<meta
-			name="twitter:image"
-			content="{{ metadata.url }}{{ metadata.share }}"
-		/>
-		<meta name="twitter:card" content="summary_large_image"/>
+		<meta name="twitter:url" content="{{ url }}"/>
 		<title>{{ title }}</title>
 		<link rel="icon" href="/favicon.svg"/>
 		{% if site.env === 'production' %}
