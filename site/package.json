@@ -7,11 +7,11 @@
 	"private": true,
 	"scripts": {
 		"build": "cross-env NODE_ENV=production run-s build:* --print-label",
-		"build:clean": "rm -rf dist/*",
+		"build:clean": "rm -rf public/*",
 		"build:css": "postcss src/main.css -o src/includes/main.css",
 		"build:eleventy": "eleventy",
 		"dev": "run-p dev:*",
-		"dev:css": "postcss src/main.css -o dist/main.css -w",
+		"dev:css": "postcss src/main.css -o public/main.css -w",
 		"dev:eleventy": "eleventy --serve --watch"
 	},
 	"devDependencies": {
