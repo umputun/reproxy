@@ -1,7 +1,7 @@
 # reproxy [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master) [![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy) [![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
 
 
-Reproxy is simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).
+Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).
 One or more providers supply information about requested server, requested url, destination url and health check url.
 Distributed as a single binary or as a docker container.
 
