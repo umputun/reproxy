@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	R "github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
 	"github.com/gorilla/handlers"
-	"github.com/pkg/errors"
 
 	"github.com/umputun/reproxy/app/discovery"
 )
@@ -141,7 +141,7 @@ func (h *Http) Run(ctx context.Context) error {
 
 		return httpsServer.ListenAndServeTLS("", "")
 	}
-	return errors.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
+	return fmt.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
 }
 
 func (h *Http) proxyHandler() http.HandlerFunc {

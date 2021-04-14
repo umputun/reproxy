@@ -2,10 +2,9 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
-
-	"github.com/pkg/errors"
 
 	"github.com/umputun/reproxy/app/discovery"
 )
@@ -28,11 +27,11 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 	parse := func(inp string) (discovery.URLMapper, error) {
 		elems := strings.Split(inp, ",")
 		if len(elems) != 4 {
-			return discovery.URLMapper{}, errors.Errorf("invalid rule %q", inp)
+			return discovery.URLMapper{}, fmt.Errorf("invalid rule %q", inp)
 		}
 		rx, err := regexp.Compile(strings.TrimSpace(elems[1]))
 		if err != nil {
-			return discovery.URLMapper{}, errors.Wrapf(err, "can't parse regex %s", elems[1])
+			return discovery.URLMapper{}, fmt.Errorf("can't parse regex %s: %w", elems[1], err)
 		}
 
 		return discovery.URLMapper{
