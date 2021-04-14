@@ -1,38 +1,90 @@
 <!doctype html>
-<title>reproxy</title>
-<header>
-    <link rel="preconnect" href="https://fonts.gstatic.com">.
-    <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@300&display=swap" rel="stylesheet">
-</header>
+<html lang="en">
+    <head>
+        <title>reproxy</title>
 
-<style>
-    body { text-align: center; padding: 150px; }
-    h1 { font-size: 40px; }
-    body { font-family: 'Inconsolata', monospace; color: #333;font-size: 25px}
-    article { display: block; text-align: left; width: 650px; margin: 0 auto; }
-    a { color: #dc8100; text-decoration: none; }
-    a:hover { color: #333; text-decoration: none; }
-</style>
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <meta name="description" content="Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure.">
 
-<article>
-    <h1>Simple Reverse Proxy</h1>
-    <div>
-        <p>Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very strai
-        <ul>
-            <li>Automatic SSL termination with Lets Encrypt</li>
-            <li>Support of user-provided ssl certificates</li>
-            <li>Simple but flexible proxy rules</li>
-            <li>Static, command line proxy rules provider</li>
-            <li>Dynamic, file-based proxy rules provider</li>
-            <li>Docker provider with an automatic discovery</li>
-            <li>Optional traffic compression</li>
-            <li>User-defined limits and timeouts</li>
-            <li>Single binary distribution</li>
-            <li>Docker container distribution</li>
-            <li>Builtin static assets server</li>
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@300&display=swap">
 
-            <li><a href="https://github.com/umputun/reproxy">Open source</a></li>
+        <style>
+         /* Reset styles for cross browser compatibility */
+         * {
+             padding: 0;
+             margin: 0;
+         }
+
+         html {
+             display: flex;
+             min-height: 100%;
+         }
+
+         body {
+             display: flex;
+             flex: 1;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+             color: #333;
+             font-family: 'Inconsolata', monospace;
+             font-size: 25px;
+             text-align: center;
+         }
+
+         article {
+             max-width: 650px;
+             padding: 15px;
+             text-align: left;
+         }
+
+         article > * + * {
+             margin-top: 25px;
+         }
+
+         h1 {
+             font-size: 40px;
+             font-weight: bold;
+         }
+
+         ul {
+             padding-left: 40px;
+         }
+
+         a {
+             color: #dc8100;
+         }
+
+         a:hover {
+             color: #333;
+             text-decoration: none;
+         }
+        </style>
+    </head>
+    <body>
+        <article>
+            <h1>Simple Reverse Proxy</h1>
+
+            <p>Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure.</p>
+
+            <ul>
+                <li>Automatic SSL termination with Lets Encrypt</li>
+                <li>Support of user-provided ssl certificates</li>
+                <li>Simple but flexible proxy rules</li>
+                <li>Static, command line proxy rules provider</li>
+                <li>Dynamic, file-based proxy rules provider</li>
+                <li>Docker provider with an automatic discovery</li>
+                <li>Optional traffic compression</li>
+                <li>User-defined limits and timeouts</li>
+                <li>Single binary distribution</li>
+                <li>Docker container distribution</li>
+                <li>Builtin static assets server</li>
+
+                <li><a href="https://github.com/umputun/reproxy">Open source</a></li>
+            </ul>
+
             <p>&mdash; reproxy team</p>
-
-    </div>
-</article>
+        </article>
+    </body>
+</html>
