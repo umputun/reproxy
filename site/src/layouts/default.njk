@@ -49,16 +49,19 @@
 			id="sidebar"
 			class="
 				hidden md:block
-				fixed z-10 top-0 left-0
-				px-6 pt-24 md:pt-28
-				w-full md:w-60 min-h-full
+				fixed z-10 top-0 left-0 inset-y-0
+				w-full md:w-60
+				overflow-y-auto
+				mt-20 md:mt-20
 				bg-white dark:bg-gray-900
-				text-gray-600 dark:text-gray-400
+				text-gray-500 dark:text-gray-400
 				border-r border-gray-100 dark:bg-dark dark:border-gray-800
 				transition-colors duration-200
 			"
 		>
-			{{ content | toc | safe }}
+			<div class="py-6 pr-6 pl-1">
+				{{ content | toc | safe }}
+			</div>
 		</aside>
 		<main
 			class="
@@ -69,7 +72,7 @@
 			<arcicle
 				class="
 					block m-auto
-					prose prose-sm md:prose lg:prose-lg dark:prose-dark dark:text-gray-100
+					prose lg:prose-lg dark:prose-dark dark:text-gray-100
 				"
 			>
 				{{ content | safe }}
