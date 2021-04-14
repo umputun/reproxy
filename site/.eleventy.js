@@ -40,10 +40,11 @@ module.exports = (config) => {
 		tags: ['h2', 'h3'],
 		heading: false,
 		listType: 'ul',
-		wrapperClass: '',
-		listClass: 'pl-4',
+		wrapperClass: 'docs-nav',
+		listClass: 'pl-5',
 		listItemClass: 'mb-2',
-		listItemAnchorClass: 'p-2',
+		listItemAnchorClass:
+			'inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200',
 	})
 
 	// HTML transformations

@@ -6,7 +6,6 @@ html {
 	scroll-behavior: smooth;
 }
 
-.prose h2,
-.prose h3 {
-	scroll-margin-top: 6rem;
+.docs-nav a ~ ul {
+	@apply mt-1 mb-2;
 }
