@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,7 +15,6 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
-	"github.com/pkg/errors"
 	"github.com/umputun/go-flags"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -193,7 +193,7 @@ func makeProviders() ([]discovery.Provider, error) {
 	if opts.Docker.Enabled {
 		client, err := docker.NewClient(opts.Docker.Host)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to make docker client %s", err)
+			return nil, fmt.Errorf("failed to make docker client %w", err)
 		}
 		if opts.Docker.AutoAPI {
 			log.Printf("[INFO] auto-api enabled for docker")
@@ -203,7 +203,7 @@ func makeProviders() ([]discovery.Provider, error) {
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
-		return nil, errors.Errorf("no providers enabled")
+		return nil, errors.New("no providers enabled")
 	}
 	return res, nil
 }

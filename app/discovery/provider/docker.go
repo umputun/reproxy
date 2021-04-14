@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -11,7 +12,6 @@ import (
 
 	dc "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
-	"github.com/pkg/errors"
 
 	"github.com/umputun/reproxy/app/discovery"
 )
@@ -124,7 +124,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 		srcRegex, err := regexp.Compile(srcURL)
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
+			return nil, fmt.Errorf("invalid src regex %s: %w", srcURL, err)
 		}
 
 		// docker server label may have multiple, comma separated servers
@@ -148,7 +148,7 @@ func (d *Docker) matchedPort(c containerInfo) (port int, err error) {
 	if v, ok := c.Labels["reproxy.port"]; ok {
 		rp, err := strconv.Atoi(v)
 		if err != nil {
-			return 0, errors.Wrapf(err, "invalid reproxy.port %s", v)
+			return 0, fmt.Errorf("invalid reproxy.port %s: %w", v, err)
 		}
 		for _, p := range c.Ports {
 			// set port to reproxy.port if matched with one of exposed
@@ -169,7 +169,7 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 		Filters: map[string][]string{"type": {"container"}, "event": {"start", "die", "destroy", "restart", "pause"}}},
 		dockerEventsCh)
 	if err != nil {
-		return errors.Wrap(err, "can't add even listener")
+		return fmt.Errorf("can't add even listener: %w", err)
 	}
 
 	eventsCh <- discovery.PIDocker // initial emmit
@@ -208,7 +208,7 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 
 	containers, err := d.DockerClient.ListContainers(dc.ListContainersOptions{All: false})
 	if err != nil {
-		return nil, errors.Wrap(err, "can't list containers")
+		return nil, fmt.Errorf("can't list containers: %w", err)
 	}
 	log.Printf("[DEBUG] total containers = %d", len(containers))
 

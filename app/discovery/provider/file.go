@@ -2,13 +2,13 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"regexp"
 	"sort"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
 	"github.com/umputun/reproxy/app/discovery"
@@ -76,12 +76,12 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
-		return nil, errors.Wrapf(err, "can't open %s", d.FileName)
+		return nil, fmt.Errorf("can't open %s: %w", d.FileName, err)
 	}
 	defer fh.Close() //nolint gosec
 
 	if err = yaml.NewDecoder(fh).Decode(&fileConf); err != nil {
-		return nil, errors.Wrapf(err, "can't parse %s", d.FileName)
+		return nil, fmt.Errorf("can't parse %s: %w", d.FileName, err)
 	}
 	log.Printf("[DEBUG] file provider %+v", res)
 
@@ -89,7 +89,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		for _, f := range fl {
 			rx, e := regexp.Compile(f.SourceRoute)
 			if e != nil {
-				return nil, errors.Wrapf(e, "can't parse regex %s", f.SourceRoute)
+				return nil, fmt.Errorf("can't parse regex %s: %w", f.SourceRoute, e)
 			}
 			if srv == "default" {
 				srv = "*"
