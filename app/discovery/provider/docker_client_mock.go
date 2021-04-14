@@ -5,8 +5,6 @@ package provider
 
 import (
 	"sync"
-
-	dclient "github.com/fsouza/go-dockerclient"
 )
 
 // DockerClientMock is a mock implementation of DockerClient.
@@ -15,10 +13,7 @@ import (
 //
 // 		// make and configure a mocked DockerClient
 // 		mockedDockerClient := &DockerClientMock{
-// 			AddEventListenerWithOptionsFunc: func(options dclient.EventsOptions, listener chan<- *dclient.APIEvents) error {
-// 				panic("mock out the AddEventListenerWithOptions method")
-// 			},
-// 			ListContainersFunc: func(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error) {
+// 			ListContainersFunc: func() ([]containerInfo, error) {
 // 				panic("mock out the ListContainers method")
 // 			},
 // 		}
@@ -28,90 +23,37 @@ import (
 //
 // 	}
 type DockerClientMock struct {
-	// AddEventListenerWithOptionsFunc mocks the AddEventListenerWithOptions method.
-	AddEventListenerWithOptionsFunc func(options dclient.EventsOptions, listener chan<- *dclient.APIEvents) error
-
 	// ListContainersFunc mocks the ListContainers method.
-	ListContainersFunc func(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error)
+	ListContainersFunc func() ([]containerInfo, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// AddEventListenerWithOptions holds details about calls to the AddEventListenerWithOptions method.
-		AddEventListenerWithOptions []struct {
-			// Options is the options argument value.
-			Options dclient.EventsOptions
-			// Listener is the listener argument value.
-			Listener chan<- *dclient.APIEvents
-		}
 		// ListContainers holds details about calls to the ListContainers method.
 		ListContainers []struct {
-			// Opts is the opts argument value.
-			Opts dclient.ListContainersOptions
 		}
 	}
-	lockAddEventListenerWithOptions sync.RWMutex
-	lockListContainers              sync.RWMutex
-}
-
-// AddEventListenerWithOptions calls AddEventListenerWithOptionsFunc.
-func (mock *DockerClientMock) AddEventListenerWithOptions(options dclient.EventsOptions, listener chan<- *dclient.APIEvents) error {
-	if mock.AddEventListenerWithOptionsFunc == nil {
-		panic("DockerClientMock.AddEventListenerWithOptionsFunc: method is nil but DockerClient.AddEventListenerWithOptions was just called")
-	}
-	callInfo := struct {
-		Options  dclient.EventsOptions
-		Listener chan<- *dclient.APIEvents
-	}{
-		Options:  options,
-		Listener: listener,
-	}
-	mock.lockAddEventListenerWithOptions.Lock()
-	mock.calls.AddEventListenerWithOptions = append(mock.calls.AddEventListenerWithOptions, callInfo)
-	mock.lockAddEventListenerWithOptions.Unlock()
-	return mock.AddEventListenerWithOptionsFunc(options, listener)
-}
-
-// AddEventListenerWithOptionsCalls gets all the calls that were made to AddEventListenerWithOptions.
-// Check the length with:
-//     len(mockedDockerClient.AddEventListenerWithOptionsCalls())
-func (mock *DockerClientMock) AddEventListenerWithOptionsCalls() []struct {
-	Options  dclient.EventsOptions
-	Listener chan<- *dclient.APIEvents
-} {
-	var calls []struct {
-		Options  dclient.EventsOptions
-		Listener chan<- *dclient.APIEvents
-	}
-	mock.lockAddEventListenerWithOptions.RLock()
-	calls = mock.calls.AddEventListenerWithOptions
-	mock.lockAddEventListenerWithOptions.RUnlock()
-	return calls
+	lockListContainers sync.RWMutex
 }
 
 // ListContainers calls ListContainersFunc.
-func (mock *DockerClientMock) ListContainers(opts dclient.ListContainersOptions) ([]dclient.APIContainers, error) {
+func (mock *DockerClientMock) ListContainers() ([]containerInfo, error) {
 	if mock.ListContainersFunc == nil {
 		panic("DockerClientMock.ListContainersFunc: method is nil but DockerClient.ListContainers was just called")
 	}
 	callInfo := struct {
-		Opts dclient.ListContainersOptions
-	}{
-		Opts: opts,
-	}
+	}{}
 	mock.lockListContainers.Lock()
 	mock.calls.ListContainers = append(mock.calls.ListContainers, callInfo)
 	mock.lockListContainers.Unlock()
-	return mock.ListContainersFunc(opts)
+	return mock.ListContainersFunc()
 }
 
 // ListContainersCalls gets all the calls that were made to ListContainers.
 // Check the length with:
 //     len(mockedDockerClient.ListContainersCalls())
 func (mock *DockerClientMock) ListContainersCalls() []struct {
-	Opts dclient.ListContainersOptions
 } {
 	var calls []struct {
-		Opts dclient.ListContainersOptions
 	}
 	mock.lockListContainers.RLock()
 	calls = mock.calls.ListContainers

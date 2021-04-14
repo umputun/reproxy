@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	docker "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -203,15 +202,13 @@ func makeProviders() ([]discovery.Provider, error) {
 	}
 
 	if opts.Docker.Enabled {
-		client, err := docker.NewClient(opts.Docker.Host)
-		if err != nil {
-			return nil, fmt.Errorf("failed to make docker client %w", err)
-		}
+		client := provider.NewDockerClient(opts.Docker.Host, opts.Docker.Network)
+
 		if opts.Docker.AutoAPI {
 			log.Printf("[INFO] auto-api enabled for docker")
 		}
 		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded,
-			Network: opts.Docker.Network, AutoAPI: opts.Docker.AutoAPI})
+			AutoAPI: opts.Docker.AutoAPI})
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
