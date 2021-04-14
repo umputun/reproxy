@@ -2,16 +2,18 @@ package provider
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	dc "github.com/fsouza/go-dockerclient"
 	log "github.com/go-pkgz/lgr"
+	"github.com/pkg/errors"
 
 	"github.com/umputun/reproxy/app/discovery"
 )
@@ -27,41 +29,29 @@ import (
 type Docker struct {
 	DockerClient DockerClient
 	Excludes     []string
-	Network      string
 	AutoAPI      bool
 }
 
 // DockerClient defines interface listing containers and subscribing to events
 type DockerClient interface {
-	ListContainers(opts dc.ListContainersOptions) ([]dc.APIContainers, error)
-	AddEventListenerWithOptions(options dc.EventsOptions, listener chan<- *dc.APIEvents) error
+	ListContainers() ([]containerInfo, error)
 }
 
-// containerInfo is simplified docker.APIEvents for containers only
+// containerInfo is simplified view of container metadata
 type containerInfo struct {
-	ID     string
-	Name   string
-	TS     time.Time
-	Labels map[string]string
-	IP     string
-	Ports  []int
+	ID     string            `json:"Id"`
+	Name   string            `json:"-"`
+	State  string            `json:"State"`
+	Labels map[string]string `json:"Labels"`
+	TS     time.Time         `json:"-"`
+	IP     string            `json:"-"`
+	Ports  []int             `json:"-"`
 }
 
 // Events gets eventsCh with all containers-related docker events events
 func (d *Docker) Events(ctx context.Context) (res <-chan discovery.ProviderID) {
 	eventsCh := make(chan discovery.ProviderID)
-	go func() {
-		defer close(eventsCh)
-		// loop over to recover from failed events call
-		for {
-			err := d.events(ctx, d.DockerClient, eventsCh) // publish events to eventsCh in a blocking loop
-			if err == context.Canceled || err == context.DeadlineExceeded {
-				return
-			}
-			log.Printf("[WARN] docker events listener failed (restarted), %v", err)
-			time.Sleep(1 * time.Second) // prevent busy loop on restart of event listener
-		}
-	}()
+	go d.events(ctx, eventsCh)
 	return eventsCh
 }
 
@@ -133,7 +123,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 		srcRegex, err := regexp.Compile(srcURL)
 		if err != nil {
-			return nil, fmt.Errorf("invalid src regex %s: %w", srcURL, err)
+			return nil, errors.Wrapf(err, "invalid src regex %s", srcURL)
 		}
 
 		// docker server label may have multiple, comma separated servers
@@ -165,7 +155,7 @@ func (d *Docker) matchedPort(c containerInfo) (port int, err error) {
 	if v, ok := c.Labels["reproxy.port"]; ok {
 		rp, err := strconv.Atoi(v)
 		if err != nil {
-			return 0, fmt.Errorf("invalid reproxy.port %s: %w", v, err)
+			return 0, errors.Wrapf(err, "invalid reproxy.port %s", v)
 		}
 		for _, p := range c.Ports {
 			// set port to reproxy.port if matched with one of exposed
@@ -178,105 +168,140 @@ func (d *Docker) matchedPort(c containerInfo) (port int, err error) {
 	return port, nil
 }
 
-// activate starts blocking listener for all docker events
-// filters everything except "container" type, detects stop/start events and publishes signals to eventsCh
-func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan discovery.ProviderID) error {
-	dockerEventsCh := make(chan *dc.APIEvents)
-	err := client.AddEventListenerWithOptions(dc.EventsOptions{
-		Filters: map[string][]string{"type": {"container"}, "event": {"start", "die", "destroy", "restart", "pause"}}},
-		dockerEventsCh)
-	if err != nil {
-		return fmt.Errorf("can't add even listener: %w", err)
-	}
+// changed in tests
+var dockerPollingInterval = time.Second * 10
 
-	eventsCh <- discovery.PIDocker // initial emmit
+// events starts monitoring changes in running containers and sends refresh
+// notification to eventsCh when change(s) are detected. Blocks caller
+func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderID) error {
+	ticker := time.NewTicker(dockerPollingInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case ev, ok := <-dockerEventsCh:
-			if !ok {
-				return errors.New("events closed")
-			}
-			log.Printf("[DEBUG] api event %+v", ev)
-			containerName := strings.TrimPrefix(ev.Actor.Attributes["name"], "/")
-
-			if discovery.Contains(containerName, d.Excludes) {
-				log.Printf("[DEBUG] container %s excluded", containerName)
-				continue
-			}
-			log.Printf("[INFO] new docker event: container %s, status %s", containerName, ev.Status)
+		case <-ticker.C:
 			eventsCh <- discovery.PIDocker
 		}
 	}
 }
 
 func (d *Docker) listContainers() (res []containerInfo, err error) {
-
-	portsExposed := func(c dc.APIContainers) (ports []int) {
-		if len(c.Ports) == 0 {
-			return nil
-		}
-		for _, p := range c.Ports {
-			ports = append(ports, int(p.PrivatePort))
-		}
-		return ports
-	}
-
-	containers, err := d.DockerClient.ListContainers(dc.ListContainersOptions{All: false})
+	containers, err := d.DockerClient.ListContainers()
 	if err != nil {
-		return nil, fmt.Errorf("can't list containers: %w", err)
+		return nil, errors.Wrap(err, "can't list containers")
 	}
+
 	log.Printf("[DEBUG] total containers = %d", len(containers))
 
 	for _, c := range containers {
 		if c.State != "running" {
-			log.Printf("[DEBUG] skip container %s due to state %s", c.Names[0], c.State)
+			log.Printf("[DEBUG] skip container %s due to state %s", c.Name, c.State)
 			continue
 		}
-		containerName := strings.TrimPrefix(c.Names[0], "/")
-		if discovery.Contains(containerName, d.Excludes) || strings.EqualFold(containerName, "reproxy") {
-			log.Printf("[DEBUG] container %s excluded", containerName)
+
+		if discovery.Contains(c.Name, d.Excludes) || strings.EqualFold(c.Name, "reproxy") {
+			log.Printf("[DEBUG] container %s excluded", c.Name)
 			continue
 		}
 
 		if v, ok := c.Labels["reproxy.enabled"]; ok {
 			if strings.EqualFold(v, "false") || strings.EqualFold(v, "no") || v == "0" {
-				log.Printf("[DEBUG] skip container %s due to reproxy.enabled=%s", containerName, v)
+				log.Printf("[DEBUG] skip container %s due to reproxy.enabled=%s", c.Name, v)
 				continue
 			}
 		}
 
-		var ip string
-		for k, v := range c.Networks.Networks {
-			if d.Network == "" || k == d.Network { // match on network name if defined
-				ip = v.IPAddress
-				break
-			}
-		}
-		if ip == "" {
-			log.Printf("[DEBUG] skip container %s, no ip on %+v", c.Names[0], c.Networks.Networks)
+		if c.IP == "" {
+			log.Printf("[DEBUG] skip container %s, no ip on defined networks", c.Name)
 			continue
 		}
 
-		ports := portsExposed(c)
-		if len(ports) == 0 {
-			log.Printf("[DEBUG] skip container %s, no exposed ports", c.Names[0])
+		if len(c.Ports) == 0 {
+			log.Printf("[DEBUG] skip container %s, no exposed ports", c.Name)
 			continue
 		}
 
-		ci := containerInfo{
-			Name:   containerName,
-			ID:     c.ID,
-			TS:     time.Unix(c.Created/1000, 0),
-			Labels: c.Labels,
-			IP:     ip,
-			Ports:  ports,
-		}
-
-		log.Printf("[DEBUG] running container added, %+v", ci)
-		res = append(res, ci)
+		log.Printf("[DEBUG] running container added, %+v", c)
+		res = append(res, c)
 	}
 	log.Print("[DEBUG] completed list")
 	return res, nil
+}
+
+type dockerClient struct {
+	client  http.Client
+	network string // network for IP selection
+}
+
+// NewDockerClient constructs docker client for given host and network
+func NewDockerClient(host, network string) DockerClient {
+	var schemaRegex = regexp.MustCompile("^(?:([a-z0-9]+)://)?(.*)$")
+	parts := schemaRegex.FindStringSubmatch(host)
+	proto, addr := parts[1], parts[2]
+	log.Printf("[DEBUG] Configuring docker client to talk to %s via %s", addr, proto)
+
+	client := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial(proto, addr)
+			},
+		},
+		Timeout: time.Second * 5,
+	}
+
+	return &dockerClient{client, network}
+}
+
+func (d *dockerClient) ListContainers() ([]containerInfo, error) {
+
+	const dockerAPIVersion = "v1.41"
+
+	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", dockerAPIVersion))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed connection to docker socket")
+	}
+
+	defer resp.Body.Close()
+
+	response := []struct {
+		containerInfo
+		Created         int64
+		NetworkSettings struct {
+			Networks map[string]struct {
+				IPAddress string
+			}
+		}
+		Names        []string
+		ExposedPorts []struct{ PrivatePort int } `json:"Ports"`
+	}{}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, errors.Wrap(err, "failed to parse response from docker daemon")
+	}
+
+	containers := make([]containerInfo, len(response))
+
+	for i, c := range response {
+		// fill remaining fields
+		c.TS = time.Unix(c.Created, 0)
+
+		for k, v := range c.NetworkSettings.Networks {
+			if d.network == "" || k == d.network { // match on network name if defined
+				c.IP = v.IPAddress
+				break
+			}
+		}
+
+		c.Name = strings.TrimPrefix(c.Names[0], "/")
+
+		for _, p := range c.ExposedPorts {
+			c.Ports = append(c.Ports, p.PrivatePort)
+		}
+
+		containers[i] = c.containerInfo
+	}
+
+	return containers, nil
 }
