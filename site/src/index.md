@@ -1,6 +1,10 @@
-<img src="/logo.png" width="355px" height="105px" alt="Reproxy | Simple Reverse Proxy" class="logo"/>
+<div align="center">
+  <img src="https://raw.githubusercontent.com/akellbl4/reproxy/master/site/src/public/logo.png" width="355px" height="105px" alt="Reproxy | Simple Reverse Proxy" class="logo"/>
+</div>
 
-{{ description }}
+Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).
+One or more providers supply information about requested server, requested url, destination url and health check url.
+Distributed as a single binary or as a docker container.
 
 - Automatic SSL termination with <a href="https://letsencrypt.org/" rel="nofollow noopener noreferrer" target="_blank">Let's Encrypt</a>
 - Support of user-provided SSL certificates
@@ -13,6 +17,26 @@
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server
+
+[![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy)&nbsp;[![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
+
+Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
+
+For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases
+expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`
+
+Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates.
+Optional assets server can be used to serve static files.
+
+Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
+
+example with a static provider:
+
+`reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
+
+example with an automatic docker discovery:
+
+`reproxy --docker.enabled --docker.auto`
 
 ## Install
 

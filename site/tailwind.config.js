@@ -29,6 +29,10 @@ module.exports = {
 						'blockquote p:last-of-type::after': false,
 						'code::before': false,
 						'code::after': false,
+						img: {
+							margin: spacing[2],
+							display: 'initial',
+						},
 						code: {
 							wordWrap: 'break-word',
 							fontWeight: 'normal',
@@ -39,6 +43,13 @@ module.exports = {
 							paddingLeft: spacing[2],
 							paddingRight: spacing[2],
 							borderRadius: spacing[1],
+						},
+					},
+				},
+				lg: {
+					css: {
+						img: {
+							margin: 0,
 						},
 					},
 				},
