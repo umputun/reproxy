@@ -4,25 +4,25 @@
 	<meta charset="UTF-8"/>
 	<meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<title>{{ title }}</title>
+	<title>{{ site.title }}</title>
 	<link rel="icon" href="/favicon.svg"/>
 	<link rel="mask-icon" href="/favicon.svg" color="#FF7A00"/>
 	<link rel="apple-touch-icon" href="/touch-icon.png"/>
 	<meta name="theme-color" content="#FF7A00"/>
-	<meta property="og:title" content="{{ title }}"/>
-	<meta name="description" content="{{ description }}"/>
-	<meta property="og:description" content="{{ description }}"/>
-	<meta property="og:image" content="{{ url }}/sharing.png"/>
+	<meta property="og:title" content="{{ site.title }}"/>
+	<meta name="description" content="{{ site.description }}"/>
+	<meta property="og:description" content="{{ site.description }}"/>
+	<meta property="og:image" content="{{ site.url }}/sharing.png"/>
 	<meta property="og:image:width" content="1080"/>
 	<meta property="og:image:height" content="512"/>
-	<meta property="twitter:image" content="{{ url }}/sharing.png"/>
+	<meta property="twitter:image" content="{{ site.url }}/sharing.png"/>
 	<meta property="og:type" content="website"/>
-	<meta property="og:url" content="{{ url }}"/>
+	<meta property="og:url" content="{{ site.url }}"/>
 	<meta property="og:locale" content="en_US"/>
 	<meta name="twitter:card" content="summary_large_image"/>
 	{% if site.env === 'production' %}
 		{% set css %}{% include "main.css" %}{% endset %}
-		<style>{{css | safe}}</style>
+		<style>{{ css | safe }}</style>
 	{% else %}
 		<link rel="stylesheet" href="/main.css"/>
 	{% endif %}
@@ -31,8 +31,8 @@
 	<header class="fixed w-full top-0 left-0 z-20">
 		<nav class="flex h-16 md:h-20 items-center bg-white dark:bg-gray-900 fixed top-0 left-0 w-full border-b border-gray-100 py-2  transition-colors duration-200 dark:bg-dark dark:border-gray-800">
 			<div class="p-4 mr-auto">
-				<span class="text-xl font-bold text-orange-600 dark:text-gray-300">{{title}}</span>
-				<span class="block mt-1 text-sm md:text-md text-gray-500 dark:text-gray-400">{{subtitle}}</span>
+				<span class="text-xl font-bold text-orange-600 dark:text-gray-300">{{ site.title }}</span>
+				<span class="block mt-1 text-sm md:text-md text-gray-500 dark:text-gray-400">{{ site.subtitle }}</span>
 			</div>
 			<div class="mr-3">
 				<a class="text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="github link" rel="noopener noreferrer" href="http://github.com/broeker/spacebook" target="_blank">
@@ -84,7 +84,7 @@
 	</main>
 	{% set js %}{% include "main.js" %}{% endset %}
 	<script>
-		{{js | safe}}
+		{{ js | safe }}
 	</script>
 </body>
 </html>
