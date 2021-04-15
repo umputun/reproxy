@@ -6,6 +6,12 @@ html {
 	scroll-behavior: smooth;
 }
 
+img.logo {
+	width: 355px;
+	height: 105px;
+	@apply max-w-full mx-auto block;
+}
+
 .docs-nav a ~ ul {
 	@apply mt-1 mb-2;
 }
