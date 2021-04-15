@@ -1,0 +1,13 @@
+{
+	"name": "Reproxy",
+	"short_name": "Reproxy",
+	"icons": [
+		{
+			"src": "touch-icon.png",
+			"sizes": "512x512"
+		}
+	],
+	"background_color": "#ffffff",
+	"theme_color": "#FF7A00",
+	"display": "fullscreen"
+}
