@@ -1,18 +1,26 @@
 const sidebarElement = document.getElementById('sidebar')
-const sidebarButton = document.getElementById('sidebar-button')
+const sidebarOpenButton = document.getElementById('sidebar-open-button')
+const sidebarCloseButton = document.getElementById('sidebar-close-button')
 const sidebarLinks = sidebarElement.querySelectorAll('a')
 
-sidebarButton.addEventListener('click', toggleSidebar)
+sidebarOpenButton.addEventListener('click', toggleSidebar)
+sidebarCloseButton.addEventListener('click', closeSidebar)
+
 Array.from(sidebarLinks).forEach((l) => {
-	l.addEventListener('click', hideSidebar)
+	l.addEventListener('click', () => {
+		if (!isShow()) {
+			return
+		}
+		closeSidebar()
+	})
 })
 
-function showSidebar() {
+function openSidebar() {
 	document.body.classList.add('overflow-hidden')
 	sidebarElement.classList.remove('hidden')
 }
 
-function hideSidebar() {
+function closeSidebar() {
 	sidebarElement.classList.add('hidden')
 	document.body.classList.remove('overflow-hidden')
 }
@@ -23,8 +31,8 @@ function isShow() {
 
 function toggleSidebar() {
 	if (isShow()) {
-		hideSidebar()
+		closeSidebar()
 	} else {
-		showSidebar()
+		openSidebar()
 	}
 }
