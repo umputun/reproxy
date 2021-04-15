@@ -1,4 +1,297 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reproxy</title><link rel="icon" href="/favicon.svg"><link rel="mask-icon" href="/favicon.svg" color="#ffffff"><link rel="apple-touch-icon" href="/touch-icon.png"><meta name="theme-color" content="#FF7A00"><meta property="og:title" content="Reproxy"><meta name="description" content="Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure."><meta property="og:description" content="Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure."><meta property="og:image" content="/touch-icon.png"><meta property="og:image:width" content="1080"><meta property="og:image:height" content="512"><meta property="twitter:image" content="/twitter-card.png"><meta property="og:type" content="website"><meta property="og:url" content="https://reproxy.io"><meta property="og:locale" content="en_US"><meta name="twitter:card" content="summary_large_image"><link rel="stylesheet" href="/main.css"></head><body class="h-screen bg-white dark:bg-gray-900"><header class="fixed w-full top-0 left-0 z-20"><nav class="flex h-16 md:h-20 items-center bg-white dark:bg-gray-900 fixed top-0 left-0 w-full border-b border-gray-100 py-2 transition-colors duration-200 dark:bg-dark dark:border-gray-800"><div class="space-y-4 p-4 mr-auto"><span class="text-xl font-bold text-orange-600 dark:text-gray-300">Reproxy</span> <span class="block mt-1 text-sm md:text-md text-gray-500 dark:text-gray-400">Simple Reverse Proxy</span></div><div class="mr-3"><a class="text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="github link" rel="noopener noreferrer" href="http://github.com/broeker/spacebook" target="_blank"><svg height="28" viewBox="0 0 24 24" fill="none"><path d="M12 3C7.0275 3 3 7.12937 3 12.2276C3 16.3109 5.57625 19.7597 9.15374 20.9824C9.60374 21.0631 9.77249 20.7863 9.77249 20.5441C9.77249 20.3249 9.76125 19.5982 9.76125 18.8254C7.5 19.2522 6.915 18.2602 6.735 17.7412C6.63375 17.4759 6.19499 16.6569 5.8125 16.4378C5.4975 16.2647 5.0475 15.838 5.80124 15.8264C6.51 15.8149 7.01625 16.4954 7.18499 16.7723C7.99499 18.1679 9.28875 17.7758 9.80625 17.5335C9.885 16.9337 10.1212 16.53 10.38 16.2993C8.3775 16.0687 6.285 15.2728 6.285 11.7432C6.285 10.7397 6.63375 9.9092 7.20749 9.26326C7.1175 9.03257 6.8025 8.08674 7.2975 6.81794C7.2975 6.81794 8.05125 6.57571 9.77249 7.76377C10.4925 7.55615 11.2575 7.45234 12.0225 7.45234C12.7875 7.45234 13.5525 7.55615 14.2725 7.76377C15.9937 6.56418 16.7475 6.81794 16.7475 6.81794C17.2424 8.08674 16.9275 9.03257 16.8375 9.26326C17.4113 9.9092 17.76 10.7281 17.76 11.7432C17.76 15.2843 15.6563 16.0687 13.6537 16.2993C13.98 16.5877 14.2613 17.1414 14.2613 18.0065C14.2613 19.2407 14.25 20.2326 14.25 20.5441C14.25 20.7863 14.4188 21.0746 14.8688 20.9824C16.6554 20.364 18.2079 19.1866 19.3078 17.6162C20.4077 16.0457 20.9995 14.1611 21 12.2276C21 7.12937 16.9725 3 12 3Z" fill="currentColor"></path></svg></a></div><button aria-label="Show navigation" id="sidebar-open-button" class="block md:hidden mr-3"><svg fill="none" width="24" height="24" viewBox="0 0 24 24" class="text-gray-400 hover:text-gray-600" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button></nav></header><aside id="sidebar" class="hidden md:block fixed z-10 top-0 left-0 inset-y-0 w-full md:w-60 overflow-y-auto mt-20 md:mt-20 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:bg-dark dark:border-gray-800 transition-colors duration-200"><button name="Close navigation" id="sidebar-close-button" class="float-right justify-end block md:hidden -mr-4 p-6"><svg xmlns="http://www.w3.org/2000/svg" class="dark:bg-gray-500" width="18" height="18" viewBox="0 0 18 18"><path class="text-gray-100" d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg></button><div class="py-6 pr-6 pl-1"><nav class="docs-nav" role="navigation" aria-label="Table of contents"><ul class="pl-5"><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#install">Install</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#providers">Providers</a><ul class="pl-5"><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#static">Static</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#file">File</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#docker">Docker</a></li></ul></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#ssl-support">SSL support</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#logging">Logging</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#assets-server">Assets Server</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#more-options">More options</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#ping-and-health-checks">Ping and health checks</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#all-application-options">All Application Options</a></li><li class="mb-2"><a class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200" href="#status">Status</a></li></ul></nav></div></aside><main class="px-4 pt-24 md:pt-28 pb-20 md:pl-60"><arcicle class="block m-auto prose lg:prose-lg dark:prose-dark dark:text-gray-100"><p><img src="./logo.png" alt="Reproxy | Simple Reverse Proxy"></p><p>Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure.</p><ul><li>Automatic SSL termination with <a href="https://letsencrypt.org/" rel="nofollow noopener noreferrer" target="_blank">Let's Encrypt</a></li><li>Support of user-provided SSL certificates</li><li>Simple but flexible proxy rules</li><li>Static, command line proxy rules provider</li><li>Dynamic, file-based proxy rules provider</li><li>Docker provider with an automatic discovery</li><li>Optional traffic compression</li><li>User-defined limits and timeouts</li><li>Single binary distribution</li><li>Docker container distribution</li><li>Built-in static assets server</li><li><a href="https://github.com/umputun/reproxy">Open source</a></li></ul><h2 id="install">Install <a href="#install"></a></h2><ul><li>for a binary distribution pick the proper file in the <a href="https://github.com/umputun/reproxy/releases">release section</a></li><li>docker container available on <a href="https://hub.docker.com/r/umputun/reproxy">Docker Hub</a> as well as on <a href="ghcr.io/umputun/reproxy">Github Container Registry</a>.</li></ul><p>Latest stable version has <code>:vX.Y.Z</code> tag (with <code>:latest</code> alias) and the current master has <code>:master</code> tag.</p><h2 id="providers">Providers <a href="#providers"></a></h2><p>User can sets multiple providers at the same time.<br><em>See examples of various providers in <a href="https://github.com/umputun/reproxy/tree/master/examples">examples</a></em></p><h3 id="static">Static <a href="#static"></a></h3><p>This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported.<br>Each rule is 3 or 4 comma-separated elements <code>server,sourceurl,destination,[ping-url]</code>. For example:</p><ul><li><code>*,^/api/(.*),https://api.example.com/$1,</code> - proxy all request to any host/server with <code>/api</code> prefix to <code>https://api.example.com</code></li><li><code>example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping</code> - proxy all requests to <code>example.com</code> and with <code>/foo/bar</code> url to <code>https://api.example.com/zzz</code>. Uses <code>https://api.example.com/ping</code> for the health check</li></ul><p>The last (4th) element defines an optional ping url used for health reporting. I.e.<code>*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping</code>. See <a href="https://github.com/umputun/reproxy#ping-and-health-checks">Health check</a> section for more details.</p><h3 id="file">File <a href="#file"></a></h3><p><code>reproxy --file.enabled --file.name=config.yml</code></p><p>Example of <code>config.yml</code>:</p><pre><code class="language-yaml">default: # the same as * (catch-all) server
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>Reproxy</title>
+		<link rel="icon" href="/favicon.svg" />
+		<link rel="mask-icon" href="/favicon.svg" color="#ffffff" />
+		<link rel="apple-touch-icon" href="/touch-icon.png" />
+		<meta name="theme-color" content="#FF7A00" />
+		<meta property="og:title" content="Reproxy" />
+		<meta
+			name="description"
+			content="Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure."
+		/>
+		<meta
+			property="og:description"
+			content="Reproxy is a minimalistic system acting as an edge server / reverse proxy for your infrastructure. It provides the only essential functionality with no bells and whistles. Setup is very straightforward and not much to configure."
+		/>
+		<meta property="og:image" content="/touch-icon.png" />
+		<meta property="og:image:width" content="1080" />
+		<meta property="og:image:height" content="512" />
+		<meta property="twitter:image" content="/twitter-card.png" />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://reproxy.io" />
+		<meta property="og:locale" content="en_US" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<link rel="stylesheet" href="/main.css" />
+	</head>
+	<body class="h-screen bg-white dark:bg-gray-900">
+		<header class="fixed w-full top-0 left-0 z-20">
+			<nav
+				class="flex h-16 md:h-20 items-center bg-white dark:bg-gray-900 fixed top-0 left-0 w-full border-b border-gray-100 py-2 transition-colors duration-200 dark:bg-dark dark:border-gray-800"
+			>
+				<div class="space-y-4 p-4 mr-auto">
+					<span class="text-xl font-bold text-orange-600 dark:text-gray-300"
+						>Reproxy</span
+					>
+					<span
+						class="block mt-1 text-sm md:text-md text-gray-500 dark:text-gray-400"
+						>Simple Reverse Proxy</span
+					>
+				</div>
+				<div class="mr-3">
+					<a
+						class="text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+						aria-label="github link"
+						rel="noopener noreferrer"
+						href="http://github.com/broeker/spacebook"
+						target="_blank"
+						><svg height="28" viewBox="0 0 24 24" fill="none">
+							<path
+								d="M12 3C7.0275 3 3 7.12937 3 12.2276C3 16.3109 5.57625 19.7597 9.15374 20.9824C9.60374 21.0631 9.77249 20.7863 9.77249 20.5441C9.77249 20.3249 9.76125 19.5982 9.76125 18.8254C7.5 19.2522 6.915 18.2602 6.735 17.7412C6.63375 17.4759 6.19499 16.6569 5.8125 16.4378C5.4975 16.2647 5.0475 15.838 5.80124 15.8264C6.51 15.8149 7.01625 16.4954 7.18499 16.7723C7.99499 18.1679 9.28875 17.7758 9.80625 17.5335C9.885 16.9337 10.1212 16.53 10.38 16.2993C8.3775 16.0687 6.285 15.2728 6.285 11.7432C6.285 10.7397 6.63375 9.9092 7.20749 9.26326C7.1175 9.03257 6.8025 8.08674 7.2975 6.81794C7.2975 6.81794 8.05125 6.57571 9.77249 7.76377C10.4925 7.55615 11.2575 7.45234 12.0225 7.45234C12.7875 7.45234 13.5525 7.55615 14.2725 7.76377C15.9937 6.56418 16.7475 6.81794 16.7475 6.81794C17.2424 8.08674 16.9275 9.03257 16.8375 9.26326C17.4113 9.9092 17.76 10.7281 17.76 11.7432C17.76 15.2843 15.6563 16.0687 13.6537 16.2993C13.98 16.5877 14.2613 17.1414 14.2613 18.0065C14.2613 19.2407 14.25 20.2326 14.25 20.5441C14.25 20.7863 14.4188 21.0746 14.8688 20.9824C16.6554 20.364 18.2079 19.1866 19.3078 17.6162C20.4077 16.0457 20.9995 14.1611 21 12.2276C21 7.12937 16.9725 3 12 3Z"
+								fill="currentColor"
+							></path></svg
+					></a>
+				</div>
+				<button
+					aria-label="Show navigation"
+					id="sidebar-open-button"
+					class="block md:hidden mr-3"
+				>
+					<svg
+						fill="none"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						class="text-gray-400 hover:text-gray-600"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M4 6h16M4 12h16M4 18h16"
+						></path>
+					</svg>
+				</button>
+			</nav>
+		</header>
+		<aside
+			id="sidebar"
+			class="hidden md:block fixed z-10 top-0 left-0 inset-y-0 w-full md:w-60 overflow-y-auto mt-20 md:mt-20 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:bg-dark dark:border-gray-800 transition-colors duration-200"
+		>
+			<button
+				name="Close navigation"
+				id="sidebar-close-button"
+				class="float-right justify-end block md:hidden -mr-4 p-6"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="dark:bg-gray-500"
+					width="18"
+					height="18"
+					viewBox="0 0 18 18"
+				>
+					<path
+						class="text-gray-100"
+						d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"
+					></path>
+				</svg>
+			</button>
+			<div class="py-6 pr-6 pl-1">
+				<nav class="docs-nav" role="navigation" aria-label="Table of contents">
+					<ul class="pl-5">
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#install"
+								>Install</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#providers"
+								>Providers</a
+							>
+							<ul class="pl-5">
+								<li class="mb-2">
+									<a
+										class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+										href="#static"
+										>Static</a
+									>
+								</li>
+								<li class="mb-2">
+									<a
+										class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+										href="#file"
+										>File</a
+									>
+								</li>
+								<li class="mb-2">
+									<a
+										class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+										href="#docker"
+										>Docker</a
+									>
+								</li>
+							</ul>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#ssl-support"
+								>SSL support</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#logging"
+								>Logging</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#assets-server"
+								>Assets Server</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#more-options"
+								>More options</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#ping-and-health-checks"
+								>Ping and health checks</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#all-application-options"
+								>All Application Options</a
+							>
+						</li>
+						<li class="mb-2">
+							<a
+								class="inline-block p-1 hover:text-gray-900 dark:hover:text-gray-200"
+								href="#status"
+								>Status</a
+							>
+						</li>
+					</ul>
+				</nav>
+			</div>
+		</aside>
+		<main class="px-4 pt-24 md:pt-28 pb-20 md:pl-60">
+			<arcicle
+				class="block m-auto prose lg:prose-lg dark:prose-dark dark:text-gray-100"
+				><p><img src="./logo.png" alt="Reproxy | Simple Reverse Proxy" /></p>
+				<p>
+					Reproxy is a minimalistic system acting as an edge server / reverse
+					proxy for your infrastructure. It provides the only essential
+					functionality with no bells and whistles. Setup is very
+					straightforward and not much to configure.
+				</p>
+				<ul>
+					<li>
+						Automatic SSL termination with
+						<a
+							href="https://letsencrypt.org/"
+							rel="nofollow noopener noreferrer"
+							target="_blank"
+							>Let's Encrypt</a
+						>
+					</li>
+					<li>Support of user-provided SSL certificates</li>
+					<li>Simple but flexible proxy rules</li>
+					<li>Static, command line proxy rules provider</li>
+					<li>Dynamic, file-based proxy rules provider</li>
+					<li>Docker provider with an automatic discovery</li>
+					<li>Optional traffic compression</li>
+					<li>User-defined limits and timeouts</li>
+					<li>Single binary distribution</li>
+					<li>Docker container distribution</li>
+					<li>Built-in static assets server</li>
+					<li><a href="https://github.com/umputun/reproxy">Open source</a></li>
+				</ul>
+				<h2 id="install">Install <a href="#install"></a></h2>
+				<ul>
+					<li>
+						for a binary distribution pick the proper file in the
+						<a href="https://github.com/umputun/reproxy/releases"
+							>release section</a
+						>
+					</li>
+					<li>
+						docker container available on
+						<a href="https://hub.docker.com/r/umputun/reproxy">Docker Hub</a> as
+						well as on
+						<a href="ghcr.io/umputun/reproxy">Github Container Registry</a>.
+					</li>
+				</ul>
+				<p>
+					Latest stable version has <code>:vX.Y.Z</code> tag (with
+					<code>:latest</code> alias) and the current master has
+					<code>:master</code> tag.
+				</p>
+				<h2 id="providers">Providers <a href="#providers"></a></h2>
+				<p>
+					User can sets multiple providers at the same time.<br /><em
+						>See examples of various providers in
+						<a href="https://github.com/umputun/reproxy/tree/master/examples"
+							>examples</a
+						></em
+					>
+				</p>
+				<h3 id="static">Static <a href="#static"></a></h3>
+				<p>
+					This is the simplest provider defining all mapping rules directly in
+					the command line (or environment). Multiple rules supported.<br />Each
+					rule is 3 or 4 comma-separated elements
+					<code>server,sourceurl,destination,[ping-url]</code>. For example:
+				</p>
+				<ul>
+					<li>
+						<code>*,^/api/(.*),https://api.example.com/$1,</code> - proxy all
+						request to any host/server with <code>/api</code> prefix to
+						<code>https://api.example.com</code>
+					</li>
+					<li>
+						<code
+							>example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping</code
+						>
+						- proxy all requests to <code>example.com</code> and with
+						<code>/foo/bar</code> url to
+						<code>https://api.example.com/zzz</code>. Uses
+						<code>https://api.example.com/ping</code> for the health check
+					</li>
+				</ul>
+				<p>
+					The last (4th) element defines an optional ping url used for health
+					reporting.
+					I.e.<code>*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping</code>.
+					See
+					<a href="https://github.com/umputun/reproxy#ping-and-health-checks"
+						>Health check</a
+					>
+					section for more details.
+				</p>
+				<h3 id="file">File <a href="#file"></a></h3>
+				<p><code>reproxy --file.enabled --file.name=config.yml</code></p>
+				<p>Example of <code>config.yml</code>:</p>
+				<pre><code class="language-yaml">default: # the same as * (catch-all) server
   - { route: '^/api/svc1/(.*)', dest: 'http://127.0.0.1:8080/blah1/$1' }
   - {
       route: '/api/svc3/xyz',
@@ -7,7 +300,141 @@
     }
 srv.example.com:
   - { route: '^/api/svc2/(.*)', dest: 'http://127.0.0.2:8080/blah2/$1/abc' }
-</code></pre><p>This is a dynamic provider and file change will be applied automatically.</p><h3 id="docker">Docker <a href="#docker"></a></h3><p>Docker provider supports a fully automatic discovery (with <code>--docker.auto</code>) with no extra configuration and by default redirects all requests like <code>https://server/&lt;container_name&gt;/(.*)</code> to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.</p><p>This default can be changed with labels:</p><ul><li><code>reproxy.server</code> - server (hostname) to match. Also can be a list of comma-separated servers.</li><li><code>reproxy.route</code> - source route (location)</li><li><code>reproxy.dest</code> - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port</li><li><code>reproxy.port</code> - destination port for the discovered container</li><li><code>reproxy.ping</code> - ping path for the destination container.</li><li><code>reproxy.enabled</code> - enable (<code>yes</code>, <code>true</code>, <code>1</code>) or disable (<code>no</code>, <code>false</code>, <code>0</code>) container from reproxy destinations.</li></ul><p>Pls note: without <code>--docker.auto</code> the destination container has to have at least one of <code>reproxy.*</code> labels to be considered as a potential destination.</p><p>With <code>--docker.auto</code>, all containers with exposed port will be considered as routing destinations. There are 3 ways to restrict it:</p><ul><li>Exclude some containers explicitly with <code>--docker.exclude</code>, i.e. <code>--docker.exclude=c1 --docker.exclude=c2 ...</code></li><li>Allow only a particular docker network with <code>--docker.network</code></li><li>Set the label <code>reproxy.enabled=false</code> or <code>reproxy.enabled=no</code> or <code>reproxy.enabled=0</code></li></ul><p>This is a dynamic provider and any change in container's status will be applied automatically.</p><h2 id="ssl-support">SSL support <a href="#ssl-support"></a></h2><p>SSL mode (by default none) can be set to <code>auto</code> (ACME/LE certificates), <code>static</code> (existing certificate) or <code>none</code>. If <code>auto</code> turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting <code>--ssl.fqdn</code> value(s)</p><h2 id="logging">Logging <a href="#logging"></a></h2><p>By default no request log generated. This can be turned on by setting <code>--logger.enabled</code>. The log (auto-rotated) has <a href="http://httpd.apache.org/docs/2.2/logs.html#combined">Apache Combined Log Format</a></p><h2 id="assets-server">Assets Server <a href="#assets-server"></a></h2><p>User may turn assets server on (off by default) to serve static files. As long as <code>--assets.location</code> set it will treat every non-proxied request under <code>assets.root</code> as a request for static files.</p><p>Assets server can be used without any proxy providers. In this mode reproxy acts as a simple web server for a static context.</p><h2 id="more-options">More options <a href="#more-options"></a></h2><ul><li><code>--gzip</code> enables gizp compression for responses.</li><li><code>--max=N</code> allows to set the maximum size of request (default 64k)</li><li><code>--header</code> sets extra header(s) added to each proxied request</li><li><code>--timeout.*</code> various timeouts for both server and proxy transport. See <code>timeout</code> section in <a href="https://github.com/umputun/reproxy#all-application-options">All Application Options</a></li></ul><h2 id="ping-and-health-checks">Ping and health checks <a href="#ping-and-health-checks"></a></h2><p>reproxy provides 2 endpoints for this purpose:</p><ul><li><code>/ping</code> responds with <code>pong</code> and indicates what reproxy up and running</li><li><code>/health</code> returns <code>200 OK</code> status if all destination servers responded to their ping request with <code>200</code> or <code>417 Expectation Failed</code> if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.</li></ul><h2 id="all-application-options">All Application Options <a href="#all-application-options"></a></h2><pre><code>  -l, --listen=                     listen on host:port (default: 127.0.0.1:8080) [$LISTEN]
+</code></pre>
+				<p>
+					This is a dynamic provider and file change will be applied
+					automatically.
+				</p>
+				<h3 id="docker">Docker <a href="#docker"></a></h3>
+				<p>
+					Docker provider supports a fully automatic discovery (with
+					<code>--docker.auto</code>) with no extra configuration and by default
+					redirects all requests like
+					<code>https://server/&lt;container_name&gt;/(.*)</code> to the
+					internal IP of the given container and the exposed port. Only active
+					(running) containers will be detected.
+				</p>
+				<p>This default can be changed with labels:</p>
+				<ul>
+					<li>
+						<code>reproxy.server</code> - server (hostname) to match. Also can
+						be a list of comma-separated servers.
+					</li>
+					<li><code>reproxy.route</code> - source route (location)</li>
+					<li>
+						<code>reproxy.dest</code> - destination path. Note: this is not full
+						url, but just the path which will be appended to container's ip:port
+					</li>
+					<li>
+						<code>reproxy.port</code> - destination port for the discovered
+						container
+					</li>
+					<li>
+						<code>reproxy.ping</code> - ping path for the destination container.
+					</li>
+					<li>
+						<code>reproxy.enabled</code> - enable (<code>yes</code>,
+						<code>true</code>, <code>1</code>) or disable (<code>no</code>,
+						<code>false</code>, <code>0</code>) container from reproxy
+						destinations.
+					</li>
+				</ul>
+				<p>
+					Pls note: without <code>--docker.auto</code> the destination container
+					has to have at least one of <code>reproxy.*</code> labels to be
+					considered as a potential destination.
+				</p>
+				<p>
+					With <code>--docker.auto</code>, all containers with exposed port will
+					be considered as routing destinations. There are 3 ways to restrict
+					it:
+				</p>
+				<ul>
+					<li>
+						Exclude some containers explicitly with
+						<code>--docker.exclude</code>, i.e.
+						<code>--docker.exclude=c1 --docker.exclude=c2 ...</code>
+					</li>
+					<li>
+						Allow only a particular docker network with
+						<code>--docker.network</code>
+					</li>
+					<li>
+						Set the label <code>reproxy.enabled=false</code> or
+						<code>reproxy.enabled=no</code> or <code>reproxy.enabled=0</code>
+					</li>
+				</ul>
+				<p>
+					This is a dynamic provider and any change in container's status will
+					be applied automatically.
+				</p>
+				<h2 id="ssl-support">SSL support <a href="#ssl-support"></a></h2>
+				<p>
+					SSL mode (by default none) can be set to <code>auto</code> (ACME/LE
+					certificates), <code>static</code> (existing certificate) or
+					<code>none</code>. If <code>auto</code> turned on SSL certificate will
+					be issued automatically for all discovered server names. User can
+					override it by setting <code>--ssl.fqdn</code> value(s)
+				</p>
+				<h2 id="logging">Logging <a href="#logging"></a></h2>
+				<p>
+					By default no request log generated. This can be turned on by setting
+					<code>--logger.enabled</code>. The log (auto-rotated) has
+					<a href="http://httpd.apache.org/docs/2.2/logs.html#combined"
+						>Apache Combined Log Format</a
+					>
+				</p>
+				<h2 id="assets-server">Assets Server <a href="#assets-server"></a></h2>
+				<p>
+					User may turn assets server on (off by default) to serve static files.
+					As long as <code>--assets.location</code> set it will treat every
+					non-proxied request under <code>assets.root</code> as a request for
+					static files.
+				</p>
+				<p>
+					Assets server can be used without any proxy providers. In this mode
+					reproxy acts as a simple web server for a static context.
+				</p>
+				<h2 id="more-options">More options <a href="#more-options"></a></h2>
+				<ul>
+					<li><code>--gzip</code> enables gizp compression for responses.</li>
+					<li>
+						<code>--max=N</code> allows to set the maximum size of request
+						(default 64k)
+					</li>
+					<li>
+						<code>--header</code> sets extra header(s) added to each proxied
+						request
+					</li>
+					<li>
+						<code>--timeout.*</code> various timeouts for both server and proxy
+						transport. See <code>timeout</code> section in
+						<a href="https://github.com/umputun/reproxy#all-application-options"
+							>All Application Options</a
+						>
+					</li>
+				</ul>
+				<h2 id="ping-and-health-checks">
+					Ping and health checks <a href="#ping-and-health-checks"></a>
+				</h2>
+				<p>reproxy provides 2 endpoints for this purpose:</p>
+				<ul>
+					<li>
+						<code>/ping</code> responds with <code>pong</code> and indicates
+						what reproxy up and running
+					</li>
+					<li>
+						<code>/health</code> returns <code>200 OK</code> status if all
+						destination servers responded to their ping request with
+						<code>200</code> or <code>417 Expectation Failed</code> if any of
+						servers responded with non-200 code. It also returns json body with
+						details about passed/failed services.
+					</li>
+				</ul>
+				<h2 id="all-application-options">
+					All Application Options <a href="#all-application-options"></a>
+				</h2>
+				<pre><code>  -l, --listen=                     listen on host:port (default: 127.0.0.1:8080) [$LISTEN]
   -m, --max=                        max response size (default: 64000) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
@@ -65,41 +492,64 @@ timeout:
 Help Options:
   -h, --help                        Show this help message
 
-</code></pre><h2 id="status">Status <a href="#status"></a></h2><p>The project is under active development and may have breaking changes till <code>v1</code> released.</p><footer class="flex mt-4"><div class="ml-auto text-xs">Updated&nbsp;<time datetime="2021-13-15">Apr 15, 2021</time> <a class="ml-2 inline-block no-underline font-normal rounded" target="_blank" href="https://github.com/umputun/reproxy/site/edit/master/./src/index.md">Edit</a></div></footer></arcicle></main><script>const sidebarElement = document.getElementById('sidebar')
-const sidebarOpenButton = document.getElementById('sidebar-open-button')
-const sidebarCloseButton = document.getElementById('sidebar-close-button')
-const sidebarLinks = sidebarElement.querySelectorAll('a')
+</code></pre>
+				<h2 id="status">Status <a href="#status"></a></h2>
+				<p>
+					The project is under active development and may have breaking changes
+					till <code>v1</code> released.
+				</p>
+				<footer class="flex mt-4">
+					<div class="ml-auto text-xs">
+						Updated&nbsp;<time datetime="2021-02-15">Apr 15, 2021</time>
+						<a
+							class="ml-2 inline-block no-underline font-normal rounded"
+							target="_blank"
+							href="https://github.com/umputun/reproxy/site/edit/master/./src/index.md"
+							>Edit</a
+						>
+					</div>
+				</footer></arcicle
+			>
+		</main>
+		<script>
+			const sidebarElement = document.getElementById('sidebar')
+			const sidebarOpenButton = document.getElementById('sidebar-open-button')
+			const sidebarCloseButton = document.getElementById('sidebar-close-button')
+			const sidebarLinks = sidebarElement.querySelectorAll('a')
 
-sidebarOpenButton.addEventListener('click', toggleSidebar)
-sidebarCloseButton.addEventListener('click', closeSidebar)
+			sidebarOpenButton.addEventListener('click', toggleSidebar)
+			sidebarCloseButton.addEventListener('click', closeSidebar)
 
-Array.from(sidebarLinks).forEach((l) => {
-	l.addEventListener('click', () => {
-		if (!isShow()) {
-			return
-		}
-		closeSidebar()
-	})
-})
+			Array.from(sidebarLinks).forEach((l) => {
+				l.addEventListener('click', () => {
+					if (!isShow()) {
+						return
+					}
+					closeSidebar()
+				})
+			})
 
-function openSidebar() {
-	document.body.classList.add('overflow-hidden')
-	sidebarElement.classList.remove('hidden')
-}
+			function openSidebar() {
+				document.body.classList.add('overflow-hidden')
+				sidebarElement.classList.remove('hidden')
+			}
 
-function closeSidebar() {
-	sidebarElement.classList.add('hidden')
-	document.body.classList.remove('overflow-hidden')
-}
+			function closeSidebar() {
+				sidebarElement.classList.add('hidden')
+				document.body.classList.remove('overflow-hidden')
+			}
 
-function isShow() {
-	return !sidebarElement.classList.contains('hidden')
-}
+			function isShow() {
+				return !sidebarElement.classList.contains('hidden')
+			}
 
-function toggleSidebar() {
-	if (isShow()) {
-		closeSidebar()
-	} else {
-		openSidebar()
-	}
-}</script></body></html>
+			function toggleSidebar() {
+				if (isShow()) {
+					closeSidebar()
+				} else {
+					openSidebar()
+				}
+			}
+		</script>
+	</body>
+</html>
