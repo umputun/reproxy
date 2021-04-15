@@ -5,6 +5,9 @@
 	"author": "Pavel Mineev <pavel@mineev.me>",
 	"license": "MIT",
 	"private": true,
+	"engines": {
+		"node": ">= 14.16"
+	},
 	"scripts": {
 		"build": "cross-env NODE_ENV=production run-s build:* --print-label",
 		"build:clean": "rm -rf public/*",
