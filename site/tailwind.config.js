@@ -19,6 +19,7 @@ module.exports = {
 			typography: (theme) => ({
 				DEFAULT: {
 					css: {
+						maxWidth: '100%',
 						paddingLeft: spacing[12],
 						paddingRight: spacing[12],
 						color: theme('colors.gray.700'),
@@ -47,6 +48,7 @@ module.exports = {
 					},
 				},
 				lg: {
+					width: spacing[1000],
 					css: {
 						img: {
 							margin: 0,
