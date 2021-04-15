@@ -41,7 +41,6 @@ function getISODate(date) {
 }
 
 module.exports = (config) => {
-	config.setUseGitIgnore(false)
 	config.addShortcode('version', getVersion)
 
 	// Pluigns
@@ -66,7 +65,7 @@ module.exports = (config) => {
 	config.setLibrary('md', transformMarkdown())
 
 	// Other files
-	config.addPassthroughCopy('public/*')
+	config.addPassthroughCopy({ 'src/public/*': '.' })
 
 	return {
 		dir: {
