@@ -18,17 +18,18 @@ services:
 
   # automatic destination, will be mapped for ^/api/svc1/(.*)
   svc1:
-    image: hashicorp/http-echo
+    image: ghcr.io/umputun/echo-http
     hostname: svc1
     container_name: svc1
-    command: -text="hello world from svc1"
+    command: --message="hello world from svc1"
+
 
   # automatic destination, will be mapped for ^/api/svc2/(.*)
   svc2:
-    image: hashicorp/http-echo
+    image: ghcr.io/umputun/echo-http
     hostname: svc2
     container_name: svc2
-    command: -text="hello world from svc2"
+    command: --message="hello world from svc2"
 
   # explicit destination, routing match defined by lables
   whoami:
