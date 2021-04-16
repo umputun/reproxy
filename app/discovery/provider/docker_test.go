@@ -69,14 +69,61 @@ func TestDocker_List(t *testing.T) {
 	assert.Equal(t, "*", res[2].Server)
 }
 
+func TestDocker_ListWithAutoAPI(t *testing.T) {
+	dclient := &DockerClientMock{
+		ListContainersFunc: func() ([]containerInfo, error) {
+			return []containerInfo{
+				{
+					Name: "c1", State: "running", IP: "127.0.0.2", Ports: []int{1345, 12345},
+					Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
+						"reproxy.port": "12345", "reproxy.server": "example.com, example2.com", "reproxy.ping": "/ping"},
+				},
+				{
+					Name: "c2", State: "running", IP: "127.0.0.3", Ports: []int{12346},
+				},
+				{
+					Name: "c3", State: "stopped",
+				},
+				{
+					Name: "c4", State: "running", IP: "127.0.0.122", Ports: []int{2345},
+					Labels: map[string]string{"reproxy.enabled": "false"},
+				},
+			}, nil
+		},
+	}
+
+	d := Docker{DockerClient: dclient, AutoAPI: true}
+	res, err := d.List()
+	require.NoError(t, err)
+	require.Equal(t, 3, len(res))
+
+	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
+	assert.Equal(t, "example.com", res[0].Server)
+	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
+
+	assert.Equal(t, "^/api/123/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[1].Dst)
+	assert.Equal(t, "example2.com", res[1].Server)
+	assert.Equal(t, "http://127.0.0.2:12345/ping", res[1].PingURL)
+
+	assert.Equal(t, "^/api/c2/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:12346/$1", res[2].Dst)
+	assert.Equal(t, "http://127.0.0.3:12346/ping", res[2].PingURL)
+	assert.Equal(t, "*", res[2].Server)
+}
+
 func TestDocker_refresh(t *testing.T) {
 	containers := make(chan []containerInfo)
 
-	d := Docker{DockerClient: &DockerClientMock{
-		ListContainersFunc: func() ([]containerInfo, error) {
-			return <-containers, nil
+	d := Docker{
+		DockerClient: &DockerClientMock{
+			ListContainersFunc: func() ([]containerInfo, error) {
+				return <-containers, nil
+			},
 		},
-	}}
+		RefreshInterval: time.Nanosecond,
+	}
 
 	events := make(chan discovery.ProviderID)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -96,7 +143,6 @@ func TestDocker_refresh(t *testing.T) {
 	}
 
 	go func() {
-		dockerPollingInterval = time.Microsecond
 		if err := d.events(ctx, events); err != context.Canceled {
 			log.Fatal(err)
 		}
@@ -152,5 +198,5 @@ func TestDockerClient(t *testing.T) {
 	assert.Equal(t, []int{80}, c[0].Ports)
 	assert.Equal(t, time.Unix(1618417435, 0), c[0].TS)
 
-	assert.Equal(t, "", c[1].IP)
+	assert.Empty(t, c[1].IP)
 }

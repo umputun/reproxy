@@ -207,8 +207,11 @@ func makeProviders() ([]discovery.Provider, error) {
 		if opts.Docker.AutoAPI {
 			log.Printf("[INFO] auto-api enabled for docker")
 		}
+
+		const refreshInterval = time.Second * 10 // seems like a reasonable default
+
 		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded,
-			AutoAPI: opts.Docker.AutoAPI})
+			AutoAPI: opts.Docker.AutoAPI, RefreshInterval: refreshInterval})
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
