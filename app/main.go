@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -103,7 +103,15 @@ func main() {
 	}
 
 	setupLog(opts.Dbg)
-	catchSignal()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { // catch signal and invoke graceful termination
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+		<-stop
+		log.Printf("[WARN] interrupt signal")
+		cancel()
+	}()
 
 	providers, err := makeProviders()
 	if err != nil {
@@ -163,7 +171,11 @@ func main() {
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
 	}
-	if err := px.Run(context.Background()); err != nil {
+	if err := px.Run(ctx); err != nil {
+		if err == http.ErrServerClosed {
+			log.Printf("[WARN] proxy server closed, %v", err) //nolint gocritic
+			return
+		}
 		log.Fatalf("[ERROR] proxy server failed, %v", err) //nolint gocritic
 	}
 }
@@ -257,21 +269,4 @@ func setupLog(dbg bool) {
 		return
 	}
 	log.Setup(log.Msec, log.LevelBraces)
-}
-
-func catchSignal() {
-	// catch SIGQUIT and print stack traces
-	sigChan := make(chan os.Signal)
-	go func() {
-		for range sigChan {
-			log.Print("[INFO] SIGQUIT detected")
-			stacktrace := make([]byte, 8192)
-			length := runtime.Stack(stacktrace, true)
-			if length > 8192 {
-				length = 8192
-			}
-			fmt.Println(string(stacktrace[:length]))
-		}
-	}()
-	signal.Notify(sigChan, syscall.SIGQUIT)
 }

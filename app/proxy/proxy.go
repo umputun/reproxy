@@ -207,6 +207,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				http.Error(w, "Server error", http.StatusBadGateway)
 				return
 			}
+			log.Printf("[DEBUG] proxy to %s", uu)
 			ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
 			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
 		case discovery.MTStatic:
