@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/akellbl4/reproxy/site/site/src/public/logo.svg" width="355px" height="130px" alt="Reproxy | Simple Reverse Proxy" class="logo"/>
+  <img class="logo" src="https://raw.githubusercontent.com/akellbl4/reproxy/site/site/src/public/logo-bg.svg" width="355px" height="130px" alt="Reproxy | Simple Reverse Proxy"/>
 </div>
 
 Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).

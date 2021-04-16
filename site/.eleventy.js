@@ -1,3 +1,5 @@
+const fs = require('fs')
+const path = require('path')
 const htmlmin = require('html-minifier')
 const markdownIt = require('markdown-it')
 const markdownItAnchor = require('markdown-it-anchor')
@@ -32,6 +34,13 @@ function transformMarkdown() {
 	})
 }
 
+function replaceLogo(content) {
+	const filepath = path.resolve(__dirname, './src/logo.svg')
+	const svg = fs.readFileSync(filepath, 'utf-8')
+
+	return content.replace(/<img class="logo"(.*?)>/gi, svg)
+}
+
 function getReadableDate(date) {
 	return fns.format(new Date(date), 'LLL dd, yyyy')
 }
@@ -56,6 +65,7 @@ module.exports = (config) => {
 	})
 
 	// HTML transformations
+	config.addTransform('replaceLogo', replaceLogo)
 	config.addTransform('htmlmin', transformHTML)
 	// Date formaters
 	config.addFilter('humanizeDate', getReadableDate)
