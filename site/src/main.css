@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+	scroll-behavior: smooth;
+}
+
+.docs-nav a ~ ul {
+	@apply mt-1 mb-2;
+}

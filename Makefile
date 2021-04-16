@@ -20,6 +20,9 @@ race_test:
 build: info
 	- cd app && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X main.revision=$(REV) -s -w" -o ../dist/reproxy
 
+build_site:
+  - cd site && yarn build
+
 info:
 	- @echo "revision $(REV)"
 

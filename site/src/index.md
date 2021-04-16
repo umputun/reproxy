@@ -1,8 +1,24 @@
-# reproxy [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master) [![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy) [![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
+<div align="center">
+  <img class="logo" src="https://raw.githubusercontent.com/akellbl4/reproxy/site/site/src/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
+</div>
 
 Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).
 One or more providers supply information about requested server, requested url, destination url and health check url.
 Distributed as a single binary or as a docker container.
+
+- Automatic SSL termination with <a href="https://letsencrypt.org/" rel="nofollow noopener noreferrer" target="_blank">Let's Encrypt</a>
+- Support of user-provided SSL certificates
+- Simple but flexible proxy rules
+- Static, command line proxy rules provider
+- Dynamic, file-based proxy rules provider
+- Docker provider with an automatic discovery
+- Optional traffic compression
+- User-defined limits and timeouts
+- Single binary distribution
+- Docker container distribution
+- Built-in static assets server
+
+[![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy)&nbsp;[![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
 
 Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
 
@@ -25,12 +41,13 @@ example with an automatic docker discovery:
 ## Install
 
 - for a binary distribution pick the proper file in the [release section](https://github.com/umputun/reproxy/releases)
-- docker container available via docker hub (umputun/reproxy) as well as via github container registry (ghcr.io/umputun/reproxy). Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
+- docker container available on [Docker Hub](https://hub.docker.com/r/umputun/reproxy) as well as on [Github Container Registry](ghcr.io/umputun/reproxy).
+
+Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
 
 ## Providers
 
 User can sets multiple providers at the same time.
-
 _See examples of various providers in [examples](https://github.com/umputun/reproxy/tree/master/examples)_
 
 ### Static
@@ -47,18 +64,18 @@ The last (4th) element defines an optional ping url used for health reporting. I
 
 `reproxy --file.enabled --file.name=config.yml`
 
-example of `config.yml`:
+Example of `config.yml`:
 
 ```yaml
 default: # the same as * (catch-all) server
-  - { route: "^/api/svc1/(.*)", dest: "http://127.0.0.1:8080/blah1/$1" }
+  - { route: '^/api/svc1/(.*)', dest: 'http://127.0.0.1:8080/blah1/$1' }
   - {
-      route: "/api/svc3/xyz",
-      dest: "http://127.0.0.3:8080/blah3/xyz",
-      "ping": "http://127.0.0.3:8080/ping",
+      route: '/api/svc3/xyz',
+      dest: 'http://127.0.0.3:8080/blah3/xyz',
+      'ping': 'http://127.0.0.3:8080/ping',
     }
 srv.example.com:
-  - { route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc" }
+  - { route: '^/api/svc2/(.*)', dest: 'http://127.0.0.2:8080/blah2/$1/abc' }
 ```
 
 This is a dynamic provider and file change will be applied automatically.
