@@ -204,7 +204,7 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	src := m.SrcMatch.String()
 	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
 
-	if m.MatchType == MTStatic {
+	if m.MatchType == MTStatic && m.AssetsWebRoot == "" && m.AssetsLocation == "" {
 		m.AssetsWebRoot = strings.TrimSuffix(src, "/")
 		m.AssetsLocation = strings.TrimSuffix(m.Dst, "/") + "/"
 	}
