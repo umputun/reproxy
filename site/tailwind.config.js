@@ -20,6 +20,7 @@ module.exports = {
 				DEFAULT: {
 					css: {
 						maxWidth: '100%',
+						lineHeight: 1.5,
 						paddingLeft: spacing[12],
 						paddingRight: spacing[12],
 						color: theme('colors.gray.700'),
@@ -39,12 +40,17 @@ module.exports = {
 							fontWeight: 'normal',
 							backgroundColor: theme('colors.gray.100'),
 							color: theme('colors.gray.700'),
-							paddingTop: spacing[1],
-							paddingBottom: spacing[1],
+							paddingTop: spacing[0.5],
+							paddingBottom: spacing[0.5],
 							paddingLeft: spacing[2],
 							paddingRight: spacing[2],
 							borderRadius: spacing[1],
 						},
+					},
+				},
+				lg: {
+					css: {
+						lineHeight: 1.5,
 					},
 				},
 				dark: {
