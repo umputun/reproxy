@@ -25,8 +25,7 @@ Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested ur
 
 For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`
 
-Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates.
-Optional assets server can be used to serve static files.
+Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files.
 
 Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
