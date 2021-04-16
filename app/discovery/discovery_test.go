@@ -81,6 +81,8 @@ func TestService_Match(t *testing.T) {
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
 				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
+				{SrcMatch: *regexp.MustCompile("/web"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic},
+				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic},
 			}, nil
 		},
 	}
@@ -91,27 +93,35 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.Mappers()))
+	assert.Equal(t, 5, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
 		dest        string
+		mt          MatchType
 		ok          bool
 	}{
-		{"example.com", "/api/svc3/xyz/something", "http://127.0.0.3:8080/blah3/xyz/something", true},
-		{"example.com", "/api/svc3/xyz", "http://127.0.0.3:8080/blah3/xyz", true},
-		{"abc.example.com", "/api/svc1/1234", "http://127.0.0.1:8080/blah1/1234", true},
-		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", false},
-		{"m.example.com", "/api/svc2/1234", "http://127.0.0.2:8080/blah2/1234/abc", true},
-		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", false},
+		{"example.com", "/api/svc3/xyz/something", "http://127.0.0.3:8080/blah3/xyz/something", MTProxy, true},
+		{"example.com", "/api/svc3/xyz", "http://127.0.0.3:8080/blah3/xyz", MTProxy, true},
+		{"abc.example.com", "/api/svc1/1234", "http://127.0.0.1:8080/blah1/1234", MTProxy, true},
+		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", MTProxy, false},
+		{"m.example.com", "/api/svc2/1234", "http://127.0.0.2:8080/blah2/1234/abc", MTProxy, true},
+		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", MTProxy, false},
+		{"m1.example.com", "/web/index.html", "/web:/var/web/", MTStatic, true},
+		{"m1.example.com", "/web/", "/web:/var/web/", MTStatic, true},
+		{"m1.example.com", "/www", "/www:/var/web/", MTStatic, true},
+		{"m1.example.com", "/www/something", "/www:/var/web/", MTStatic, true},
 	}
 
 	for i, tt := range tbl {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res, ok := svc.Match(tt.server, tt.src)
+			res, mt, ok := svc.Match(tt.server, tt.src)
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.dest, res)
+			if ok {
+				assert.Equal(t, tt.mt, mt)
+			}
 		})
 	}
 }

@@ -41,7 +41,7 @@ type Http struct { // nolint golint
 // Matcher source info (server and route) to the destination url
 // If no match found return ok=false
 type Matcher interface {
-	Match(srv, src string) (string, bool)
+	Match(srv, src string) (string, discovery.MatchType, bool)
 	Servers() (servers []string)
 	Mappers() (mappers []discovery.URLMapper)
 }
@@ -194,20 +194,36 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0]
 		}
-		u, ok := h.Match(server, r.URL.Path)
+		u, mt, ok := h.Match(server, r.URL.Path)
 		if !ok {
 			assetsHandler.ServeHTTP(w, r)
 			return
 		}
 
-		uu, err := url.Parse(u)
-		if err != nil {
-			http.Error(w, "Server error", http.StatusBadGateway)
-			return
+		switch mt {
+		case discovery.MTProxy:
+			uu, err := url.Parse(u)
+			if err != nil {
+				http.Error(w, "Server error", http.StatusBadGateway)
+				return
+			}
+			log.Printf("[DEBUG] proxy to %s", uu)
+			ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
+			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
+		case discovery.MTStatic:
+			// static match result has webroot:location, i.e. /www:/var/somedir/
+			ae := strings.Split(u, ":")
+			if len(ae) != 2 { // shouldn't happen
+				http.Error(w, "Server error", http.StatusInternalServerError)
+				return
+			}
+			fs, err := R.FileServer(ae[0], ae[1])
+			if err != nil {
+				http.Error(w, "Server error", http.StatusBadGateway)
+				return
+			}
+			fs.ServeHTTP(w, r)
 		}
-
-		ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
-		reverseProxy.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
 

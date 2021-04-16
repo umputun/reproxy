@@ -70,9 +70,10 @@ func (d *File) Events(ctx context.Context) <-chan discovery.ProviderID {
 func (d *File) List() (res []discovery.URLMapper, err error) {
 
 	var fileConf map[string][]struct {
-		SourceRoute string `yaml:"route"`
-		Dest        string `yaml:"dest"`
-		Ping        string `yaml:"ping"`
+		SourceRoute   string `yaml:"route"`
+		Dest          string `yaml:"dest"`
+		Ping          string `yaml:"ping"`
+		AssetsEnabled bool   `yaml:"assets"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -94,15 +95,22 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 			if srv == "default" {
 				srv = "*"
 			}
-			mapper := discovery.URLMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping, ProviderID: discovery.PIFile}
+			mapper := discovery.URLMapper{
+				Server:     srv,
+				SrcMatch:   *rx,
+				Dst:        f.Dest,
+				PingURL:    f.Ping,
+				ProviderID: discovery.PIFile,
+				MatchType:  discovery.MTProxy,
+			}
+			if f.AssetsEnabled {
+				mapper.MatchType = discovery.MTStatic
+			}
 			res = append(res, mapper)
 		}
 	}
 	sort.Slice(res, func(i, j int) bool {
-		if res[i].Server == res[j].Server {
-			return res[i].SrcMatch.String() < res[j].SrcMatch.String()
-		}
-		return res[i].Server < res[j].Server
+		return len(res[i].Server) > len(res[j].Server)
 	})
 
 	err = fh.Close()

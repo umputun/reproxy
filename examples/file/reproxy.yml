@@ -3,3 +3,4 @@ default:
   - {route: "/api/svc2", dest: "http://127.0.0.1:8082/api", "ping": "http://127.0.0.1:8082/health"}
 localhost:
   - {route: "^/api/svc3/(.*)", dest: "http://localhost:8083/$1","ping": "http://127.0.0.1:8083/health"}
+  - {route: "/www", dest: "web2", "static": y}
