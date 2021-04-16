@@ -32,7 +32,7 @@ type URLMapper struct {
 	Dst        string
 	ProviderID ProviderID
 	PingURL    string
-	IsStatic   bool
+	MatchType  MatchType
 }
 
 // Provider defines sources of mappers
@@ -49,6 +49,15 @@ const (
 	PIDocker ProviderID = "docker"
 	PIStatic ProviderID = "static"
 	PIFile   ProviderID = "file"
+)
+
+// MatchType defines the type of mapper (rule)
+type MatchType int
+
+// enum of all match types
+const (
+	MTProxy MatchType = iota
+	MTStatic
 )
 
 // NewService makes service with given providers
@@ -93,7 +102,7 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 // Match url to all mappers
-func (s *Service) Match(srv, src string) (string, bool) {
+func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 
 	s.lock.RLock()
 	defer s.lock.RUnlock()
@@ -101,26 +110,34 @@ func (s *Service) Match(srv, src string) (string, bool) {
 	var staticRules []URLMapper
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
-			if m.IsStatic { // collect static for
+			if m.MatchType == MTStatic { // collect static for
 				staticRules = append(staticRules, m)
 				continue
 			}
 			dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 			if src != dest {
-				return dest, true
+				return dest, m.MatchType, true
 			}
 		}
 	}
 
 	// process static rules after all regular proxy rules as we want to prioritize regular rules
+	// static rule returns a pair (separated by :) of assets location:assets web root
 	for _, m := range staticRules {
 		dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-		if src != dest {
-			return dest, true
+		if src == dest { // try to match with trialing / to match web root requests, i.e. /web (without trailing /)
+			dest := m.SrcMatch.ReplaceAllString(src+"/", m.Dst)
+			if src+"/" == dest {
+				continue
+			}
 		}
+		// clear regex part added by extendMapper to produce clean pair, like /web:/var/www
+		s := strings.TrimPrefix(strings.TrimSuffix(m.SrcMatch.String(), "(.*)"), "^")
+		d := strings.TrimSuffix(m.Dst, "$1")
+		return s + ":" + d, m.MatchType, true
 	}
 
-	return src, false
+	return src, MTProxy, false
 }
 
 // Servers return list of all servers, skips "*" (catch-all/default)
@@ -182,7 +199,7 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	}
 
 	// don't extend non-static rule if src doesn't have / suffix
-	if !strings.HasSuffix(src, "/") && !m.IsStatic {
+	if !strings.HasSuffix(src, "/") && m.MatchType != MTStatic {
 		return m
 	}
 
@@ -191,6 +208,7 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		Dst:        strings.TrimSuffix(m.Dst, "/") + "/$1",
 		ProviderID: m.ProviderID,
 		PingURL:    m.PingURL,
+		MatchType:  m.MatchType,
 	}
 
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")

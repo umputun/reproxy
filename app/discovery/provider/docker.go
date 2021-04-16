@@ -130,7 +130,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		// docker server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIDocker})
+				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy})
 		}
 	}
 

@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 func TestStatic_List(t *testing.T) {
@@ -39,6 +41,11 @@ func TestStatic_List(t *testing.T) {
 			assert.Equal(t, tt.src, res[0].SrcMatch.String())
 			assert.Equal(t, tt.dst, res[0].Dst)
 			assert.Equal(t, tt.ping, res[0].PingURL)
+			if tt.static {
+				assert.Equal(t, discovery.MTStatic, res[0].MatchType)
+			} else {
+				assert.Equal(t, discovery.MTProxy, res[0].MatchType)
+			}
 		})
 	}
 

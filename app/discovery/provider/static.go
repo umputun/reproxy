@@ -45,14 +45,19 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 			isStatic = true
 		}
 
-		return discovery.URLMapper{
+		res := discovery.URLMapper{
 			Server:     strings.TrimSpace(elems[0]),
 			SrcMatch:   *rx,
 			Dst:        dst,
 			PingURL:    strings.TrimSpace(elems[3]),
 			ProviderID: discovery.PIStatic,
-			IsStatic:   isStatic,
-		}, nil
+			MatchType:  discovery.MTProxy,
+		}
+		if isStatic {
+			res.MatchType = discovery.MTStatic
+		}
+
+		return res, nil
 	}
 
 	for _, r := range s.Rules {

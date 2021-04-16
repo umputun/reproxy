@@ -95,7 +95,17 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 			if srv == "default" {
 				srv = "*"
 			}
-			mapper := discovery.URLMapper{Server: srv, SrcMatch: *rx, Dst: f.Dest, PingURL: f.Ping, ProviderID: discovery.PIFile}
+			mapper := discovery.URLMapper{
+				Server:     srv,
+				SrcMatch:   *rx,
+				Dst:        f.Dest,
+				PingURL:    f.Ping,
+				ProviderID: discovery.PIFile,
+				MatchType:  discovery.MTProxy,
+			}
+			if f.Static {
+				mapper.MatchType = discovery.MTStatic
+			}
 			res = append(res, mapper)
 		}
 	}
