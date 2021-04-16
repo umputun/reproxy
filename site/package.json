@@ -6,7 +6,7 @@
 	"license": "MIT",
 	"private": true,
 	"engines": {
-		"node": ">= 14.16"
+		"node": ">= 14.15"
 	},
 	"scripts": {
 		"build": "cross-env NODE_ENV=production run-s build:* --print-label",
