@@ -110,10 +110,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		}
 	}
 	sort.Slice(res, func(i, j int) bool {
-		if res[i].Server == res[j].Server {
-			return res[i].SrcMatch.String() < res[j].SrcMatch.String()
-		}
-		return res[i].Server < res[j].Server
+		return len(res[i].Server) > len(res[j].Server)
 	})
 
 	err = fh.Close()
