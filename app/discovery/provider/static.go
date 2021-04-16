@@ -35,14 +35,10 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 
 		dst := strings.TrimSpace(elems[2])
-		isStatic := false
-		if strings.HasPrefix(dst, "static:") {
-			dst = strings.TrimPrefix(dst, "static:")
-			isStatic = true
-		}
+		assets := false
 		if strings.HasPrefix(dst, "assets:") {
 			dst = strings.TrimPrefix(dst, "assets:")
-			isStatic = true
+			assets = true
 		}
 
 		res := discovery.URLMapper{
@@ -53,7 +49,7 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 			ProviderID: discovery.PIStatic,
 			MatchType:  discovery.MTProxy,
 		}
-		if isStatic {
+		if assets {
 			res.MatchType = discovery.MTStatic
 		}
 

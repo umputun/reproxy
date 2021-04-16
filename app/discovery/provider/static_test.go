@@ -23,7 +23,6 @@ func TestStatic_List(t *testing.T) {
 		{"123,456", "", "", "", "", false, true},
 		{"123", "", "", "", "", false, true},
 		{"example.com , 123, 456 ,ping", "example.com", "123", "456", "ping", false, false},
-		{"example.com,123, static:456, ping ", "example.com", "123", "456", "ping", true, false},
 		{"example.com,123, assets:456, ping ", "example.com", "123", "456", "ping", true, false},
 	}
 
