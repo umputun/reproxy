@@ -97,6 +97,7 @@ module.exports = {
 								color: theme('colors.gray.400'),
 							},
 							code: {
+								backgroundColor: theme('colors.gray.700'),
 								color: theme('colors.gray.200'),
 							},
 							'a code': {
