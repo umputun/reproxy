@@ -21,7 +21,11 @@ build: info
 	- cd app && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X main.revision=$(REV) -s -w" -o ../dist/reproxy
 
 build_site:
-  - cd site && yarn build
+	@rm -f  site/public/*
+	docker build -f Dockerfile.site -t reproxy.site .
+	docker run -d --name=reproxy.site reproxy.site
+	docker cp reproxy.site:/build/public site/
+	docker rm -f reproxy.site
 
 info:
 	- @echo "revision $(REV)"

@@ -2,10 +2,12 @@ FROM node:14-alpine
 
 WORKDIR build
 
-COPY . /build
+COPY site/ /build
+COPY README.md /build/src/index.md
+
 RUN yarn --frozen-lockfile && \
 	yarn build && \
-	ls -la /public
+	ls -la /build/public
 
 CMD ["sleep", "100"]
 
