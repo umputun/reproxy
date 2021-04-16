@@ -18,6 +18,7 @@ Distributed as a single binary or as a docker container.
 - Docker container distribution
 - Built-in static assets server
 
+----
 [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy)&nbsp;[![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
 
 Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
