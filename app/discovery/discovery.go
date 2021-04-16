@@ -33,6 +33,9 @@ type URLMapper struct {
 	ProviderID ProviderID
 	PingURL    string
 	MatchType  MatchType
+
+	AssetsLocation string
+	AssetsWebRoot  string
 }
 
 // Provider defines sources of mappers
@@ -59,6 +62,17 @@ const (
 	MTProxy MatchType = iota
 	MTStatic
 )
+
+func (m MatchType) String() string {
+	switch m {
+	case MTProxy:
+		return "proxy"
+	case MTStatic:
+		return "static"
+	default:
+		return "unknown"
+	}
+}
 
 // NewService makes service with given providers
 func NewService(providers []Provider, interval time.Duration) *Service {
@@ -89,7 +103,7 @@ func (s *Service) Run(ctx context.Context) error {
 			evRecv = false
 			lst := s.mergeLists()
 			for _, m := range lst {
-				log.Printf("[INFO] match for %s: %s %s -> %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+				log.Printf("[INFO] match for %s: %s %s -> %s (%s)", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst, m.MatchType)
 			}
 			s.lock.Lock()
 			s.mappers = make(map[string][]URLMapper)
@@ -131,10 +145,7 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 				continue
 			}
 		}
-		// clear regex part added by extendMapper to produce clean pair, like /web:/var/www
-		s := strings.TrimPrefix(strings.TrimSuffix(m.SrcMatch.String(), "(.*)"), "^")
-		d := strings.TrimSuffix(m.Dst, "$1")
-		return s + ":" + d, m.MatchType, true
+		return m.AssetsWebRoot + ":" + m.AssetsLocation, MTStatic, true
 	}
 
 	return src, MTProxy, false
@@ -193,22 +204,28 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	src := m.SrcMatch.String()
 	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
 
-	// don't extend mapper with dst or src regex groups
+	if m.MatchType == MTStatic {
+		m.AssetsWebRoot = strings.TrimSuffix(src, "/")
+		m.AssetsLocation = strings.TrimSuffix(m.Dst, "/") + "/"
+	}
+
+	// don't extend src and dst with dst or src regex groups
 	if strings.Contains(m.Dst, "$") || strings.Contains(m.Dst, "@") || strings.Contains(src, "(") {
 		return m
 	}
 
-	// don't extend non-static rule if src doesn't have / suffix
-	if !strings.HasSuffix(src, "/") && m.MatchType != MTStatic {
+	if !strings.HasSuffix(src, "/") && m.MatchType == MTProxy {
 		return m
 	}
 
 	res := URLMapper{
-		Server:     m.Server,
-		Dst:        strings.TrimSuffix(m.Dst, "/") + "/$1",
-		ProviderID: m.ProviderID,
-		PingURL:    m.PingURL,
-		MatchType:  m.MatchType,
+		Server:         m.Server,
+		Dst:            strings.TrimSuffix(m.Dst, "/") + "/$1",
+		ProviderID:     m.ProviderID,
+		PingURL:        m.PingURL,
+		MatchType:      m.MatchType,
+		AssetsWebRoot:  m.AssetsWebRoot,
+		AssetsLocation: m.AssetsLocation,
 	}
 
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")

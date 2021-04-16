@@ -91,6 +91,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, port)
 		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, port)
 		server := "*"
+		assetsWebRoot, assetsLocation := "", ""
 
 		// we don't care about value because disabled will be filtered before
 		if _, ok := c.Labels["reproxy.enabled"]; ok {
@@ -117,6 +118,14 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 		}
 
+		if v, ok := c.Labels["reproxy.assets"]; ok {
+			if ae := strings.Split(v, ":"); len(ae) == 2 {
+				enabled = true
+				assetsWebRoot = ae[0]
+				assetsLocation = ae[1]
+			}
+		}
+
 		if !enabled {
 			log.Printf("[DEBUG] container %s disabled", c.Name)
 			continue
@@ -129,8 +138,16 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 		// docker server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
-			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy})
+			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
+				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
+
+			if assetsWebRoot != "" {
+				mp.MatchType = discovery.MTStatic
+				mp.AssetsWebRoot = assetsWebRoot
+				mp.AssetsLocation = assetsLocation
+			}
+
+			res = append(res, mp)
 		}
 	}
 

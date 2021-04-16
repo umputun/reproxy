@@ -210,9 +210,9 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
 			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
 		case discovery.MTStatic:
-			// static match has webroot:location
+			// static match result has webroot:location, i.e. /www:/var/somedir/
 			ae := strings.Split(u, ":")
-			if len(ae) != 2 {
+			if len(ae) != 2 { // shouldn't happen
 				http.Error(w, "Server error", http.StatusInternalServerError)
 				return
 			}

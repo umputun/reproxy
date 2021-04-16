@@ -107,10 +107,10 @@ func TestService_Match(t *testing.T) {
 		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", MTProxy, false},
 		{"m.example.com", "/api/svc2/1234", "http://127.0.0.2:8080/blah2/1234/abc", MTProxy, true},
 		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", MTProxy, false},
-		{"m1.example.com", "/web/index.html", "/web/:/var/web/", MTStatic, true},
-		{"m1.example.com", "/web/", "/web/:/var/web/", MTStatic, true},
-		{"m1.example.com", "/www", "/www/:/var/web/", MTStatic, true},
-		{"m1.example.com", "/www/something", "/www/:/var/web/", MTStatic, true},
+		{"m1.example.com", "/web/index.html", "/web:/var/web/", MTStatic, true},
+		{"m1.example.com", "/web/", "/web:/var/web/", MTStatic, true},
+		{"m1.example.com", "/www", "/www:/var/web/", MTStatic, true},
+		{"m1.example.com", "/www/something", "/www:/var/web/", MTStatic, true},
 	}
 
 	for i, tt := range tbl {
