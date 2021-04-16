@@ -1,7 +1,7 @@
 module.exports = {
 	env: process.env.NODE_ENV,
 	date: Date.now(),
-	githubUrl: 'https://github.com/umputun/reproxy/site',
+	githubUrl: 'https://github.com/umputun/reproxy',
 	githubBranch: 'master',
 	url: 'https://reproxy.io',
 	title: 'Reproxy',
