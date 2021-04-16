@@ -43,7 +43,7 @@ Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current m
 
 ## Providers
 
-User can sets multiple providers at the same time.
+User can sets multiple providers at the same time.  
 _See examples of various providers in [examples](https://github.com/umputun/reproxy/tree/master/examples)_
 
 ### Static
