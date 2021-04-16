@@ -32,6 +32,10 @@ type URLMapper struct {
 	Dst        string
 	ProviderID ProviderID
 	PingURL    string
+	MatchType  MatchType
+
+	AssetsLocation string
+	AssetsWebRoot  string
 }
 
 // Provider defines sources of mappers
@@ -49,6 +53,26 @@ const (
 	PIStatic ProviderID = "static"
 	PIFile   ProviderID = "file"
 )
+
+// MatchType defines the type of mapper (rule)
+type MatchType int
+
+// enum of all match types
+const (
+	MTProxy MatchType = iota
+	MTStatic
+)
+
+func (m MatchType) String() string {
+	switch m {
+	case MTProxy:
+		return "proxy"
+	case MTStatic:
+		return "static"
+	default:
+		return "unknown"
+	}
+}
 
 // NewService makes service with given providers
 func NewService(providers []Provider, interval time.Duration) *Service {
@@ -79,7 +103,7 @@ func (s *Service) Run(ctx context.Context) error {
 			evRecv = false
 			lst := s.mergeLists()
 			for _, m := range lst {
-				log.Printf("[INFO] match for %s: %s %s -> %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+				log.Printf("[INFO] match for %s: %s %s -> %s (%s)", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst, m.MatchType)
 			}
 			s.lock.Lock()
 			s.mappers = make(map[string][]URLMapper)
@@ -92,19 +116,39 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 // Match url to all mappers
-func (s *Service) Match(srv, src string) (string, bool) {
+func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 
 	s.lock.RLock()
 	defer s.lock.RUnlock()
+
+	var staticRules []URLMapper
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
+			if m.MatchType == MTStatic { // collect static for
+				staticRules = append(staticRules, m)
+				continue
+			}
 			dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 			if src != dest {
-				return dest, true
+				return dest, m.MatchType, true
 			}
 		}
 	}
-	return src, false
+
+	// process static rules after all regular proxy rules as we want to prioritize regular rules
+	// static rule returns a pair (separated by :) of assets location:assets web root
+	for _, m := range staticRules {
+		dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
+		if src == dest { // try to match with trialing / to match web root requests, i.e. /web (without trailing /)
+			dest := m.SrcMatch.ReplaceAllString(src+"/", m.Dst)
+			if src+"/" == dest {
+				continue
+			}
+		}
+		return m.AssetsWebRoot + ":" + m.AssetsLocation, MTStatic, true
+	}
+
+	return src, MTProxy, false
 }
 
 // Servers return list of all servers, skips "*" (catch-all/default)
@@ -158,19 +202,30 @@ func (s *Service) mergeLists() (res []URLMapper) {
 func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
+	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
 
-	// TODO: Probably should be ok in practice but we better figure a nicer way to do it
-	if strings.Contains(m.Dst, "$1") || strings.Contains(m.Dst, "@1") ||
-		strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
+	if m.MatchType == MTStatic && m.AssetsWebRoot == "" && m.AssetsLocation == "" {
+		m.AssetsWebRoot = strings.TrimSuffix(src, "/")
+		m.AssetsLocation = strings.TrimSuffix(m.Dst, "/") + "/"
+	}
 
-		m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n
+	// don't extend src and dst with dst or src regex groups
+	if strings.Contains(m.Dst, "$") || strings.Contains(m.Dst, "@") || strings.Contains(src, "(") {
 		return m
 	}
+
+	if !strings.HasSuffix(src, "/") && m.MatchType == MTProxy {
+		return m
+	}
+
 	res := URLMapper{
-		Server:     m.Server,
-		Dst:        strings.TrimSuffix(m.Dst, "/") + "/$1",
-		ProviderID: m.ProviderID,
-		PingURL:    m.PingURL,
+		Server:         m.Server,
+		Dst:            strings.TrimSuffix(m.Dst, "/") + "/$1",
+		ProviderID:     m.ProviderID,
+		PingURL:        m.PingURL,
+		MatchType:      m.MatchType,
+		AssetsWebRoot:  m.AssetsWebRoot,
+		AssetsLocation: m.AssetsLocation,
 	}
 
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
@@ -211,4 +266,14 @@ func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-c
 		close(out)
 	}()
 	return out
+}
+
+// Contains checks if the input string (e) in the given slice
+func Contains(e string, s []string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }

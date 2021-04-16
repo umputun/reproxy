@@ -92,11 +92,22 @@ SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static`
 
 By default no request log generated. This can be turned on by setting `--logger.enabled`. The log (auto-rotated) has [Apache Combined Log Format](http://httpd.apache.org/docs/2.2/logs.html#combined)
 
+User can also turn stdout log on with `--logger.stdout`. It won't affect the file logging but will output some minimal info about processed requests, something like this:
+
+```
+2021/04/16 01:17:25.601 [INFO]  GET - /echo/image.png - xxx.xxx.xxx.xxx - 200 (155400) - 371.661251ms
+2021/04/16 01:18:18.959 [INFO]  GET - /api/v1/params - xxx.xxx.xxx.xxx - 200 (74) - 1.217669m
+```
+
 ## Assets Server
 
-User may turn assets server on (off by default) to serve static files. As long as `--assets.location` set it will treat every non-proxied request under `assets.root` as a request for static files. 
+User may turn assets server on (off by default) to serve static files. As long as `--assets.location` set it will treat every non-proxied request under `assets.root` as a request for static files. Assets server can be used without any proxy providers. In this mode reproxy acts as a simple web server for a static context.
 
-Assets server can be used without any proxy providers. In this mode reproxy acts as a simple web server for a static context.
+In addition to the common assets server multiple custom static servers supported. Each provider has a different way to define such static rule and some providers may not support it at all. For example, multiple static server make sense in case of static (command line provide), file provider and can be even useful with docker provider.
+
+1. static provider - if source element prefixed by `assets:` it will be treated as file-server. For example `*,assets:/web,/var/www,` will serve all `/web/*` request with a file server on top of `/var/www` directory.
+2. file provider - setting optional field `assets: true` 
+3. docker provider - `reproxy.assets=web-root:location`, i.e. `reproxy.assets=/web:/var/www`.
 
 ## More options
 
