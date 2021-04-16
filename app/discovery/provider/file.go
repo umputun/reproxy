@@ -73,6 +73,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		SourceRoute string `yaml:"route"`
 		Dest        string `yaml:"dest"`
 		Ping        string `yaml:"ping"`
+		Static      bool   `yaml:"static"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {

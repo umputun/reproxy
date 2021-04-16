@@ -32,6 +32,7 @@ type URLMapper struct {
 	Dst        string
 	ProviderID ProviderID
 	PingURL    string
+	IsStatic   bool
 }
 
 // Provider defines sources of mappers
@@ -96,14 +97,29 @@ func (s *Service) Match(srv, src string) (string, bool) {
 
 	s.lock.RLock()
 	defer s.lock.RUnlock()
+
+	var staticRules []URLMapper
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
+			if m.IsStatic { // collect static for
+				staticRules = append(staticRules, m)
+				continue
+			}
 			dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 			if src != dest {
 				return dest, true
 			}
 		}
 	}
+
+	// process static rules after all regular proxy rules as we want to prioritize regular rules
+	for _, m := range staticRules {
+		dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
+		if src != dest {
+			return dest, true
+		}
+	}
+
 	return src, false
 }
 
@@ -158,14 +174,18 @@ func (s *Service) mergeLists() (res []URLMapper) {
 func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
+	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
 
-	// TODO: Probably should be ok in practice but we better figure a nicer way to do it
-	if strings.Contains(m.Dst, "$1") || strings.Contains(m.Dst, "@1") ||
-		strings.Contains(src, "(") || !strings.HasSuffix(src, "/") {
-
-		m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n
+	// don't extend mapper with dst or src regex groups
+	if strings.Contains(m.Dst, "$") || strings.Contains(m.Dst, "@") || strings.Contains(src, "(") {
 		return m
 	}
+
+	// don't extend non-static rule if src doesn't have / suffix
+	if !strings.HasSuffix(src, "/") && !m.IsStatic {
+		return m
+	}
+
 	res := URLMapper{
 		Server:     m.Server,
 		Dst:        strings.TrimSuffix(m.Dst, "/") + "/$1",
@@ -211,4 +231,14 @@ func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-c
 		close(out)
 	}()
 	return out
+}
+
+// Contains checks if the input string (e) in the given slice
+func Contains(e string, s []string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }

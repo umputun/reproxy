@@ -81,6 +81,8 @@ func TestService_Match(t *testing.T) {
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
 				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
+				{SrcMatch: *regexp.MustCompile("/web"), Dst: "/var/web", ProviderID: PIDocker, IsStatic: true},
+				{SrcMatch: *regexp.MustCompile("/www(.*)"), Dst: "/var/web$1", ProviderID: PIDocker, IsStatic: true},
 			}, nil
 		},
 	}
@@ -91,7 +93,7 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.Mappers()))
+	assert.Equal(t, 5, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
@@ -104,6 +106,10 @@ func TestService_Match(t *testing.T) {
 		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", false},
 		{"m.example.com", "/api/svc2/1234", "http://127.0.0.2:8080/blah2/1234/abc", true},
 		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", false},
+		{"m1.example.com", "/web/index.html", "/var/web/index.html", true},
+		{"m1.example.com", "/web/", "/var/web/", true},
+		{"m1.example.com", "/www", "/var/web", true},
+		{"m1.example.com", "/www/something", "/var/web/something", true},
 	}
 
 	for i, tt := range tbl {

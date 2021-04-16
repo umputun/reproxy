@@ -34,12 +34,24 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 			return discovery.URLMapper{}, fmt.Errorf("can't parse regex %s: %w", elems[1], err)
 		}
 
+		dst := strings.TrimSpace(elems[2])
+		isStatic := false
+		if strings.HasPrefix(dst, "static:") {
+			dst = strings.TrimPrefix(dst, "static:")
+			isStatic = true
+		}
+		if strings.HasPrefix(dst, "assets:") {
+			dst = strings.TrimPrefix(dst, "assets:")
+			isStatic = true
+		}
+
 		return discovery.URLMapper{
 			Server:     strings.TrimSpace(elems[0]),
 			SrcMatch:   *rx,
-			Dst:        strings.TrimSpace(elems[2]),
+			Dst:        dst,
 			PingURL:    strings.TrimSpace(elems[3]),
 			ProviderID: discovery.PIStatic,
+			IsStatic:   isStatic,
 		}, nil
 	}
 

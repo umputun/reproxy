@@ -13,13 +13,16 @@ func TestStatic_List(t *testing.T) {
 	tbl := []struct {
 		rule                   string
 		server, src, dst, ping string
+		static                 bool
 		err                    bool
 	}{
-		{"example.com,123,456, ping ", "example.com", "123", "456", "ping", false},
-		{"*,123,456,", "*", "123", "456", "", false},
-		{"123,456", "", "", "", "", true},
-		{"123", "", "", "", "", true},
-		{"example.com , 123, 456 ,ping", "example.com", "123", "456", "ping", false},
+		{"example.com,123,456, ping ", "example.com", "123", "456", "ping", false, false},
+		{"*,123,456,", "*", "123", "456", "", false, false},
+		{"123,456", "", "", "", "", false, true},
+		{"123", "", "", "", "", false, true},
+		{"example.com , 123, 456 ,ping", "example.com", "123", "456", "ping", false, false},
+		{"example.com,123, static:456, ping ", "example.com", "123", "456", "ping", true, false},
+		{"example.com,123, assets:456, ping ", "example.com", "123", "456", "ping", true, false},
 	}
 
 	for i, tt := range tbl {

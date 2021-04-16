@@ -184,7 +184,7 @@ func (d *Docker) events(ctx context.Context, client DockerClient, eventsCh chan 
 			log.Printf("[DEBUG] api event %+v", ev)
 			containerName := strings.TrimPrefix(ev.Actor.Attributes["name"], "/")
 
-			if contains(containerName, d.Excludes) {
+			if discovery.Contains(containerName, d.Excludes) {
 				log.Printf("[DEBUG] container %s excluded", containerName)
 				continue
 			}
@@ -213,12 +213,12 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 	log.Printf("[DEBUG] total containers = %d", len(containers))
 
 	for _, c := range containers {
-		if !contains(c.State, []string{"running"}) {
+		if c.State != "running" {
 			log.Printf("[DEBUG] skip container %s due to state %s", c.Names[0], c.State)
 			continue
 		}
 		containerName := strings.TrimPrefix(c.Names[0], "/")
-		if contains(containerName, d.Excludes) || strings.EqualFold(containerName, "reproxy") {
+		if discovery.Contains(containerName, d.Excludes) || strings.EqualFold(containerName, "reproxy") {
 			log.Printf("[DEBUG] container %s excluded", containerName)
 			continue
 		}
@@ -262,13 +262,4 @@ func (d *Docker) listContainers() (res []containerInfo, err error) {
 	}
 	log.Print("[DEBUG] completed list")
 	return res, nil
-}
-
-func contains(e string, s []string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
 }
