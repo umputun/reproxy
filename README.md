@@ -18,7 +18,8 @@ Distributed as a single binary or as a docker container.
 - Docker container distribution
 - Built-in static assets server
 
-----
+---
+
 [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy)&nbsp;[![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
 
 Server can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
@@ -43,7 +44,7 @@ Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current m
 
 ## Providers
 
-User can sets multiple providers at the same time.  
+User can sets multiple providers at the same time.
 _See examples of various providers in [examples](https://github.com/umputun/reproxy/tree/master/examples)_
 
 ### Static
@@ -129,7 +130,7 @@ In addition to the common assets server multiple custom static servers supported
 - `--gzip` enables gizp compression for responses.
 - `--max=N` allows to set the maximum size of request (default 64k)
 - `--header` sets extra header(s) added to each proxied request
-- `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](https://github.com/umputun/reproxy#all-application-options)
+- `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
 
 ## Ping and health checks
 
