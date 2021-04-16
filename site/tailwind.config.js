@@ -1,5 +1,5 @@
 const colors = require('tailwindcss/colors')
-const { spacing } = require('tailwindcss/defaultTheme')
+const { spacing, width } = require('tailwindcss/defaultTheme')
 
 module.exports = {
 	mode: 'jit',
@@ -25,7 +25,8 @@ module.exports = {
 						paddingRight: spacing[12],
 						color: theme('colors.gray.700'),
 						'h2,h3,h4': {
-							'scroll-margin-top': spacing[24],
+							paddingTop: spacing[24],
+							marginTop: '-3rem',
 						},
 						'blockquote p:first-of-type::before': false,
 						'blockquote p:last-of-type::after': false,
@@ -46,11 +47,19 @@ module.exports = {
 							paddingRight: spacing[2],
 							borderRadius: spacing[1],
 						},
+						hr: {
+							borderTopWidth: '2px',
+							borderColor: theme('colors.gray.700'),
+						}
 					},
 				},
 				lg: {
 					css: {
 						lineHeight: 1.5,
+						'h2,h3,h4': {
+							paddingTop: spacing[24],
+							marginTop: '-3rem',
+						},
 					},
 				},
 				dark: {
@@ -112,6 +121,9 @@ module.exports = {
 							'tbody tr': {
 								borderBottomColor: theme('colors.gray.600'),
 							},
+							hr: {
+								borderColor: theme('colors.gray.500'),
+							}
 						},
 					],
 				},
