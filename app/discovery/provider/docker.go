@@ -62,7 +62,7 @@ func (d *Docker) Events(ctx context.Context) (res <-chan discovery.ProviderID) {
 // List all containers and make url mappers
 // If AutoAPI enabled all each container and set all params, if not - allow only container with reproxy.* labels
 func (d *Docker) List() ([]discovery.URLMapper, error) {
-	containers, err := d.listContainers()
+	containers, err := d.listContainers(true)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 	saved := make(map[string]containerInfo)
 
 	update := func() {
-		containers, err := d.listContainers()
+		containers, err := d.listContainers(false)
 		if err != nil {
 			log.Printf("[ERROR] failed to fetch running containers: %s", err)
 			return
@@ -224,46 +224,62 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 	}
 }
 
-func (d *Docker) listContainers() (res []containerInfo, err error) {
+func (d *Docker) listContainers(allowLogging bool) (res []containerInfo, err error) {
 	containers, err := d.DockerClient.ListContainers()
 	if err != nil {
 		return nil, fmt.Errorf("can't list containers: %w", err)
 	}
 
-	log.Printf("[DEBUG] total containers = %d", len(containers))
+	if allowLogging {
+		log.Printf("[DEBUG] total containers = %d", len(containers))
+	}
 
 	for _, c := range containers {
 		if c.State != "running" {
-			log.Printf("[DEBUG] skip container %s due to state %s", c.Name, c.State)
+			if allowLogging {
+				log.Printf("[DEBUG] skip container %s due to state %s", c.Name, c.State)
+			}
 			continue
 		}
 
 		if discovery.Contains(c.Name, d.Excludes) || strings.EqualFold(c.Name, "reproxy") {
-			log.Printf("[DEBUG] container %s excluded", c.Name)
+			if allowLogging {
+				log.Printf("[DEBUG] container %s excluded", c.Name)
+			}
 			continue
 		}
 
 		if v, ok := c.Labels["reproxy.enabled"]; ok {
 			if strings.EqualFold(v, "false") || strings.EqualFold(v, "no") || v == "0" {
-				log.Printf("[DEBUG] skip container %s due to reproxy.enabled=%s", c.Name, v)
+				if allowLogging {
+					log.Printf("[DEBUG] skip container %s due to reproxy.enabled=%s", c.Name, v)
+				}
 				continue
 			}
 		}
 
 		if c.IP == "" {
-			log.Printf("[DEBUG] skip container %s, no ip on defined networks", c.Name)
+			if allowLogging {
+				log.Printf("[DEBUG] skip container %s, no ip on defined networks", c.Name)
+			}
 			continue
 		}
 
 		if len(c.Ports) == 0 {
-			log.Printf("[DEBUG] skip container %s, no exposed ports", c.Name)
+			if allowLogging {
+				log.Printf("[DEBUG] skip container %s, no exposed ports", c.Name)
+			}
 			continue
 		}
 
-		log.Printf("[DEBUG] running container added, %+v", c)
+		if allowLogging {
+			log.Printf("[DEBUG] running container added, %+v", c)
+		}
 		res = append(res, c)
 	}
-	log.Print("[DEBUG] completed list")
+	if allowLogging {
+		log.Print("[DEBUG] completed list")
+	}
 	return res, nil
 }
 
@@ -301,7 +317,7 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 
 	defer resp.Body.Close()
 
-	response := []struct {
+	var response []struct {
 		ID              string `json:"Id"`
 		Name            string
 		State           string
@@ -314,7 +330,7 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 		}
 		Names []string
 		Ports []struct{ PrivatePort int } `json:"Ports"`
-	}{}
+	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to parse response from docker daemon: %w", err)
