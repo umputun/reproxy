@@ -47,14 +47,6 @@ module.exports = {
 						},
 					},
 				},
-				lg: {
-					width: spacing[1000],
-					css: {
-						img: {
-							margin: 0,
-						},
-					},
-				},
 				dark: {
 					css: [
 						{
