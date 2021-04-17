@@ -219,7 +219,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			}
 			fs, err := R.FileServer(ae[0], ae[1])
 			if err != nil {
-				http.Error(w, "Server error", http.StatusBadGateway)
+				http.Error(w, "Server error", http.StatusInternalServerError)
 				return
 			}
 			fs.ServeHTTP(w, r)

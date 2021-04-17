@@ -69,7 +69,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 	res := make([]discovery.URLMapper, 0, len(containers))
 	for _, c := range containers {
-		enabled := false
+		enabled, explicit := false, false
 		srcURL := "^/(.*)"
 		if d.AutoAPI {
 			enabled = true
@@ -89,16 +89,16 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 
 		// we don't care about value because disabled will be filtered before
 		if _, ok := c.Labels["reproxy.enabled"]; ok {
-			enabled = true
+			enabled, explicit = true, true
 		}
 
 		if v, ok := c.Labels["reproxy.route"]; ok {
-			enabled = true
+			enabled, explicit = true, true
 			srcURL = v
 		}
 
 		if v, ok := c.Labels["reproxy.dest"]; ok {
-			enabled = true
+			enabled, explicit = true, true
 			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 		}
 
@@ -140,8 +140,13 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 				mp.AssetsWebRoot = assetsWebRoot
 				mp.AssetsLocation = assetsLocation
 			}
-
 			res = append(res, mp)
+
+			// for assets we add the second proxy mapping only if explicitly requested
+			if assetsWebRoot != "" && explicit {
+				mp.MatchType = discovery.MTProxy
+				res = append(res, mp)
+			}
 		}
 	}
 

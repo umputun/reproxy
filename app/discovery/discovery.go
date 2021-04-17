@@ -103,7 +103,12 @@ func (s *Service) Run(ctx context.Context) error {
 			evRecv = false
 			lst := s.mergeLists()
 			for _, m := range lst {
-				log.Printf("[INFO] match for %s: %s %s -> %s (%s)", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst, m.MatchType)
+				if m.MatchType == MTProxy {
+					log.Printf("[INFO] proxy  %s: %s %s -> %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+				}
+				if m.MatchType == MTStatic {
+					log.Printf("[INFO] assets %s: %s %s -> %s", m.ProviderID, m.Server, m.AssetsWebRoot, m.AssetsLocation)
+				}
 			}
 			s.lock.Lock()
 			s.mappers = make(map[string][]URLMapper)
@@ -121,31 +126,21 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	var staticRules []URLMapper
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
-			if m.MatchType == MTStatic { // collect static for
-				staticRules = append(staticRules, m)
-				continue
-			}
-			dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-			if src != dest {
-				return dest, m.MatchType, true
-			}
-		}
-	}
 
-	// process static rules after all regular proxy rules as we want to prioritize regular rules
-	// static rule returns a pair (separated by :) of assets location:assets web root
-	for _, m := range staticRules {
-		dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-		if src == dest { // try to match with trialing / to match web root requests, i.e. /web (without trailing /)
-			dest := m.SrcMatch.ReplaceAllString(src+"/", m.Dst)
-			if src+"/" == dest {
-				continue
+			switch m.MatchType {
+			case MTProxy:
+				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
+				if src != dest {
+					return dest, m.MatchType, true
+				}
+			case MTStatic:
+				if src == m.AssetsWebRoot || strings.HasSuffix(src, m.AssetsWebRoot+"/") {
+					return m.AssetsWebRoot + ":" + m.AssetsLocation, MTStatic, true
+				}
 			}
 		}
-		return m.AssetsWebRoot + ":" + m.AssetsLocation, MTStatic, true
 	}
 
 	return src, MTProxy, false
@@ -203,6 +198,11 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
 	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
+
+	if m.MatchType == MTStatic && m.AssetsWebRoot != "" && m.AssetsLocation != "" {
+		m.AssetsWebRoot = strings.TrimSuffix(m.AssetsWebRoot, "/")
+		m.AssetsLocation = strings.TrimSuffix(m.AssetsLocation, "/") + "/"
+	}
 
 	if m.MatchType == MTStatic && m.AssetsWebRoot == "" && m.AssetsLocation == "" {
 		m.AssetsWebRoot = strings.TrimSuffix(src, "/")
