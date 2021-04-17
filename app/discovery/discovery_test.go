@@ -81,8 +81,10 @@ func TestService_Match(t *testing.T) {
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
 				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
-				{SrcMatch: *regexp.MustCompile("/web"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic},
-				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic},
+				{SrcMatch: *regexp.MustCompile("/web"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
+					AssetsWebRoot: "/web", AssetsLocation: "/var/web"},
+				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
+					AssetsWebRoot: "/www", AssetsLocation: "/var/web"},
 			}, nil
 		},
 	}
@@ -101,6 +103,7 @@ func TestService_Match(t *testing.T) {
 		mt          MatchType
 		ok          bool
 	}{
+
 		{"example.com", "/api/svc3/xyz/something", "http://127.0.0.3:8080/blah3/xyz/something", MTProxy, true},
 		{"example.com", "/api/svc3/xyz", "http://127.0.0.3:8080/blah3/xyz", MTProxy, true},
 		{"abc.example.com", "/api/svc1/1234", "http://127.0.0.1:8080/blah1/1234", MTProxy, true},
@@ -109,8 +112,9 @@ func TestService_Match(t *testing.T) {
 		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", MTProxy, false},
 		{"m1.example.com", "/web/index.html", "/web:/var/web/", MTStatic, true},
 		{"m1.example.com", "/web/", "/web:/var/web/", MTStatic, true},
-		{"m1.example.com", "/www", "/www:/var/web/", MTStatic, true},
 		{"m1.example.com", "/www/something", "/www:/var/web/", MTStatic, true},
+		{"m1.example.com", "/www/", "/www:/var/web/", MTStatic, true},
+		{"m1.example.com", "/www", "/www:/var/web/", MTStatic, true},
 	}
 
 	for i, tt := range tbl {

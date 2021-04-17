@@ -136,7 +136,7 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 					return dest, m.MatchType, true
 				}
 			case MTStatic:
-				if src == m.AssetsWebRoot || strings.HasSuffix(src, m.AssetsWebRoot+"/") {
+				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
 					return m.AssetsWebRoot + ":" + m.AssetsLocation, MTStatic, true
 				}
 			}
