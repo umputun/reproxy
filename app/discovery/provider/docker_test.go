@@ -201,3 +201,16 @@ func TestDockerClient(t *testing.T) {
 
 	assert.Empty(t, c[1].IP)
 }
+
+func TestDockerClient_error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message": "bruh"}`, http.StatusInternalServerError)
+	}))
+
+	defer srv.Close()
+	addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
+
+	client := NewDockerClient(addr, "bridge")
+	_, err := client.ListContainers()
+	require.EqualError(t, err, "unexpected error from docker daemon: bruh")
+}

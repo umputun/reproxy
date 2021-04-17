@@ -324,7 +324,19 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 
 	defer resp.Body.Close()
 
-	var response []struct {
+	if resp.StatusCode != http.StatusOK {
+		e := struct {
+			Message string `json:"message"`
+		}{}
+
+		if err := json.NewDecoder(resp.Body).Decode(&e); err != nil {
+			return nil, fmt.Errorf("failed to parse error from docker daemon: %w", err)
+		}
+
+		return nil, fmt.Errorf("unexpected error from docker daemon: %s", e.Message)
+	}
+
+	response := []struct {
 		ID              string `json:"Id"`
 		Name            string
 		State           string
