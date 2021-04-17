@@ -313,9 +313,11 @@ func NewDockerClient(host, network string) DockerClient {
 }
 
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {
-	// const APIVersion = "v1.41"
-	// resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", APIVersion))
-	resp, err := d.client.Get("http://localhost/containers/json")
+	// Minimum API version that returns attached networks
+	// docs.docker.com/engine/api/version-history/#v122-api-changes
+	const APIVersion = "v1.22"
+
+	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", APIVersion))
 	if err != nil {
 		return nil, fmt.Errorf("failed connection to docker socket: %w", err)
 	}

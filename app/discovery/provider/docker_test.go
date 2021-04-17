@@ -174,7 +174,7 @@ func TestDocker_refresh(t *testing.T) {
 
 func TestDockerClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/containers/json", r.URL.Path)
+		require.Equal(t, `/v1.22/containers/json`, r.URL.Path)
 
 		// obtained using curl --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json
 		resp, err := ioutil.ReadFile("testdata/containers.json")
