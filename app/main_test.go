@@ -22,8 +22,10 @@ func Test_Main(t *testing.T) {
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
-		"--dbg", "--logger.stdout", "--listen=127.0.0.1:" + strconv.Itoa(port), "--signature"}
-
+		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
+		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
+		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature"}
+	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
 	go func() {
 		<-done
