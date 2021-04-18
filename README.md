@@ -129,7 +129,7 @@ In addition to the common assets server multiple custom static servers supported
 
 ## More options
 
-- `--gzip` enables gizp compression for responses.
+- `--gzip` enables gzip compression for responses.
 - `--max=N` allows to set the maximum size of request (default 64k)
 - `--header` sets extra header(s) added to each proxied request
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
