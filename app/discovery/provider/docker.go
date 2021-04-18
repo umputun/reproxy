@@ -336,7 +336,7 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 		return nil, fmt.Errorf("unexpected error from docker daemon: %s", e.Message)
 	}
 
-	response := []struct {
+	var response []struct {
 		ID              string `json:"Id"`
 		Name            string
 		State           string
