@@ -81,11 +81,12 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusExpectationFailed)
 
 		errResp := struct {
-			Status string   `json:"status,omitempty"`
-			Passed int      `json:"passed,omitempty"`
-			Failed int      `json:"failed,omitempty"`
-			Errors []string `json:"errors,omitempty"`
-		}{Status: "failed", Passed: valid, Failed: total - valid, Errors: errs}
+			Status   string   `json:"status,omitempty"`
+			Services int      `json:"services,omitempty"`
+			Passed   int      `json:"passed,omitempty"`
+			Failed   int      `json:"failed,omitempty"`
+			Errors   []string `json:"errors,omitempty"`
+		}{Status: "failed", Services: total, Passed: valid, Failed: total - valid, Errors: errs}
 
 		rest.RenderJSON(w, errResp)
 		return
