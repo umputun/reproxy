@@ -3,7 +3,7 @@ const { spacing, width } = require('tailwindcss/defaultTheme')
 
 module.exports = {
 	mode: 'jit',
-	purge: ['src/**/*.njk', 'src/**/*.js', '.eleventy.js'],
+	purge: ['src/**/*.njk', 'src/**/*.js', '.eleventy.js', 'src/**/*.svg'],
 	darkMode: 'media',
 	theme: {
 		extend: {
@@ -49,7 +49,7 @@ module.exports = {
 						},
 						hr: {
 							borderTopWidth: '2px',
-							borderColor: theme('colors.gray.700'),
+							borderColor: theme('colors.gray.200'),
 						}
 					},
 				},
