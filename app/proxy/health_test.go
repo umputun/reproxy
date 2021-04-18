@@ -44,6 +44,8 @@ func TestHttp_healthHandler(t *testing.T) {
 			"localhost,^/api/(.*)," + ds.URL + "/123/$1," + ps.URL + "/123/ping",
 			"localhost,^/xyz/(.*)," + ds.URL + "/123/$1," + ps.URL + "/xxx/ping",
 			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1," + ps.URL + "/567/ping",
+			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1,",
+			"127.0.0.1,^/api/(.*),assets:/567/$1," + ps.URL + "/567/ping",
 		},
 		}}, time.Millisecond*10)
 
@@ -69,7 +71,7 @@ func TestHttp_healthHandler(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	require.NoError(t, err)
 	assert.Equal(t, "failed", res["status"])
-	assert.Equal(t, 3., res["services"])
+	assert.Equal(t, 4., res["services"])
 	assert.Equal(t, 1., res["passed"])
 	assert.Equal(t, 2., res["failed"])
 	assert.Equal(t, 2, len(res["errors"].([]interface{})))

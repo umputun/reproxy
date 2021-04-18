@@ -32,10 +32,14 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 	// runs pings in parallel
 	check := func(mappers []discovery.URLMapper) (ok bool, valid int, total int, errs []string) {
 		outCh := make(chan error, concurrent)
-		pinged := 0
+		services, pinged := 0, 0
 		var wg sync.WaitGroup
 		for _, m := range mappers {
-			if m.MatchType != discovery.MTProxy || m.PingURL == "" {
+			if m.MatchType != discovery.MTProxy {
+				continue
+			}
+			services++
+			if m.PingURL == "" {
 				continue
 			}
 			sema <- struct{}{}
@@ -73,7 +77,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 		for e := range outCh {
 			errs = append(errs, e.Error())
 		}
-		return len(errs) == 0, pinged - len(errs), len(mappers), errs
+		return len(errs) == 0, pinged - len(errs), services, errs
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -87,7 +91,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 			Passed   int      `json:"passed,omitempty"`
 			Failed   int      `json:"failed,omitempty"`
 			Errors   []string `json:"errors,omitempty"`
-		}{Status: "failed", Services: total, Passed: valid, Failed: total - valid, Errors: errs}
+		}{Status: "failed", Services: total, Passed: valid, Failed: len(errs), Errors: errs}
 
 		rest.RenderJSON(w, errResp)
 		return
