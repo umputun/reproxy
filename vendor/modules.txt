@@ -7,7 +7,7 @@ github.com/felixge/httpsnoop
 # github.com/go-pkgz/lgr v0.10.4
 ## explicit
 github.com/go-pkgz/lgr
-# github.com/go-pkgz/rest v1.9.1
+# github.com/go-pkgz/rest v1.9.2
 ## explicit
 github.com/go-pkgz/rest
 github.com/go-pkgz/rest/logger

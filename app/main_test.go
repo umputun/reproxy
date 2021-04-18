@@ -21,6 +21,7 @@ func Test_Main(t *testing.T) {
 	port := chooseRandomUnusedPort()
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
+		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--dbg", "--logger.stdout", "--listen=127.0.0.1:" + strconv.Itoa(port), "--signature"}
 
 	done := make(chan struct{})
@@ -62,11 +63,21 @@ func Test_Main(t *testing.T) {
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := ioutil.ReadAll(resp.Body)
 		assert.NoError(t, err)
-		assert.Contains(t, string(body), `"Host": "127.0.0.1"`)
+		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 	}
 	{
 		client := http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/bas", port))
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc2/test", port))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 200, resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), `echo echo 123`)
+	}
+	{
+		client := http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/bad", port))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)

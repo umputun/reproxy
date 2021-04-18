@@ -38,7 +38,7 @@ Example with an automatic docker discovery:
 ## Install
 
 - for a binary distribution pick the proper file in the [release section](https://github.com/umputun/reproxy/releases)
-- docker container available on [Docker Hub](https://hub.docker.com/r/umputun/reproxy) as well as on [Github Container Registry](ghcr.io/umputun/reproxy).
+- docker container available on [Docker Hub](https://hub.docker.com/r/umputun/reproxy) as well as on [Github Container Registry](https://ghcr.io/umputun/reproxy). I.e. `docker pull umputun/reproxy` or `docker pull ghcr.io/umputun/reproxy`.
 
 Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
 

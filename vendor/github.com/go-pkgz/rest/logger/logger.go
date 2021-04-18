@@ -41,6 +41,7 @@ type logParts struct {
 	remoteIP   string
 	statusCode int
 	respSize   int
+	host       string
 
 	prefix string
 	user   string
@@ -108,10 +109,16 @@ func (l *Middleware) Handler(next http.Handler) http.Handler {
 				remoteIP = l.ipFn(remoteIP)
 			}
 
+			server := r.URL.Hostname()
+			if server == "" {
+				server = strings.Split(r.Host, ":")[0]
+			}
+
 			p := &logParts{
 				duration:   t2.Sub(t1),
 				rawURL:     rawurl,
 				method:     r.Method,
+				host:       server,
 				remoteIP:   remoteIP,
 				statusCode: ww.status,
 				respSize:   ww.size,
@@ -135,8 +142,8 @@ func (l *Middleware) formatDefault(r *http.Request, p *logParts) string {
 		_, _ = bld.WriteString(" ")
 	}
 
-	_, _ = bld.WriteString(fmt.Sprintf("%s - %s - %s - %d (%d) - %v",
-		p.method, p.rawURL, p.remoteIP, p.statusCode, p.respSize, p.duration))
+	_, _ = bld.WriteString(fmt.Sprintf("%s - %s - %s - %s - %d (%d) - %v",
+		p.method, p.rawURL, p.host, p.remoteIP, p.statusCode, p.respSize, p.duration))
 
 	if p.user != "" {
 		_, _ = bld.WriteString(" - ")
