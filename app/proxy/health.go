@@ -35,7 +35,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 		pinged := 0
 		var wg sync.WaitGroup
 		for _, m := range mappers {
-			if m.PingURL == "" {
+			if m.MatchType != discovery.MTProxy || m.PingURL == "" {
 				continue
 			}
 			sema <- struct{}{}
