@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
@@ -33,22 +32,24 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 	// runs pings in parallel
 	check := func(mappers []discovery.URLMapper) (ok bool, valid int, total int, errs []string) {
 		outCh := make(chan error, concurrent)
-		var pinged int32
+		pinged := 0
 		var wg sync.WaitGroup
 		for _, m := range mappers {
 			if m.PingURL == "" {
 				continue
 			}
 			sema <- struct{}{}
+			pinged++
 			wg.Add(1)
+
 			go func(m discovery.URLMapper) {
+
 				defer func() {
 					<-sema
 					wg.Done()
 				}()
 
-				atomic.AddInt32(&pinged, 1)
-				client := http.Client{Timeout: 100 * time.Millisecond}
+				client := http.Client{Timeout: 500 * time.Millisecond}
 				resp, err := client.Get(m.PingURL)
 				if err != nil {
 					errMsg := strings.Replace(err.Error(), "\"", "", -1)
@@ -72,7 +73,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 		for e := range outCh {
 			errs = append(errs, e.Error())
 		}
-		return len(errs) == 0, int(atomic.LoadInt32(&pinged)) - len(errs), len(mappers), errs
+		return len(errs) == 0, pinged - len(errs), len(mappers), errs
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
