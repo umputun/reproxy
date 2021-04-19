@@ -145,7 +145,7 @@ reproxy provides 2 endpoints for this purpose:
 
 ```
   -l, --listen=                     listen on host:port (default: 127.0.0.1:8080) [$LISTEN]
-  -m, --max=                        max response size (default: 64000) [$MAX_SIZE]
+  -m, --max=                        max request size (default: 64000) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
       --signature                   enable reproxy signature headers [$SIGNATURE]

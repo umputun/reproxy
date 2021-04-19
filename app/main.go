@@ -24,7 +24,7 @@ import (
 
 var opts struct {
 	Listen       string   `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
-	MaxSize      int64    `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max response size"`
+	MaxSize      int64    `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
 
