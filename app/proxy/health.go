@@ -42,12 +42,11 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 			if m.PingURL == "" {
 				continue
 			}
-			sema <- struct{}{}
 			pinged++
 			wg.Add(1)
 
 			go func(m discovery.URLMapper) {
-
+				sema <- struct{}{}
 				defer func() {
 					<-sema
 					wg.Done()
