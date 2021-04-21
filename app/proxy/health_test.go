@@ -17,6 +17,7 @@ import (
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
+	"github.com/umputun/reproxy/app/mgmt"
 )
 
 func TestHttp_healthHandler(t *testing.T) {
@@ -54,6 +55,7 @@ func TestHttp_healthHandler(t *testing.T) {
 	}()
 
 	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -95,6 +97,8 @@ func TestHttp_pingHandler(t *testing.T) {
 	}()
 
 	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
+
 	go func() {
 		_ = h.Run(ctx)
 	}()
