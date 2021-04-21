@@ -18,7 +18,7 @@ Distributed as a single binary or as a docker container.
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server
-- Management server with routes info an prometheus metrics
+- Management server with routes info and prometheus metrics
 
 ---
 
