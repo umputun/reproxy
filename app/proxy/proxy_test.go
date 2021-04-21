@@ -16,6 +16,7 @@ import (
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
+	"github.com/umputun/reproxy/app/mgmt"
 )
 
 func TestHttp_Do(t *testing.T) {
@@ -45,6 +46,8 @@ func TestHttp_Do(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
+
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -119,6 +122,8 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
+
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -185,6 +190,8 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
+
 	go func() {
 		_ = h.Run(ctx)
 	}()
