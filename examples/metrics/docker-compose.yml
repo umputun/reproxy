@@ -1,0 +1,72 @@
+version: '3.1'
+
+services:
+  reproxy:
+    image: umputun/reproxy:master
+    container_name: reproxy
+    hostname: reproxy
+    ports:
+      - "80:8080"
+      - 8081
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./web:/web
+    environment:
+      - TZ=America/Chicago
+      - LISTEN=0.0.0.0:8080
+      - DOCKER_ENABLED=true
+      - DOCKER_AUTO=true
+      - ASSETS_LOCATION=/web
+      - DEBUG=true
+      - MGMT_ENABLED=true
+
+  # automatic destination, will be mapped for ^/api/svc1/(.*)
+  svc1:
+    image: ghcr.io/umputun/echo-http
+    hostname: svc1
+    container_name: svc1
+    command: --message="hello world from svc1"
+
+
+  # automatic destination, will be mapped for ^/api/svc2/(.*)
+  svc2:
+    image: ghcr.io/umputun/echo-http
+    hostname: svc2
+    container_name: svc2
+    command: --message="hello world from svc2"
+
+  # explicit destination, routing match defined by lables
+  whoami:
+    image: 'containous/whoami'
+    hostname: whoami
+    container_name: whoami
+    labels:
+      reproxy.server: '*'
+      reproxy.route: '^/whoami/(.*)'
+      reproxy.dest: '/$$1'
+
+  prometheus:
+    image: prom/prometheus:v2.26.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - 9090:9090
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+volumes:
+  prometheus_data:
+  grafana-storage:

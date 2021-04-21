@@ -36,6 +36,7 @@ type Http struct { // nolint golint
 	StdOutEnabled  bool
 	Signature      bool
 	Timeouts       Timeouts
+	Metrics        Metrics
 }
 
 // Matcher source info (server and route) to the destination url
@@ -44,6 +45,10 @@ type Matcher interface {
 	Match(srv, src string) (string, discovery.MatchType, bool)
 	Servers() (servers []string)
 	Mappers() (mappers []discovery.URLMapper)
+}
+
+type Metrics interface {
+	Middleware(next http.Handler) http.Handler
 }
 
 // Timeouts consolidate timeouts for both server and transport
@@ -89,7 +94,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.signatureHandler(),
 		h.pingHandler,
 		h.healthMiddleware,
-		// R.Headers(h.ProxyHeaders...),
+		h.Metrics.Middleware,
 		h.headersHandler(h.ProxyHeaders),
 		h.accessLogHandler(h.AccessLog),
 		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
