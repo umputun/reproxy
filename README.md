@@ -18,6 +18,7 @@ Distributed as a single binary or as a docker container.
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server
+- Management server with routes info an prometheus metrics
 
 ---
 
@@ -141,6 +142,15 @@ reproxy provides 2 endpoints for this purpose:
 - `/ping` responds with `pong` and indicates what reproxy up and running
 - `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
 
+## Management API
+
+Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.listen` address:port:
+
+- `GET /routes` - list of all discovered routes
+- `GET /prometheus` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
+
+_see also [examples/metrics](https://github.com/umputun/reproxy/examples/metrics)_
+
 ## All Application Options
 
 ```
@@ -198,6 +208,10 @@ timeout:
       --timeout.idle-conn=          idle connection transport timeout (default: 90s) [$TIMEOUT_IDLE_CONN]
       --timeout.tls=                TLS hanshake transport timeout (default: 10s) [$TIMEOUT_TLS]
       --timeout.continue=           expect continue transport timeout (default: 1s) [$TIMEOUT_CONTINUE]
+
+mgmt:
+      --mgmt.enabled                enable management API [$MGMT_ENABLED]
+      --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081) [$MGMT_LISTEN]
 
 Help Options:
   -h, --help                        Show this help message

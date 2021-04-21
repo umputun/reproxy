@@ -19,6 +19,7 @@ import (
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
+	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/proxy"
 )
 
@@ -83,6 +84,11 @@ var opts struct {
 		ExpectContinue time.Duration `long:"continue" env:"CONTINUE" default:"1s" description:"expect continue transport timeout"`
 	} `group:"timeout" namespace:"timeout" env-namespace:"TIMEOUT"`
 
+	Management struct {
+		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable management API"`
+		Listen  string `long:"listen" env:"LISTEN" default:"0.0.0.0:8081" description:"listen on host:port"`
+	} `group:"mgmt" namespace:"mgmt" env-namespace:"MGMT"`
+
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 }
@@ -145,6 +151,23 @@ func main() {
 		}
 	}()
 
+	metrcis := mgmt.NewMetrics()
+	go func() {
+		mgSrv := mgmt.Server{
+			Listen:         opts.Management.Listen,
+			Informer:       svc,
+			AssetsLocation: opts.Assets.Location,
+			AssetsWebRoot:  opts.Assets.WebRoot,
+			Version:        revision,
+			Metrics:        metrcis,
+		}
+		if opts.Management.Enabled {
+			if err := mgSrv.Run(ctx); err != nil {
+				log.Printf("[WARN] management service failed, %v", err)
+			}
+		}
+	}()
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -169,6 +192,7 @@ func main() {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
+		Metrics: metrcis,
 	}
 	if err := px.Run(ctx); err != nil {
 		if err == http.ErrServerClosed {
