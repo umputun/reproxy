@@ -20,6 +20,36 @@ import (
 	"github.com/umputun/reproxy/app/mgmt"
 )
 
+func Test_healthHandlerDeadlock(t *testing.T) {
+	rules := make([]string, 0, 90)
+	for i := 0; i < cap(rules); i++ {
+		rules = append(rules, fmt.Sprintf("*,^/api/(.*),localhost/%d/$1,localhost/%d/$1/ping", i, i))
+	}
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: rules}}, time.Millisecond*10)
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+	time.Sleep(20 * time.Millisecond)
+
+	h := Http{}
+	h.Matcher = svc
+
+	rr := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		h.healthHandler(rr, &http.Request{})
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Millisecond * 50):
+		assert.Fail(t, "deadlock")
+	}
+}
+
 func TestHttp_healthHandler(t *testing.T) {
 	port := rand.Intn(10000) + 40000
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port)}
