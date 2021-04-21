@@ -94,7 +94,7 @@ func TestServer_controllers(t *testing.T) {
 		assert.Contains(t, fmt.Sprintf("%v", data["srv1"][0]), `ping:http://example.com/ping`, data["srv1"][0])
 	}
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/prometheus", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/metrics", nil)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)

@@ -147,7 +147,7 @@ reproxy provides 2 endpoints for this purpose:
 Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.listen` address:port:
 
 - `GET /routes` - list of all discovered routes
-- `GET /prometheus` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
+- `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
 
 _see also [examples/metrics](https://github.com/umputun/reproxy/examples/metrics)_
 

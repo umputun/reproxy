@@ -37,7 +37,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	handler := http.NewServeMux()
 	handler.HandleFunc("/routes", s.routesCtrl())
-	handler.Handle("/prometheus", promhttp.Handler())
+	handler.Handle("/metrics", promhttp.Handler())
 	h := rest.Wrap(handler,
 		rest.Recoverer(log.Default()),
 		rest.AppInfo("reproxy-mgmt", "umputun", s.Version),
