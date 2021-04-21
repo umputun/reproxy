@@ -9,12 +9,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Metrics provides registration and middleware for prometheus
 type Metrics struct {
 	totalRequests  *prometheus.CounterVec
 	responseStatus *prometheus.CounterVec
 	httpDuration   *prometheus.HistogramVec
 }
 
+// NewMetrics create metrics object with all counters registered
 func NewMetrics() *Metrics {
 	res := &Metrics{}
 
@@ -55,6 +57,7 @@ func NewMetrics() *Metrics {
 	return res
 }
 
+// Middleware for the primary proxy server to publish all counters and update metrics
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -81,10 +84,12 @@ type responseWriter struct {
 	statusCode int
 }
 
-func NewResponseWriter(w http.ResponseWriter) *responseWriter {
+// NewResponseWriter wraps http.ResponseWriter with stored status code
+func NewResponseWriter(w http.ResponseWriter) *responseWriter { //nolint golint
 	return &responseWriter{w, http.StatusOK}
 }
 
+// WriteHeader wraps http.ResponseWriter and stores status code
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)

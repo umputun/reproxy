@@ -47,6 +47,7 @@ type Matcher interface {
 	Mappers() (mappers []discovery.URLMapper)
 }
 
+// Metrics wraps middleware publishing counts
 type Metrics interface {
 	Middleware(next http.Handler) http.Handler
 }

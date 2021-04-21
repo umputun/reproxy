@@ -54,7 +54,8 @@ func (s *Server) Run(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		httpServer.Shutdown(context.Background())
+		err := httpServer.Shutdown(context.Background())
+		log.Printf("[WARN] mgmt server terminated, %v", err)
 	}()
 
 	return httpServer.ListenAndServe()
@@ -78,7 +79,7 @@ func (s *Server) routesCtrl() func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		res := map[string][]resp{} // rest.RenderJSON(w, s.Informer.Mappers())
+		res := map[string][]resp{}
 		for _, mp := range s.Informer.Mappers() {
 			res[mp.Server] = append(res[mp.Server], resp{Server: mp.Server, Provider: string(mp.ProviderID), Route: mp.SrcMatch.String(),
 				Destination: mp.Dst, MatchType: mp.MatchType.String(), Ping: mp.PingURL})
