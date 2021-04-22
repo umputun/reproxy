@@ -333,8 +333,9 @@ func TestHttp_cachingHandler(t *testing.T) {
 }
 
 func TestHttp_cachingHandlerInvalid(t *testing.T) {
-	dir, e := ioutil.TempDir(os.TempDir(), "reproxy")
-	require.NoError(t, e)
+	dir := "/tmp/reproxy"
+	os.Mkdir("/tmp/reproxy", 0700)
+	defer os.RemoveAll("/tmp/reproxy")
 	fh, e := R.FileServer("/static", dir)
 	require.NoError(t, e)
 	h := Http{AssetsCacheDuration: 10 * time.Second, AssetsLocation: dir, AssetsWebRoot: "/static"}
@@ -343,11 +344,11 @@ func TestHttp_cachingHandlerInvalid(t *testing.T) {
 	defer ts.Close()
 	client := http.Client{Timeout: 599 * time.Second}
 	{
-		resp, err := client.Get(ts.URL + "/../../etc/passwd")
+		resp, err := client.Get(ts.URL + "/%2e%2e%2f%2e%2e%2f%2e%2e%2f/etc/passwd")
 		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		etag := resp.Header.Get("Etag")
 		t.Logf("headers: %+v", resp.Header)
-		assert.Equal(t, "a3993eca33f7bc839e32612d1b330adfacb1b160", etag)
+		assert.Equal(t, "a21b123c53ce53b96fde4ed85c461e13eb22faa6", etag, "for empty key")
 	}
 }

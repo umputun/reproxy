@@ -331,11 +331,12 @@ func (h *Http) cachingHandler(webRoot, location string) func(next http.Handler) 
 		if err != nil {
 			return ""
 		}
-		absLocation, err := filepath.Abs(fname)
+		absLocation, err := filepath.Abs(location)
 		if err != nil {
 			return ""
 		}
 		if !strings.HasPrefix(absPath, absLocation) { // check if absolute path inside of location
+			log.Printf("[WARN] blocked potentially dangerous request to %s, url: %s, remote: %s", absPath, r.RequestURI, r.RemoteAddr)
 			return ""
 		}
 
