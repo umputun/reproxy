@@ -331,3 +331,23 @@ func TestHttp_cachingHandler(t *testing.T) {
 		assert.NotEqual(t, lastEtag, resp.Header.Get("Etag"), "changed")
 	}
 }
+
+func TestHttp_cachingHandlerInvalid(t *testing.T) {
+	dir, e := ioutil.TempDir(os.TempDir(), "reproxy")
+	require.NoError(t, e)
+	fh, e := R.FileServer("/static", dir)
+	require.NoError(t, e)
+	h := Http{AssetsCacheDuration: 10 * time.Second, AssetsLocation: dir, AssetsWebRoot: "/static"}
+	hh := R.Wrap(fh, h.cachingHandler("/static", dir))
+	ts := httptest.NewServer(hh)
+	defer ts.Close()
+	client := http.Client{Timeout: 599 * time.Second}
+	{
+		resp, err := client.Get(ts.URL + "/../../etc/passwd")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		etag := resp.Header.Get("Etag")
+		t.Logf("headers: %+v", resp.Header)
+		assert.Equal(t, "a3993eca33f7bc839e32612d1b330adfacb1b160", etag)
+	}
+}

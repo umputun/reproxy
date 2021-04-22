@@ -326,6 +326,19 @@ func (h *Http) cachingHandler(webRoot, location string) func(next http.Handler) 
 
 	cache := R.CacheControlDynamic(h.AssetsCacheDuration, func(r *http.Request) string {
 		fname := filepath.Join(location, strings.TrimPrefix(r.URL.Path, webRoot))
+
+		absPath, err := filepath.Abs(fname)
+		if err != nil {
+			return ""
+		}
+		absLocation, err := filepath.Abs(fname)
+		if err != nil {
+			return ""
+		}
+		if !strings.HasPrefix(absPath, absLocation) { // check if absolute path inside of location
+			return ""
+		}
+
 		fi, err := os.Stat(fname)
 		if err != nil {
 			return ""
