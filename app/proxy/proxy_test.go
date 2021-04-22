@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path"
 	"strconv"
 	"testing"
 	"time"
 
+	R "github.com/go-pkgz/rest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -251,4 +255,61 @@ func TestHttp_toHttp(t *testing.T) {
 		})
 	}
 
+}
+
+func TestHttp_cachingHandler(t *testing.T) {
+
+	dir, err := ioutil.TempDir(os.TempDir(), "reproxy")
+	require.NoError(t, err)
+	err = ioutil.WriteFile(path.Join(dir, "1.html"), []byte("1.htm"), 0600)
+	assert.NoError(t, err)
+	err = ioutil.WriteFile(path.Join(dir, "2.html"), []byte("2.htm"), 0600)
+	assert.NoError(t, err)
+
+	defer os.RemoveAll(dir)
+
+	fh, err := R.FileServer("/static", dir)
+	require.NoError(t, err)
+	h := Http{AssetsCacheDuration: 10 * time.Second, AssetsLocation: dir, AssetsWebRoot: "/static"}
+	hh := R.Wrap(fh, h.cachingHandler("/static", dir))
+	ts := httptest.NewServer(hh)
+	defer ts.Close()
+	client := http.Client{Timeout: 599 * time.Second}
+
+	var lastEtag string
+	{
+		resp, err := client.Get(ts.URL + "/static/1.html")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("headers: %+v", resp.Header)
+		lastEtag = resp.Header.Get("Etag")
+	}
+
+	{
+		resp, err := client.Get(ts.URL + "/static/1.html")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("headers: %+v", resp.Header)
+		assert.Equal(t, lastEtag, resp.Header.Get("Etag"), "still the same")
+	}
+
+	{
+		err = os.Chtimes(path.Join(dir, "1.html"), time.Now(), time.Now())
+		assert.NoError(t, err)
+		resp, err := client.Get(ts.URL + "/static/1.html")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("headers: %+v", resp.Header)
+		assert.NotEqual(t, lastEtag, resp.Header.Get("Etag"), "changed")
+	}
+
+	{
+		req, err := http.NewRequest("POST", ts.URL+"/static/1.html", nil)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("headers: %+v", resp.Header)
+		assert.Equal(t, "", resp.Header.Get("Etag"), "no etag for post")
+	}
 }

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,19 +26,20 @@ import (
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address        string
-	AssetsLocation string
-	AssetsWebRoot  string
-	MaxBodySize    int64
-	GzEnabled      bool
-	ProxyHeaders   []string
-	SSLConfig      SSLConfig
-	Version        string
-	AccessLog      io.Writer
-	StdOutEnabled  bool
-	Signature      bool
-	Timeouts       Timeouts
-	Metrics        Metrics
+	Address             string
+	AssetsLocation      string
+	AssetsWebRoot       string
+	AssetsCacheDuration time.Duration
+	MaxBodySize         int64
+	GzEnabled           bool
+	ProxyHeaders        []string
+	SSLConfig           SSLConfig
+	Version             string
+	AccessLog           io.Writer
+	StdOutEnabled       bool
+	Signature           bool
+	Timeouts            Timeouts
+	Metrics             Metrics
 }
 
 // Matcher source info (server and route) to the destination url
@@ -186,12 +189,14 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		http.Error(w, "Server error", http.StatusBadGateway)
 	})
 
+	cachingHandler := h.cachingHandler(h.AssetsLocation, h.AssetsWebRoot)
 	if h.AssetsLocation != "" && h.AssetsWebRoot != "" {
-		fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
+		fs, err := R.FileServer(h.AssetsLocation, h.AssetsWebRoot)
 		if err == nil {
 			assetsHandler = func(w http.ResponseWriter, r *http.Request) {
 				fs.ServeHTTP(w, r)
 			}
+			assetsHandler = cachingHandler(assetsHandler).ServeHTTP
 		}
 	}
 
@@ -229,7 +234,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				http.Error(w, "Server error", http.StatusInternalServerError)
 				return
 			}
-			fs.ServeHTTP(w, r)
+			cachingHandler := h.cachingHandler(ae[0], ae[1])
+			cachingHandler(fs).ServeHTTP(w, r)
 		}
 	}
 }
@@ -308,6 +314,43 @@ func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Han
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+func (h *Http) cachingHandler(webRoot, location string) func(next http.Handler) http.Handler {
+
+	if h.AssetsCacheDuration == 0 {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}
+	}
+
+	cache := R.CacheControlDynamic(h.AssetsCacheDuration, func(r *http.Request) string {
+		fname := filepath.Join(location, strings.TrimPrefix(r.URL.Path, webRoot))
+		fi, err := os.Stat(fname)
+		if err != nil {
+			return ""
+		}
+		if fi.IsDir() {
+			fi, err = os.Stat(filepath.Join(fname, "index.html"))
+			if err != nil {
+				return ""
+			}
+		}
+		return fmt.Sprintf("%d-%d", fi.ModTime().UnixNano(), fi.Size())
+	})
+
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != "GET" && r.Method != "HEAD" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			cache(next).ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
 	}
 }
 

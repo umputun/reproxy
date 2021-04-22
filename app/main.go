@@ -40,8 +40,9 @@ var opts struct {
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
-		Location string `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
-		WebRoot  string `long:"root" env:"ROOT" default:"/" description:"assets web root"`
+		Location      string        `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
+		WebRoot       string        `long:"root" env:"ROOT" default:"/" description:"assets web root"`
+		CacheDuration time.Duration `long:"cache" env:"CACHE" default:"0s" description:"cache duration for assets"`
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
 	Logger struct {
@@ -169,18 +170,19 @@ func main() {
 	}()
 
 	px := &proxy.Http{
-		Version:        revision,
-		Matcher:        svc,
-		Address:        opts.Listen,
-		MaxBodySize:    opts.MaxSize,
-		AssetsLocation: opts.Assets.Location,
-		AssetsWebRoot:  opts.Assets.WebRoot,
-		GzEnabled:      opts.GzipEnabled,
-		SSLConfig:      sslConfig,
-		ProxyHeaders:   opts.ProxyHeaders,
-		AccessLog:      accessLog,
-		StdOutEnabled:  opts.Logger.StdOut,
-		Signature:      opts.Signature,
+		Version:             revision,
+		Matcher:             svc,
+		Address:             opts.Listen,
+		MaxBodySize:         opts.MaxSize,
+		AssetsLocation:      opts.Assets.Location,
+		AssetsWebRoot:       opts.Assets.WebRoot,
+		AssetsCacheDuration: opts.Assets.CacheDuration,
+		GzEnabled:           opts.GzipEnabled,
+		SSLConfig:           sslConfig,
+		ProxyHeaders:        opts.ProxyHeaders,
+		AccessLog:           accessLog,
+		StdOutEnabled:       opts.Logger.StdOut,
+		Signature:           opts.Signature,
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
 			Write:          opts.Timeouts.Write,
