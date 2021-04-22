@@ -265,6 +265,8 @@ func TestHttp_cachingHandler(t *testing.T) {
 	assert.NoError(t, err)
 	err = ioutil.WriteFile(path.Join(dir, "2.html"), []byte("2.htm"), 0600)
 	assert.NoError(t, err)
+	err = ioutil.WriteFile(path.Join(dir, "index.html"), []byte("index.htm"), 0600)
+	assert.NoError(t, err)
 
 	defer os.RemoveAll(dir)
 
@@ -292,7 +294,6 @@ func TestHttp_cachingHandler(t *testing.T) {
 		t.Logf("headers: %+v", resp.Header)
 		assert.Equal(t, lastEtag, resp.Header.Get("Etag"), "still the same")
 	}
-
 	{
 		err = os.Chtimes(path.Join(dir, "1.html"), time.Now(), time.Now())
 		assert.NoError(t, err)
@@ -311,5 +312,22 @@ func TestHttp_cachingHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		t.Logf("headers: %+v", resp.Header)
 		assert.Equal(t, "", resp.Header.Get("Etag"), "no etag for post")
+	}
+
+	{
+		resp, err := client.Get(ts.URL + "/static")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		lastEtag = resp.Header.Get("Etag")
+		t.Logf("headers: %+v", resp.Header)
+	}
+	{
+		err = os.Chtimes(path.Join(dir, "index.html"), time.Now(), time.Now())
+		assert.NoError(t, err)
+		resp, err := client.Get(ts.URL + "/static")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("headers: %+v", resp.Header)
+		assert.NotEqual(t, lastEtag, resp.Header.Get("Etag"), "changed")
 	}
 }
