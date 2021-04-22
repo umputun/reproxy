@@ -349,6 +349,6 @@ func TestHttp_cachingHandlerInvalid(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		etag := resp.Header.Get("Etag")
 		t.Logf("headers: %+v", resp.Header)
-		assert.Equal(t, "a21b123c53ce53b96fde4ed85c461e13eb22faa6", etag, "for empty key")
+		assert.Equal(t, `"4a4032899be1b8e4e2c949cae9f94fdf6acc5cfb"`, etag, "for empty key")
 	}
 }
