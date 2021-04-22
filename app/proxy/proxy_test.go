@@ -259,19 +259,19 @@ func TestHttp_toHttp(t *testing.T) {
 
 func TestHttp_cachingHandler(t *testing.T) {
 
-	dir, err := ioutil.TempDir(os.TempDir(), "reproxy")
-	require.NoError(t, err)
-	err = ioutil.WriteFile(path.Join(dir, "1.html"), []byte("1.htm"), 0600)
-	assert.NoError(t, err)
-	err = ioutil.WriteFile(path.Join(dir, "2.html"), []byte("2.htm"), 0600)
-	assert.NoError(t, err)
-	err = ioutil.WriteFile(path.Join(dir, "index.html"), []byte("index.htm"), 0600)
-	assert.NoError(t, err)
+	dir, e := ioutil.TempDir(os.TempDir(), "reproxy")
+	require.NoError(t, e)
+	e = ioutil.WriteFile(path.Join(dir, "1.html"), []byte("1.htm"), 0600)
+	assert.NoError(t, e)
+	e = ioutil.WriteFile(path.Join(dir, "2.html"), []byte("2.htm"), 0600)
+	assert.NoError(t, e)
+	e = ioutil.WriteFile(path.Join(dir, "index.html"), []byte("index.htm"), 0600)
+	assert.NoError(t, e)
 
 	defer os.RemoveAll(dir)
 
-	fh, err := R.FileServer("/static", dir)
-	require.NoError(t, err)
+	fh, e := R.FileServer("/static", dir)
+	require.NoError(t, e)
 	h := Http{AssetsCacheDuration: 10 * time.Second, AssetsLocation: dir, AssetsWebRoot: "/static"}
 	hh := R.Wrap(fh, h.cachingHandler("/static", dir))
 	ts := httptest.NewServer(hh)
@@ -295,8 +295,8 @@ func TestHttp_cachingHandler(t *testing.T) {
 		assert.Equal(t, lastEtag, resp.Header.Get("Etag"), "still the same")
 	}
 	{
-		err = os.Chtimes(path.Join(dir, "1.html"), time.Now(), time.Now())
-		assert.NoError(t, err)
+		e = os.Chtimes(path.Join(dir, "1.html"), time.Now(), time.Now())
+		assert.NoError(t, e)
 		resp, err := client.Get(ts.URL + "/static/1.html")
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -322,8 +322,8 @@ func TestHttp_cachingHandler(t *testing.T) {
 		t.Logf("headers: %+v", resp.Header)
 	}
 	{
-		err = os.Chtimes(path.Join(dir, "index.html"), time.Now(), time.Now())
-		assert.NoError(t, err)
+		e = os.Chtimes(path.Join(dir, "index.html"), time.Now(), time.Now())
+		assert.NoError(t, e)
 		resp, err := client.Get(ts.URL + "/static")
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
