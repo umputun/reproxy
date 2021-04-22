@@ -189,14 +189,11 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		http.Error(w, "Server error", http.StatusBadGateway)
 	})
 
-	cachingHandler := h.cachingHandler(h.AssetsLocation, h.AssetsWebRoot)
 	if h.AssetsLocation != "" && h.AssetsWebRoot != "" {
-		fs, err := R.FileServer(h.AssetsLocation, h.AssetsWebRoot)
+		fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
 		if err == nil {
-			assetsHandler = func(w http.ResponseWriter, r *http.Request) {
-				fs.ServeHTTP(w, r)
-			}
-			assetsHandler = cachingHandler(assetsHandler).ServeHTTP
+			cachingHandler := h.cachingHandler(h.AssetsLocation, h.AssetsWebRoot)
+			assetsHandler = cachingHandler(fs).ServeHTTP
 		}
 	}
 
