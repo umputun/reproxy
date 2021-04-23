@@ -265,90 +265,39 @@ func TestHttp_cachingHandler(t *testing.T) {
 	assert.NoError(t, e)
 	e = ioutil.WriteFile(path.Join(dir, "2.html"), []byte("2.htm"), 0600)
 	assert.NoError(t, e)
-	e = ioutil.WriteFile(path.Join(dir, "index.html"), []byte("index.htm"), 0600)
-	assert.NoError(t, e)
 
 	defer os.RemoveAll(dir)
 
 	fh, e := R.FileServer("/static", dir)
 	require.NoError(t, e)
 	h := Http{AssetsCacheDuration: 10 * time.Second, AssetsLocation: dir, AssetsWebRoot: "/static"}
-	hh := R.Wrap(fh, h.cachingHandler("/static", dir))
+	hh := R.Wrap(fh, h.cachingHandler)
 	ts := httptest.NewServer(hh)
 	defer ts.Close()
 	client := http.Client{Timeout: 599 * time.Second}
 
-	var lastEtag string
 	{
 		resp, err := client.Get(ts.URL + "/static/1.html")
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		t.Logf("headers: %+v", resp.Header)
-		lastEtag = resp.Header.Get("Etag")
-	}
-
-	{
-		resp, err := client.Get(ts.URL + "/static/1.html")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		t.Logf("headers: %+v", resp.Header)
-		assert.Equal(t, lastEtag, resp.Header.Get("Etag"), "still the same")
+		assert.Equal(t, "public, max-age=10", resp.Header.Get("Cache-Control"))
+		assert.NotEqual(t, "", resp.Header.Get("Last-Modified"))
 	}
 	{
-		e = os.Chtimes(path.Join(dir, "1.html"), time.Now(), time.Now())
-		assert.NoError(t, e)
-		resp, err := client.Get(ts.URL + "/static/1.html")
+		resp, err := client.Get(ts.URL + "/static/bad.html")
 		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		t.Logf("headers: %+v", resp.Header)
-		assert.NotEqual(t, lastEtag, resp.Header.Get("Etag"), "changed")
+		assert.Equal(t, "public, max-age=10", resp.Header.Get("Cache-Control"))
+		assert.Equal(t, "", resp.Header.Get("Last-Modified"))
 	}
-
-	{
-		req, err := http.NewRequest("POST", ts.URL+"/static/1.html", nil)
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		t.Logf("headers: %+v", resp.Header)
-		assert.Equal(t, "", resp.Header.Get("Etag"), "no etag for post")
-	}
-
-	{
-		resp, err := client.Get(ts.URL + "/static")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		lastEtag = resp.Header.Get("Etag")
-		t.Logf("headers: %+v", resp.Header)
-	}
-	{
-		e = os.Chtimes(path.Join(dir, "index.html"), time.Now(), time.Now())
-		assert.NoError(t, e)
-		resp, err := client.Get(ts.URL + "/static")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		t.Logf("headers: %+v", resp.Header)
-		assert.NotEqual(t, lastEtag, resp.Header.Get("Etag"), "changed")
-	}
-}
-
-func TestHttp_cachingHandlerInvalid(t *testing.T) {
-	dir := "/tmp/reproxy"
-	os.Mkdir("/tmp/reproxy", 0700)
-	defer os.RemoveAll("/tmp/reproxy")
-	fh, e := R.FileServer("/static", dir)
-	require.NoError(t, e)
-	h := Http{AssetsCacheDuration: 10 * time.Second, AssetsLocation: dir, AssetsWebRoot: "/static"}
-	hh := R.Wrap(fh, h.cachingHandler("/static", dir))
-	ts := httptest.NewServer(hh)
-	defer ts.Close()
-	client := http.Client{Timeout: 599 * time.Second}
 	{
 		resp, err := client.Get(ts.URL + "/%2e%2e%2f%2e%2e%2f%2e%2e%2f/etc/passwd")
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-		etag := resp.Header.Get("Etag")
 		t.Logf("headers: %+v", resp.Header)
-		assert.Equal(t, `"4a4032899be1b8e4e2c949cae9f94fdf6acc5cfb"`, etag, "for empty key")
+		assert.Equal(t, "public, max-age=10", resp.Header.Get("Cache-Control"))
+		assert.Equal(t, "", resp.Header.Get("Last-Modified"))
 	}
 }

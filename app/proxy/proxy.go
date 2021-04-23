@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -192,8 +190,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	if h.AssetsLocation != "" && h.AssetsWebRoot != "" {
 		fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
 		if err == nil {
-			cachingHandler := h.cachingHandler(h.AssetsLocation, h.AssetsWebRoot)
-			assetsHandler = cachingHandler(fs).ServeHTTP
+			assetsHandler = h.cachingHandler(fs).ServeHTTP
 		}
 	}
 
@@ -231,8 +228,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				http.Error(w, "Server error", http.StatusInternalServerError)
 				return
 			}
-			cachingHandler := h.cachingHandler(ae[0], ae[1])
-			cachingHandler(fs).ServeHTTP(w, r)
+			h.cachingHandler(fs).ServeHTTP(w, r)
 		}
 	}
 }
@@ -314,55 +310,14 @@ func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Han
 	}
 }
 
-func (h *Http) cachingHandler(webRoot, location string) func(next http.Handler) http.Handler {
+func (h *Http) cachingHandler(next http.Handler) http.Handler {
 
-	if h.AssetsCacheDuration == 0 {
-		return func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				next.ServeHTTP(w, r)
-			})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.AssetsCacheDuration > 0 {
+			w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(int(h.AssetsCacheDuration.Seconds())))
 		}
-	}
-
-	cache := R.CacheControlDynamic(h.AssetsCacheDuration, func(r *http.Request) string {
-		fname := filepath.Join(location, strings.TrimPrefix(r.URL.Path, webRoot))
-
-		absPath, err := filepath.Abs(fname)
-		if err != nil {
-			return ""
-		}
-		absLocation, err := filepath.Abs(location)
-		if err != nil {
-			return ""
-		}
-		if !strings.HasPrefix(absPath, absLocation) { // check if absolute path inside of location
-			log.Printf("[WARN] blocked potentially dangerous request to %s, url: %s, remote: %s", absPath, r.RequestURI, r.RemoteAddr)
-			return ""
-		}
-
-		fi, err := os.Stat(fname)
-		if err != nil {
-			return ""
-		}
-		if fi.IsDir() {
-			fi, err = os.Stat(filepath.Join(fname, "index.html"))
-			if err != nil {
-				return ""
-			}
-		}
-		return fmt.Sprintf("%d-%d", fi.ModTime().UnixNano(), fi.Size())
+		next.ServeHTTP(w, r)
 	})
-
-	return func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != "GET" && r.Method != "HEAD" {
-				next.ServeHTTP(w, r)
-				return
-			}
-			cache(next).ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
-	}
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {

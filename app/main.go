@@ -110,6 +110,7 @@ func main() {
 
 	setupLog(opts.Dbg)
 
+	log.Printf("[DEBUG] options: %+v", opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { // catch signal and invoke graceful termination
 		stop := make(chan os.Signal, 1)
