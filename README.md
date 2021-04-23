@@ -3,22 +3,23 @@
 </div>
 
 Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).
-One or more providers supply information about requested server, requested url, destination url and health check url.
-Distributed as a single binary or as a docker container.
+One or more providers supply information about the requested server, requested URL, destination URL, and health check URL.
+It is distributed as a single binary or as a docker container.
 
 - Automatic SSL termination with <a href="https://letsencrypt.org/" rel="nofollow noopener noreferrer" target="_blank">Let's Encrypt</a>
 - Support of user-provided SSL certificates
 - Simple but flexible proxy rules
-- Static, command line proxy rules provider
+- Static, command-line proxy rules provider
 - Dynamic, file-based proxy rules provider
 - Docker provider with an automatic discovery
-- Support of multiple (virtual) hosts   
+- Support of multiple (virtual) hosts
 - Optional traffic compression
 - User-defined limits and timeouts
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server
 - Management server with routes info and prometheus metrics
+
 
 ---
 
@@ -146,7 +147,7 @@ reproxy provides 2 endpoints for this purpose:
 
 ## Management API
 
-Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.listen` address:port:
+Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.listen` (address:port):
 
 - `GET /routes` - list of all discovered routes
 - `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
