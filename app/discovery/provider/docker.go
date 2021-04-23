@@ -135,6 +135,12 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
 
+			// for assets we add the second proxy mapping only if explicitly requested
+			if assetsWebRoot != "" && explicit {
+				mp.MatchType = discovery.MTProxy
+				res = append(res, mp)
+			}
+
 			if assetsWebRoot != "" {
 				mp.MatchType = discovery.MTStatic
 				mp.AssetsWebRoot = assetsWebRoot
@@ -142,11 +148,6 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 			}
 			res = append(res, mp)
 
-			// for assets we add the second proxy mapping only if explicitly requested
-			if assetsWebRoot != "" && explicit {
-				mp.MatchType = discovery.MTProxy
-				res = append(res, mp)
-			}
 		}
 	}
 

@@ -114,6 +114,27 @@ func TestDocker_ListWithAutoAPI(t *testing.T) {
 	assert.Equal(t, "*", res[2].Server)
 }
 
+func TestDocker_ListPriority(t *testing.T) {
+	dclient := &DockerClientMock{
+		ListContainersFunc: func() ([]containerInfo, error) {
+			return []containerInfo{
+				{
+					Name: "c0", State: "running", IP: "127.0.0.2", Ports: []int{12348},
+					Labels: map[string]string{"reproxy.route": "^/whoami/(.*)", "reproxy.dest": "/$1",
+						"reproxy.server": "example.com", "reproxy.ping": "/ping", "reproxy.assets": "/:/assets/static1"},
+				},
+			}, nil
+		},
+	}
+
+	d := Docker{DockerClient: dclient}
+	res, err := d.List()
+	require.NoError(t, err)
+	require.Equal(t, 2, len(res))
+	assert.Equal(t, discovery.MTProxy, res[0].MatchType)
+	assert.Equal(t, discovery.MTStatic, res[1].MatchType)
+}
+
 func TestDocker_refresh(t *testing.T) {
 	containers := make(chan []containerInfo)
 
