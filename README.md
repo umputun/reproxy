@@ -120,13 +120,15 @@ User can also turn stdout log on with `--logger.stdout`. It won't affect the fil
 
 ## Assets Server
 
-User may turn assets server on (off by default) to serve static files. As long as `--assets.location` set it will treat every non-proxied request under `assets.root` as a request for static files. Assets server can be used without any proxy providers. In this mode reproxy acts as a simple web server for a static context.
+Users may turn the assets server on (off by default) to serve static files. As long as `--assets.location` set it treats every non-proxied request under `assets.root` as a request for static files. The assets server can be used without any proxy providers; in this mode, reproxy acts as a simple web server for the static content.
 
-In addition to the common assets server multiple custom static servers supported. Each provider has a different way to define such static rule and some providers may not support it at all. For example, multiple static server make sense in case of static (command line provide), file provider and can be even useful with docker provider.
+In addition to the common assets server, multiple custom static servers are supported. Each provider has a different way to define such a static rule, and some providers may not support it at all. For example, multiple static servers make sense in static (command line provider), file provider, and even useful with docker providers.
 
 1. static provider - if source element prefixed by `assets:` it will be treated as file-server. For example `*,assets:/web,/var/www,` will serve all `/web/*` request with a file server on top of `/var/www` directory.
 2. file provider - setting optional field `assets: true`
 3. docker provider - `reproxy.assets=web-root:location`, i.e. `reproxy.assets=/web:/var/www`.
+
+Assets server supports caching control with the `--assets.cache=<duration>` parameter. `0s` duration (default) turns caching control off.
 
 ## More options
 
@@ -173,6 +175,7 @@ ssl:
 assets:
   -a, --assets.location=            assets location [$ASSETS_LOCATION]
       --assets.root=                assets web root (default: /) [$ASSETS_ROOT]
+      --assets.cache=               cache duration for assets (default: 0s) [$ASSETS_CACHE]
 
 logger:
       --logger.stdout               enable stdout logging [$LOGGER_STDOUT]

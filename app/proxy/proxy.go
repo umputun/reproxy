@@ -24,19 +24,20 @@ import (
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address        string
-	AssetsLocation string
-	AssetsWebRoot  string
-	MaxBodySize    int64
-	GzEnabled      bool
-	ProxyHeaders   []string
-	SSLConfig      SSLConfig
-	Version        string
-	AccessLog      io.Writer
-	StdOutEnabled  bool
-	Signature      bool
-	Timeouts       Timeouts
-	Metrics        Metrics
+	Address             string
+	AssetsLocation      string
+	AssetsWebRoot       string
+	AssetsCacheDuration time.Duration
+	MaxBodySize         int64
+	GzEnabled           bool
+	ProxyHeaders        []string
+	SSLConfig           SSLConfig
+	Version             string
+	AccessLog           io.Writer
+	StdOutEnabled       bool
+	Signature           bool
+	Timeouts            Timeouts
+	Metrics             Metrics
 }
 
 // Matcher source info (server and route) to the destination url
@@ -189,9 +190,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	if h.AssetsLocation != "" && h.AssetsWebRoot != "" {
 		fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
 		if err == nil {
-			assetsHandler = func(w http.ResponseWriter, r *http.Request) {
-				fs.ServeHTTP(w, r)
-			}
+			assetsHandler = h.cachingHandler(fs).ServeHTTP
 		}
 	}
 
@@ -229,7 +228,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				http.Error(w, "Server error", http.StatusInternalServerError)
 				return
 			}
-			fs.ServeHTTP(w, r)
+			h.cachingHandler(fs).ServeHTTP(w, r)
 		}
 	}
 }
@@ -309,6 +308,16 @@ func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Han
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (h *Http) cachingHandler(next http.Handler) http.Handler {
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.AssetsCacheDuration > 0 {
+			w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(int(h.AssetsCacheDuration.Seconds())))
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
