@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,9 +22,18 @@ import (
 )
 
 func Test_healthHandlerDeadlock(t *testing.T) {
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.True(t, strings.HasSuffix(r.RequestURI, "/ping"))
+		time.Sleep(time.Millisecond * time.Duration(rand.Intn(5)))
+		if rand.Intn(10) == 5 {
+			w.WriteHeader(400)
+		}
+	}))
+
 	rules := make([]string, 0, 90)
 	for i := 0; i < cap(rules); i++ {
-		rules = append(rules, fmt.Sprintf("*,^/api/(.*),localhost/%d/$1,localhost/%d/$1/ping", i, i))
+		rules = append(rules, fmt.Sprintf("*,^/api/(.*),localhost/%d/$1,%s/%d/$1/ping", i, ds.URL, i))
 	}
 
 	svc := discovery.NewService([]discovery.Provider{
@@ -45,7 +55,7 @@ func Test_healthHandlerDeadlock(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Millisecond * 50):
+	case <-time.After(time.Millisecond * 100):
 		assert.Fail(t, "deadlock")
 	}
 }
