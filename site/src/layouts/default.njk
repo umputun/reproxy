@@ -28,11 +28,17 @@
 	{% endif %}
 </head>
 <body class="h-screen bg-white dark:bg-gray-900">
-	<header class="fixed top-0 left-0 z-20 w-full border-b border-gray-100 bg-opacity-75 backdrop-filter backdrop-blur-lg bg-white dark:bg-gray-900 transition-colors duration-200 dark:bg-dark dark:border-gray-800">
-		<nav class="flex items-center h-16 md:h-20 w-full py-2">
-			<div class="p-4 mr-auto">
+	<header class="
+		fixed top-0 left-0 z-20
+		w-full
+		border-b border-gray-100  dark:border-gray-800
+		bg-opacity-50 bg-white dark:bg-gray-900
+		backdrop-filter backdrop-blur-lg transition-colors duration-200
+	">
+		<nav class="flex items-center h-16 w-full py-2">
+			<div class="p-4 mr-auto flex flex-col sm:flex-row sm:items-center">
 				<span class="text-xl font-bold text-orange-600 dark:text-gray-300">{{ site.title }}</span>
-				<span class="block mt-1 text-sm md:text-md text-gray-500 dark:text-gray-400">{{ site.subtitle }}</span>
+				<span class="block sm:ml-4 text-sm md:text-md text-gray-500 dark:text-gray-400">{{ site.subtitle }}</span>
 			</div>
 			<div class="mr-3">
 				<a class="text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="github link" rel="noopener noreferrer" href="{{ site.githubUrl }}" target="_blank">
@@ -53,12 +59,11 @@
 		class="
 			hidden md:block
 			fixed z-10 top-0 left-0 inset-y-0
-			w-full md:w-60
+			w-full md:w-60 mt-16
 			overflow-y-auto
-			mt-20 md:mt-20
 			bg-white dark:bg-gray-900
 			text-gray-500 dark:text-gray-400
-			border-r border-gray-100 dark:bg-dark dark:border-gray-800
+			border-r border-gray-100 dark:border-gray-800
 			transition-colors duration-200
 		"
 	>
