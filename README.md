@@ -2,9 +2,7 @@
   <img class="logo" src="https://raw.githubusercontent.com/umputun/reproxy/master/site/src/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
 </div>
 
-Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file).
-One or more providers supply information about the requested server, requested URL, destination URL, and health check URL.
-It is distributed as a single binary or as a docker container.
+Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file). One or more providers supply information about the requested server, requested URL, destination URL, and health check URL. It is distributed as a single binary or as a docker container.
 
 - Automatic SSL termination with <a href="https://letsencrypt.org/" rel="nofollow noopener noreferrer" target="_blank">Let's Encrypt</a>
 - Support of user-provided SSL certificates
@@ -29,9 +27,7 @@ Server (host) can be set as FQDN, i.e. `s.example.com` or `*` (catch all). Reque
 
 For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`
 
-Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files.
-
-Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
+Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
 Example with a static provider:
 `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
@@ -53,8 +49,7 @@ _See examples of various providers in [examples](https://github.com/umputun/repr
 
 ### Static
 
-This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported.
-Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination,[ping-url]`. For example:
+This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported. Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination,[ping-url]`. For example:
 
 - `*,^/api/(.*),https://api.example.com/$1,` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
 - `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz`. Uses `https://api.example.com/ping` for the health check
