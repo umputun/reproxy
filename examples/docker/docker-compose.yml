@@ -15,6 +15,10 @@ services:
       - DOCKER_AUTO=true
       - ASSETS_LOCATION=/web
       - DEBUG=true
+      - HEADER=
+          X-Frame-Options:SAMEORIGIN,
+          X-XSS-Protection:1; mode=block;,
+          Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
 
   # automatic destination, will be mapped for ^/api/svc1/(.*)
   svc1:

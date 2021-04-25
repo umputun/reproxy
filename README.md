@@ -130,7 +130,14 @@ Assets server supports caching control with the `--assets.cache=<duration>` para
 
 - `--gzip` enables gzip compression for responses.
 - `--max=N` allows to set the maximum size of request (default 64k)
-- `--header` sets extra header(s) added to each proxied request
+- `--header` sets extra header(s) added to each proxied response. For example this is how it can be done with the docker compose:
+```yaml
+  environment:
+      - HEADER=
+          X-Frame-Options:SAMEORIGIN,
+          X-XSS-Protection:1; mode=block;,
+          Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
+```
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
 
 ## Ping and health checks
