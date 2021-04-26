@@ -110,6 +110,13 @@ func main() {
 
 	setupLog(opts.Dbg)
 
+	defer func() {
+		if x := recover(); x != nil {
+			log.Printf("[WARN] run time panic:\n%v", x)
+			panic(x)
+		}
+	}()
+
 	log.Printf("[DEBUG] options: %+v", opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { // catch signal and invoke graceful termination
@@ -120,31 +127,31 @@ func main() {
 		cancel()
 	}()
 
+	err := run(ctx)
+	if err != nil {
+		log.Fatalf("[ERROR] proxy server failed, %v", err)
+	}
+}
+
+func run(ctx context.Context) error {
 	providers, err := makeProviders()
 	if err != nil {
-		log.Fatalf("[ERROR] failed to make providers, %v", err)
+		return fmt.Errorf("failed to make providers: %w", err)
 	}
 
 	svc := discovery.NewService(providers, time.Second)
 	if len(providers) > 0 {
 		go func() {
 			if e := svc.Run(context.Background()); e != nil {
-				log.Fatalf("[ERROR] discovery failed, %v", e)
+				log.Printf("[WARN] discovery failed, %v", e)
 			}
 		}()
 	}
 
 	sslConfig, err := makeSSLConfig()
 	if err != nil {
-		log.Fatalf("[ERROR] failed to make config of ssl server params, %v", err)
+		return fmt.Errorf("failed to make config of ssl server params: %w", err)
 	}
-
-	defer func() {
-		if x := recover(); x != nil {
-			log.Printf("[WARN] run time panic:\n%v", x)
-			panic(x)
-		}
-	}()
 
 	accessLog := makeAccessLogWriter()
 	defer func() {
@@ -172,7 +179,7 @@ func main() {
 
 	cacheControl, err := proxy.MakeCacheControl(opts.Assets.CacheControl)
 	if err != nil {
-		log.Fatalf("[ERROR] failed to cache control, %v", err)
+		return fmt.Errorf("failed to make cache control: %w", err)
 	}
 
 	px := &proxy.Http{
@@ -202,13 +209,13 @@ func main() {
 		},
 		Metrics: metrics,
 	}
-	if err := px.Run(ctx); err != nil {
-		if err == http.ErrServerClosed {
-			log.Printf("[WARN] proxy server closed, %v", err) //nolint gocritic
-			return
-		}
-		log.Fatalf("[ERROR] proxy server failed, %v", err) //nolint gocritic
+
+	err = px.Run(ctx)
+	if err != nil && err == http.ErrServerClosed {
+		log.Printf("[WARN] proxy server closed, %v", err) //nolint gocritic
+		return nil
 	}
+	return err
 }
 
 // make all providers. the order is matter, defines which provider will have priority in case of conflicting rules
