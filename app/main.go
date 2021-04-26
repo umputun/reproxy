@@ -40,9 +40,9 @@ var opts struct {
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
-		Location      string        `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
-		WebRoot       string        `long:"root" env:"ROOT" default:"/" description:"assets web root"`
-		CacheDuration time.Duration `long:"cache" env:"CACHE" default:"0s" description:"cache duration for assets"`
+		Location     string   `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
+		WebRoot      string   `long:"root" env:"ROOT" default:"/" description:"assets web root"`
+		CacheControl []string `long:"cache" env:"CACHE" description:"cache duration for assets" env-delim:","`
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
 	Logger struct {
@@ -153,7 +153,7 @@ func main() {
 		}
 	}()
 
-	metrcis := mgmt.NewMetrics()
+	metrics := mgmt.NewMetrics()
 	go func() {
 		mgSrv := mgmt.Server{
 			Listen:         opts.Management.Listen,
@@ -161,7 +161,7 @@ func main() {
 			AssetsLocation: opts.Assets.Location,
 			AssetsWebRoot:  opts.Assets.WebRoot,
 			Version:        revision,
-			Metrics:        metrcis,
+			Metrics:        metrics,
 		}
 		if opts.Management.Enabled {
 			if err := mgSrv.Run(ctx); err != nil {
@@ -170,20 +170,25 @@ func main() {
 		}
 	}()
 
+	cacheControl, err := proxy.MakeCacheControl(opts.Assets.CacheControl)
+	if err != nil {
+		log.Fatalf("[ERROR] failed to cache control, %v", err)
+	}
+
 	px := &proxy.Http{
-		Version:             revision,
-		Matcher:             svc,
-		Address:             opts.Listen,
-		MaxBodySize:         opts.MaxSize,
-		AssetsLocation:      opts.Assets.Location,
-		AssetsWebRoot:       opts.Assets.WebRoot,
-		AssetsCacheDuration: opts.Assets.CacheDuration,
-		GzEnabled:           opts.GzipEnabled,
-		SSLConfig:           sslConfig,
-		ProxyHeaders:        opts.ProxyHeaders,
-		AccessLog:           accessLog,
-		StdOutEnabled:       opts.Logger.StdOut,
-		Signature:           opts.Signature,
+		Version:        revision,
+		Matcher:        svc,
+		Address:        opts.Listen,
+		MaxBodySize:    opts.MaxSize,
+		AssetsLocation: opts.Assets.Location,
+		AssetsWebRoot:  opts.Assets.WebRoot,
+		CacheControl:   cacheControl,
+		GzEnabled:      opts.GzipEnabled,
+		SSLConfig:      sslConfig,
+		ProxyHeaders:   opts.ProxyHeaders,
+		AccessLog:      accessLog,
+		StdOutEnabled:  opts.Logger.StdOut,
+		Signature:      opts.Signature,
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
 			Write:          opts.Timeouts.Write,
@@ -195,7 +200,7 @@ func main() {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics: metrcis,
+		Metrics: metrics,
 	}
 	if err := px.Run(ctx); err != nil {
 		if err == http.ErrServerClosed {
