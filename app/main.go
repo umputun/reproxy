@@ -40,9 +40,9 @@ var opts struct {
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
-		Location      string        `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
-		WebRoot       string        `long:"root" env:"ROOT" default:"/" description:"assets web root"`
-		CacheDuration time.Duration `long:"cache" env:"CACHE" default:"0s" description:"cache duration for assets"`
+		Location     string   `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
+		WebRoot      string   `long:"root" env:"ROOT" default:"/" description:"assets web root"`
+		CacheControl []string `long:"cache" env:"CACHE" description:"cache duration for assets" env-delim:","`
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
 	Logger struct {
@@ -111,8 +111,23 @@ func main() {
 	setupLog(opts.Dbg)
 
 	log.Printf("[DEBUG] options: %+v", opts)
+
+	err := run()
+	if err != nil {
+		log.Fatalf("[ERROR] proxy server failed, %v", err)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() { // catch signal and invoke graceful termination
+
+	go func() {
+		if x := recover(); x != nil {
+			log.Printf("[WARN] run time panic:\n%v", x)
+			panic(x)
+		}
+
+		// catch signal and invoke graceful termination
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 		<-stop
@@ -122,38 +137,31 @@ func main() {
 
 	providers, err := makeProviders()
 	if err != nil {
-		log.Fatalf("[ERROR] failed to make providers, %v", err)
+		return fmt.Errorf("failed to make providers: %w", err)
 	}
 
 	svc := discovery.NewService(providers, time.Second)
 	if len(providers) > 0 {
 		go func() {
 			if e := svc.Run(context.Background()); e != nil {
-				log.Fatalf("[ERROR] discovery failed, %v", e)
+				log.Printf("[WARN] discovery failed, %v", e)
 			}
 		}()
 	}
 
-	sslConfig, err := makeSSLConfig()
-	if err != nil {
-		log.Fatalf("[ERROR] failed to make config of ssl server params, %v", err)
+	sslConfig, sslErr := makeSSLConfig()
+	if sslErr != nil {
+		return fmt.Errorf("failed to make config of ssl server params: %w", sslErr)
 	}
-
-	defer func() {
-		if x := recover(); x != nil {
-			log.Printf("[WARN] run time panic:\n%v", x)
-			panic(x)
-		}
-	}()
 
 	accessLog := makeAccessLogWriter()
 	defer func() {
-		if err := accessLog.Close(); err != nil {
-			log.Printf("[WARN] can't close access log, %v", err)
+		if logErr := accessLog.Close(); logErr != nil {
+			log.Printf("[WARN] can't close access log, %v", logErr)
 		}
 	}()
 
-	metrcis := mgmt.NewMetrics()
+	metrics := mgmt.NewMetrics()
 	go func() {
 		mgSrv := mgmt.Server{
 			Listen:         opts.Management.Listen,
@@ -161,29 +169,34 @@ func main() {
 			AssetsLocation: opts.Assets.Location,
 			AssetsWebRoot:  opts.Assets.WebRoot,
 			Version:        revision,
-			Metrics:        metrcis,
+			Metrics:        metrics,
 		}
 		if opts.Management.Enabled {
-			if err := mgSrv.Run(ctx); err != nil {
-				log.Printf("[WARN] management service failed, %v", err)
+			if mgErr := mgSrv.Run(ctx); err != nil {
+				log.Printf("[WARN] management service failed, %v", mgErr)
 			}
 		}
 	}()
 
+	cacheControl, err := proxy.MakeCacheControl(opts.Assets.CacheControl)
+	if err != nil {
+		return fmt.Errorf("failed to make cache control: %w", err)
+	}
+
 	px := &proxy.Http{
-		Version:             revision,
-		Matcher:             svc,
-		Address:             opts.Listen,
-		MaxBodySize:         opts.MaxSize,
-		AssetsLocation:      opts.Assets.Location,
-		AssetsWebRoot:       opts.Assets.WebRoot,
-		AssetsCacheDuration: opts.Assets.CacheDuration,
-		GzEnabled:           opts.GzipEnabled,
-		SSLConfig:           sslConfig,
-		ProxyHeaders:        opts.ProxyHeaders,
-		AccessLog:           accessLog,
-		StdOutEnabled:       opts.Logger.StdOut,
-		Signature:           opts.Signature,
+		Version:        revision,
+		Matcher:        svc,
+		Address:        opts.Listen,
+		MaxBodySize:    opts.MaxSize,
+		AssetsLocation: opts.Assets.Location,
+		AssetsWebRoot:  opts.Assets.WebRoot,
+		CacheControl:   cacheControl,
+		GzEnabled:      opts.GzipEnabled,
+		SSLConfig:      sslConfig,
+		ProxyHeaders:   opts.ProxyHeaders,
+		AccessLog:      accessLog,
+		StdOutEnabled:  opts.Logger.StdOut,
+		Signature:      opts.Signature,
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
 			Write:          opts.Timeouts.Write,
@@ -195,15 +208,15 @@ func main() {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics: metrcis,
+		Metrics: metrics,
 	}
-	if err := px.Run(ctx); err != nil {
-		if err == http.ErrServerClosed {
-			log.Printf("[WARN] proxy server closed, %v", err) //nolint gocritic
-			return
-		}
-		log.Fatalf("[ERROR] proxy server failed, %v", err) //nolint gocritic
+
+	err = px.Run(ctx)
+	if err != nil && err == http.ErrServerClosed {
+		log.Printf("[WARN] proxy server closed, %v", err) //nolint gocritic
+		return nil
 	}
+	return err
 }
 
 // make all providers. the order is matter, defines which provider will have priority in case of conflicting rules
