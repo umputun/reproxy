@@ -86,11 +86,6 @@ func TestCacheControl_MiddlewareMime(t *testing.T) {
 
 func TestMakeCacheControl(t *testing.T) {
 
-	type mimeAge struct {
-		mime string
-		age  time.Duration
-	}
-
 	tbl := []struct {
 		opts     []string
 		defAge   time.Duration

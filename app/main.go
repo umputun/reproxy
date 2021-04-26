@@ -110,16 +110,24 @@ func main() {
 
 	setupLog(opts.Dbg)
 
-	defer func() {
+	log.Printf("[DEBUG] options: %+v", opts)
+
+	err := run()
+	if err != nil {
+		log.Fatalf("[ERROR] proxy server failed, %v", err)
+	}
+}
+
+func run() error {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
 		if x := recover(); x != nil {
 			log.Printf("[WARN] run time panic:\n%v", x)
 			panic(x)
 		}
-	}()
 
-	log.Printf("[DEBUG] options: %+v", opts)
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() { // catch signal and invoke graceful termination
+		// catch signal and invoke graceful termination
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 		<-stop
@@ -127,13 +135,6 @@ func main() {
 		cancel()
 	}()
 
-	err := run(ctx)
-	if err != nil {
-		log.Fatalf("[ERROR] proxy server failed, %v", err)
-	}
-}
-
-func run(ctx context.Context) error {
 	providers, err := makeProviders()
 	if err != nil {
 		return fmt.Errorf("failed to make providers: %w", err)
@@ -148,15 +149,15 @@ func run(ctx context.Context) error {
 		}()
 	}
 
-	sslConfig, err := makeSSLConfig()
-	if err != nil {
-		return fmt.Errorf("failed to make config of ssl server params: %w", err)
+	sslConfig, sslErr := makeSSLConfig()
+	if sslErr != nil {
+		return fmt.Errorf("failed to make config of ssl server params: %w", sslErr)
 	}
 
 	accessLog := makeAccessLogWriter()
 	defer func() {
-		if err := accessLog.Close(); err != nil {
-			log.Printf("[WARN] can't close access log, %v", err)
+		if logErr := accessLog.Close(); logErr != nil {
+			log.Printf("[WARN] can't close access log, %v", logErr)
 		}
 	}()
 
@@ -171,8 +172,8 @@ func run(ctx context.Context) error {
 			Metrics:        metrics,
 		}
 		if opts.Management.Enabled {
-			if err := mgSrv.Run(ctx); err != nil {
-				log.Printf("[WARN] management service failed, %v", err)
+			if mgErr := mgSrv.Run(ctx); err != nil {
+				log.Printf("[WARN] management service failed, %v", mgErr)
 			}
 		}
 	}()
