@@ -18,7 +18,6 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Built-in static assets server
 - Management server with routes info and prometheus metrics
 
-
 ---
 
 [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy)&nbsp;[![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
@@ -29,10 +28,9 @@ For convenience, requests with the trailing `/` and without regex groups expande
 
 Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
-Example with a static provider:
-`reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
-Example with an automatic docker discovery:
-`reproxy --docker.enabled --docker.auto`
+Examples:
+ - with a static provider: `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
+ - with an automatic docker discovery: `reproxy --docker.enabled --docker.auto`
 
 ## Install
 
@@ -127,6 +125,7 @@ In addition to the common assets server, multiple custom static servers are supp
 Assets server supports caching control with the `--assets.cache=<duration>` parameter. `0s` duration (default) turns caching control off. A duration is a sequence of decimal numbers, each with optional fraction and a unit suffix, such as "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h" and "d".
 
 There are two ways to set cache duration:
+
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e.  `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
@@ -135,6 +134,7 @@ There are two ways to set cache duration:
 - `--gzip` enables gzip compression for responses.
 - `--max=N` allows to set the maximum size of request (default 64k)
 - `--header` sets extra header(s) added to each proxied response. For example this is how it can be done with the docker compose:
+
 ```yaml
   environment:
       - HEADER=
@@ -142,6 +142,7 @@ There are two ways to set cache duration:
           X-XSS-Protection:1; mode=block;,
           Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
 ```
+
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
 
 ## Ping and health checks
