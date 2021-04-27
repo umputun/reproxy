@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -83,6 +84,66 @@ func Test_Main(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	}
+}
+
+func Test_MainWithSSL(t *testing.T) {
+	port := chooseRandomUnusedPort()
+	os.Args = []string{"test", "--static.enabled",
+		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
+		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
+		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
+		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
+		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--ssl.type=static",
+		"--ssl.cert=proxy/testdata/localhost.crt", "--ssl.key=proxy/testdata/localhost.key"}
+	defer os.Remove("/tmp/reproxy.log")
+	done := make(chan struct{})
+	go func() {
+		<-done
+		e := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+		require.NoError(t, e)
+	}()
+
+	finished := make(chan struct{})
+	go func() {
+		main()
+		close(finished)
+	}()
+
+	// defer cleanup because require check below can fail
+	defer func() {
+		close(done)
+		<-finished
+	}()
+
+	waitForHTTPServerStart(port)
+	time.Sleep(time.Second)
+
+	client := http.Client{
+		// allow self-signed certificate
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 10 * time.Second,
+	}
+	{
+		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/ping", port))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 200, resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "pong", string(body))
+	}
+
+	{
+		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/svc1", port))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 200, resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 	}
 }
 

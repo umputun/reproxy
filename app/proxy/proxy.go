@@ -310,18 +310,6 @@ func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Han
 	}
 }
 
-// func (h *Http) cachingHandler(next http.Handler) http.Handler {
-//
-// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		mt := mime.TypeByExtension(path.Ext(r.URL.Path))
-// 		log.Printf("tt: %s", mt)
-// 		if h.AssetsCacheDuration > 0 {
-// 			w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(int(h.AssetsCacheDuration.Seconds())))
-// 		}
-// 		next.ServeHTTP(w, r)
-// 	})
-// }
-
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
