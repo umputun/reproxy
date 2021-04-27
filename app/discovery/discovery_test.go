@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strconv"
 	"testing"
@@ -38,7 +39,17 @@ func TestService_Run(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewService([]Provider{p1, p2}, time.Millisecond*10)
+
+	p3 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return make(chan ProviderID, 1)
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return nil, errors.New("failed")
+		},
+	}
+
+	svc := NewService([]Provider{p1, p2, p3}, time.Millisecond*10)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -85,6 +96,7 @@ func TestService_Match(t *testing.T) {
 					AssetsWebRoot: "/web", AssetsLocation: "/var/web"},
 				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
 					AssetsWebRoot: "/www", AssetsLocation: "/var/web"},
+				{SrcMatch: *regexp.MustCompile("/path/"), Dst: "/var/web/path", ProviderID: PIDocker, MatchType: MTStatic},
 			}, nil
 		},
 	}
@@ -95,7 +107,7 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 5, len(svc.Mappers()))
+	assert.Equal(t, 6, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
@@ -115,6 +127,7 @@ func TestService_Match(t *testing.T) {
 		{"m1.example.com", "/www/something", "/www:/var/web/", MTStatic, true},
 		{"m1.example.com", "/www/", "/www:/var/web/", MTStatic, true},
 		{"m1.example.com", "/www", "/www:/var/web/", MTStatic, true},
+		{"xyx.example.com", "/path/something", "/path:/var/web/path/", MTStatic, true},
 	}
 
 	for i, tt := range tbl {

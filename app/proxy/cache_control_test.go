@@ -93,8 +93,10 @@ func TestMakeCacheControl(t *testing.T) {
 		err      error
 	}{
 		{nil, time.Duration(0), nil, nil},
-		{[]string{"12d"}, 12 * 24 * time.Hour, nil, nil},
 		{[]string{"12h"}, 12 * time.Hour, nil, nil},
+		{[]string{"12d"}, 12 * 24 * time.Hour, nil, nil},
+		{[]string{"a12d"}, 0, nil,
+			errors.New(`can't parse default cache duration: can't parse "a12d" as duration: strconv.Atoi: parsing "a12": invalid syntax`)},
 		{[]string{"default:12h"}, 12 * time.Hour, nil, nil},
 		{[]string{"blah:12h"}, 0, nil, errors.New("first cache duration has to be for the default mime")},
 		{[]string{"a12nop"}, 0, nil, errors.New(`can't parse default cache duration: time: invalid duration "a12nop"`)},

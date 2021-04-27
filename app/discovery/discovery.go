@@ -199,11 +199,13 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	src := m.SrcMatch.String()
 	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
 
+	// static match with assets uses AssetsWebRoot and AssetsLocation
 	if m.MatchType == MTStatic && m.AssetsWebRoot != "" && m.AssetsLocation != "" {
 		m.AssetsWebRoot = strings.TrimSuffix(m.AssetsWebRoot, "/")
 		m.AssetsLocation = strings.TrimSuffix(m.AssetsLocation, "/") + "/"
 	}
 
+	// static match without assets defined defaulted to src:dst/
 	if m.MatchType == MTStatic && m.AssetsWebRoot == "" && m.AssetsLocation == "" {
 		m.AssetsWebRoot = strings.TrimSuffix(src, "/")
 		m.AssetsLocation = strings.TrimSuffix(m.Dst, "/") + "/"
