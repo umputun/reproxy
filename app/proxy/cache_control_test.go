@@ -93,11 +93,12 @@ func TestMakeCacheControl(t *testing.T) {
 		err      error
 	}{
 		{nil, time.Duration(0), nil, nil},
+		{[]string{"12d"}, 12 * 24 * time.Hour, nil, nil},
 		{[]string{"12h"}, 12 * time.Hour, nil, nil},
 		{[]string{"default:12h"}, 12 * time.Hour, nil, nil},
 		{[]string{"blah:12h"}, 0, nil, errors.New("first cache duration has to be for the default mime")},
-		{[]string{"a12bad"}, 0, nil, errors.New(`can't parse default cache duration: time: invalid duration "a12bad"`)},
-		{[]string{"default:a12bad"}, 0, nil, errors.New(`can't parse default cache duration: time: invalid duration "a12bad"`)},
+		{[]string{"a12nop"}, 0, nil, errors.New(`can't parse default cache duration: time: invalid duration "a12nop"`)},
+		{[]string{"default:a12badone"}, 0, nil, errors.New(`can't parse default cache duration: time: invalid duration "a12badone"`)},
 
 		{[]string{"12h", "text/html:10h", "image/png:6h"}, 12 * time.Hour,
 			map[string]time.Duration{"text/html": 10 * time.Hour, "image/png": 6 * time.Hour}, nil},

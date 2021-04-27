@@ -67,6 +67,18 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 // the first param represents default age and can be just a duration string (i.e. 60h) or "default:60h"
 // all other params are mime:duration pairs, i.e. "text/html:30s"
 func MakeCacheControl(cacheOpts []string) (*CacheControl, error) {
+
+	parseDuration := func(s string) (time.Duration, error) {
+		if strings.HasSuffix(s, "d") { // add parsing 123d as days
+			days, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+			if err != nil {
+				return 0, fmt.Errorf("can't parse %q as duration: %w", s, err)
+			}
+			return time.Hour * 24 * time.Duration(days), nil
+		}
+		return time.ParseDuration(s)
+	}
+
 	if len(cacheOpts) == 0 {
 		return NewCacheControl(0), nil
 	}
@@ -74,7 +86,7 @@ func MakeCacheControl(cacheOpts []string) (*CacheControl, error) {
 
 	// first elements may define default in both "10s" and "default:10s" forms
 	if !strings.Contains(cacheOpts[0], ":") { // single element, i.e 10s
-		dur, err := time.ParseDuration(cacheOpts[0])
+		dur, err := parseDuration(cacheOpts[0])
 		if err != nil {
 			return nil, fmt.Errorf("can't parse default cache duration: %w", err)
 		}
@@ -86,10 +98,12 @@ func MakeCacheControl(cacheOpts []string) (*CacheControl, error) {
 		if elems[0] != "default" {
 			return nil, fmt.Errorf("first cache duration has to be for the default mime")
 		}
-		dur, err := time.ParseDuration(elems[1])
+
+		dur, err := parseDuration(elems[1])
 		if err != nil {
 			return nil, fmt.Errorf("can't parse default cache duration: %w", err)
 		}
+
 		res = NewCacheControl(dur)
 	}
 
