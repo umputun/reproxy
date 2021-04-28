@@ -76,7 +76,7 @@ This is a dynamic provider and file change will be applied automatically.
 
 ### Docker
 
-Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration and by default redirects all requests like `https://server/<container_name>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
+Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration and by default redirects all requests like `http://<container_name>:<container_port>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
 
 This default can be changed with labels:
 
@@ -94,6 +94,8 @@ With `--docker.auto`, all containers with exposed port will be considered as rou
 - Exclude some containers explicitly with `--docker.exclude`, i.e. `--docker.exclude=c1 --docker.exclude=c2 ...`
 - Allow only a particular docker network with `--docker.network`
 - Set the label `reproxy.enabled=false` or `reproxy.enabled=no` or `reproxy.enabled=0`
+
+If no `reproxy.route` defined, the default is `http://<container_name>:<container_port>/(.*)`. In case if all proxied source have the same pattern, for example `/api/(.*)` user can define the common prefix (in this case `/api`) for all container-based routes. This can be done with `--docker.prefix` parameter.
 
 This is a dynamic provider and any change in container's status will be applied automatically.
 
@@ -183,7 +185,7 @@ ssl:
 assets:
   -a, --assets.location=            assets location [$ASSETS_LOCATION]
       --assets.root=                assets web root (default: /) [$ASSETS_ROOT]
-      --assets.cache=               cache duration for assets (default: 0s) [$ASSETS_CACHE]
+      --assets.cache=               cache duration for assets [$ASSETS_CACHE]
 
 logger:
       --logger.stdout               enable stdout logging [$LOGGER_STDOUT]
@@ -198,6 +200,7 @@ docker:
       --docker.network=             docker network [$DOCKER_NETWORK]
       --docker.exclude=             excluded containers [$DOCKER_EXCLUDE]
       --docker.auto                 enable automatic routing (without labels) [$DOCKER_AUTO]
+      --docker.prefix=              prefix for docker source routes [$DOCKER_PREFIX]
 
 file:
       --file.enabled                enable file provider [$FILE_ENABLED]

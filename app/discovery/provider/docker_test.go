@@ -93,7 +93,7 @@ func TestDocker_ListWithAutoAPI(t *testing.T) {
 		},
 	}
 
-	d := Docker{DockerClient: dclient, AutoAPI: true}
+	d := Docker{DockerClient: dclient, AutoAPI: true, APIPrefix: "/api"}
 	res, err := d.List()
 	require.NoError(t, err)
 	require.Equal(t, 3, len(res))

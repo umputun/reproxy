@@ -29,6 +29,7 @@ type Docker struct {
 	DockerClient    DockerClient
 	Excludes        []string
 	AutoAPI         bool
+	APIPrefix       string
 	RefreshInterval time.Duration
 }
 
@@ -70,10 +71,15 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 	res := make([]discovery.URLMapper, 0, len(containers))
 	for _, c := range containers {
 		enabled, explicit := false, false
-		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name)
+		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name) // default destination
+		if d.APIPrefix != "" {
+			prefix := strings.TrimLeft(d.APIPrefix, "/")
+			prefix = strings.TrimRight(prefix, "/")
+			srcURL = fmt.Sprintf("^/%s/%s/(.*)", prefix, c.Name) // default destination with api prefix
+		}
+
 		if d.AutoAPI {
 			enabled = true
-			srcURL = fmt.Sprintf("^/api/%s/(.*)", c.Name)
 		}
 
 		port, err := d.matchedPort(c)

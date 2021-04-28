@@ -54,11 +54,12 @@ var opts struct {
 	} `group:"logger" namespace:"logger" env-namespace:"LOGGER"`
 
 	Docker struct {
-		Enabled  bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
-		Host     string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
-		Network  string   `long:"network" env:"NETWORK" default:"" description:"docker network"`
-		Excluded []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
-		AutoAPI  bool     `long:"auto" env:"AUTO" description:"enable automatic routing (without labels)"`
+		Enabled   bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
+		Host      string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
+		Network   string   `long:"network" env:"NETWORK" default:"" description:"docker network"`
+		Excluded  []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
+		AutoAPI   bool     `long:"auto" env:"AUTO" description:"enable automatic routing (without labels)"`
+		APIPrefix string   `long:"prefix" env:"PREFIX" description:"prefix for docker source routes"`
 	} `group:"docker" namespace:"docker" env-namespace:"DOCKER"`
 
 	File struct {
@@ -251,7 +252,7 @@ func makeProviders() ([]discovery.Provider, error) {
 		const refreshInterval = time.Second * 10 // seems like a reasonable default
 
 		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded,
-			AutoAPI: opts.Docker.AutoAPI, RefreshInterval: refreshInterval})
+			AutoAPI: opts.Docker.AutoAPI, APIPrefix: opts.Docker.APIPrefix, RefreshInterval: refreshInterval})
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
