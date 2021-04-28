@@ -126,6 +126,11 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 			}
 		}
 
+		// should not set anything, handled on matchedPort level. just use to enable implicitly
+		if _, ok := c.Labels["reproxy.port"]; ok {
+			enabled = true
+		}
+
 		if !enabled {
 			log.Printf("[DEBUG] container %s disabled", c.Name)
 			continue
