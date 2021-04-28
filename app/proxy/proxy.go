@@ -183,7 +183,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 	// default assetsHandler disabled, returns error on missing matches
 	assetsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[WARN] mo match for %s", r.URL)
+		log.Printf("[WARN] no match for %s %s", r.URL.Hostname(), r.URL.Path)
 		http.Error(w, "Server error", http.StatusBadGateway)
 	})
 
