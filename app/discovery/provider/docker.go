@@ -70,7 +70,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 	res := make([]discovery.URLMapper, 0, len(containers))
 	for _, c := range containers {
 		enabled, explicit := false, false
-		srcURL := "^/(.*)"
+		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name)
 		if d.AutoAPI {
 			enabled = true
 			srcURL = fmt.Sprintf("^/api/%s/(.*)", c.Name)

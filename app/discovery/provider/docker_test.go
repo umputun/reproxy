@@ -59,15 +59,15 @@ func TestDocker_List(t *testing.T) {
 	assert.Equal(t, "example.com", res[0].Server)
 	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
 
-	assert.Equal(t, "^/a/(.*)", res[1].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[1].Dst)
-	assert.Equal(t, "http://127.0.0.2:12348/ping", res[1].PingURL)
-	assert.Equal(t, "example.com", res[1].Server)
+	assert.Equal(t, "^/c2/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:12346/$1", res[1].Dst)
+	assert.Equal(t, "http://127.0.0.3:12346/ping", res[1].PingURL)
+	assert.Equal(t, "*", res[1].Server)
 
-	assert.Equal(t, "^/(.*)", res[2].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.3:12346/$1", res[2].Dst)
-	assert.Equal(t, "http://127.0.0.3:12346/ping", res[2].PingURL)
-	assert.Equal(t, "*", res[2].Server)
+	assert.Equal(t, "^/a/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[2].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[2].PingURL)
+	assert.Equal(t, "example.com", res[2].Server)
 }
 
 func TestDocker_ListWithAutoAPI(t *testing.T) {
