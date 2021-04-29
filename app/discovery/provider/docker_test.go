@@ -206,7 +206,8 @@ func TestDockerClient(t *testing.T) {
 	defer srv.Close()
 	addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
 
-	client := NewDockerClient(addr, "bridge")
+	client, err := NewDockerClient(addr, "bridge")
+	require.NoError(t, err)
 	c, err := client.ListContainers()
 	require.NoError(t, err, "unexpected error while listing containers")
 
@@ -223,6 +224,17 @@ func TestDockerClient(t *testing.T) {
 	assert.Empty(t, c[1].IP)
 }
 
+func TestDockerClientURL(t *testing.T) {
+	_, err := NewDockerClient("tcp://xx127.0.0.1:1234", "bridge")
+	require.NoError(t, err)
+
+	_, err = NewDockerClient("unix:///var/run/docker.sock", "bridge")
+	require.NoError(t, err)
+
+	_, err = NewDockerClient("/var/run/docker.sock", "bridge")
+	require.Error(t, err)
+}
+
 func TestDockerClient_error(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message": "bruh"}`, http.StatusInternalServerError)
@@ -231,7 +243,8 @@ func TestDockerClient_error(t *testing.T) {
 	defer srv.Close()
 	addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
 
-	client := NewDockerClient(addr, "bridge")
-	_, err := client.ListContainers()
+	client, err := NewDockerClient(addr, "bridge")
+	require.NoError(t, err)
+	_, err = client.ListContainers()
 	require.EqualError(t, err, "unexpected error from docker daemon: bruh")
 }

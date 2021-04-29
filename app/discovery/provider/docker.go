@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -306,22 +307,33 @@ type dockerClient struct {
 }
 
 // NewDockerClient constructs docker client for given host and network
-func NewDockerClient(host, network string) DockerClient {
-	var schemaRegex = regexp.MustCompile("^(?:([a-z0-9]+)://)?(.*)$")
-	parts := schemaRegex.FindStringSubmatch(host)
-	proto, addr := parts[1], parts[2]
-	log.Printf("[DEBUG] configuring docker client to talk to %s via %s", addr, proto)
+func NewDockerClient(host, network string) (DockerClient, error) {
+
+	uu, err := url.Parse(host)
+	if err != nil {
+		return nil, fmt.Errorf("can't parse docker url: %w", err)
+	}
+	addr := uu.Host // for tcp:// it will be host
+	if addr == "" { // for unix:// it is path
+		addr = uu.Path
+	}
+
+	if addr == "" || uu.Scheme == "" {
+		return nil, fmt.Errorf("can't get docker address from %s", host)
+	}
+
+	log.Printf("[DEBUG] configuring docker client to talk to %s via %s", addr, uu.Scheme)
 
 	client := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial(proto, addr)
+				return net.Dial(uu.Scheme, addr)
 			},
 		},
 		Timeout: time.Second * 5,
 	}
 
-	return &dockerClient{client, network}
+	return &dockerClient{client, network}, nil
 }
 
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {

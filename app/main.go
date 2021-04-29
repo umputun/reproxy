@@ -243,7 +243,10 @@ func makeProviders() ([]discovery.Provider, error) {
 	}
 
 	if opts.Docker.Enabled {
-		client := provider.NewDockerClient(opts.Docker.Host, opts.Docker.Network)
+		client, err := provider.NewDockerClient(opts.Docker.Host, opts.Docker.Network)
+		if err != nil {
+			return nil, fmt.Errorf("can't make docker provider: %w", err)
+		}
 
 		if opts.Docker.AutoAPI {
 			log.Printf("[INFO] auto-api enabled for docker")
