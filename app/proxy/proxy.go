@@ -38,6 +38,7 @@ type Http struct { // nolint golint
 	Timeouts       Timeouts
 	CacheControl   MiddlewareProvider
 	Metrics        MiddlewareProvider
+	Reporter       Reporter
 }
 
 // Matcher source info (server and route) to the destination url
@@ -51,6 +52,11 @@ type Matcher interface {
 // MiddlewareProvider interface defines http middleware handler
 type MiddlewareProvider interface {
 	Middleware(next http.Handler) http.Handler
+}
+
+// Reporter defines error reporting service
+type Reporter interface {
+	Report(w http.ResponseWriter, code int)
 }
 
 // Timeouts consolidate timeouts for both server and transport
@@ -180,19 +186,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		},
 		ErrorLog: log.ToStdLogger(log.Default(), "WARN"),
 	}
-
-	// default assetsHandler disabled, returns error on missing matches
-	assetsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[WARN] no match for %s %s", r.URL.Hostname(), r.URL.Path)
-		http.Error(w, "Server error", http.StatusBadGateway)
-	})
-
-	if h.AssetsLocation != "" && h.AssetsWebRoot != "" {
-		fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
-		if err == nil {
-			assetsHandler = h.CacheControl.Middleware(fs).ServeHTTP
-		}
-	}
+	assetsHandler := h.assetsHandler()
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -201,8 +195,13 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			server = strings.Split(r.Host, ":")[0]
 		}
 		u, mt, ok := h.Match(server, r.URL.Path)
-		if !ok {
-			assetsHandler.ServeHTTP(w, r)
+		if !ok { // no route match
+			if h.isAssetRequest(r) {
+				assetsHandler.ServeHTTP(w, r)
+				return
+			}
+			log.Printf("[WARN] no match for %s %s", r.URL.Hostname(), r.URL.Path)
+			h.Reporter.Report(w, http.StatusBadGateway)
 			return
 		}
 
@@ -210,7 +209,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		case discovery.MTProxy:
 			uu, err := url.Parse(u)
 			if err != nil {
-				http.Error(w, "Server error", http.StatusBadGateway)
+				h.Reporter.Report(w, http.StatusBadGateway)
 				return
 			}
 			log.Printf("[DEBUG] proxy to %s", uu)
@@ -220,17 +219,37 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			// static match result has webroot:location, i.e. /www:/var/somedir/
 			ae := strings.Split(u, ":")
 			if len(ae) != 2 { // shouldn't happen
-				http.Error(w, "Server error", http.StatusInternalServerError)
+				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
 			fs, err := R.FileServer(ae[0], ae[1])
 			if err != nil {
-				http.Error(w, "Server error", http.StatusInternalServerError)
+				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
 			h.CacheControl.Middleware(fs).ServeHTTP(w, r)
 		}
 	}
+}
+
+func (h *Http) assetsHandler() http.HandlerFunc {
+	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
+		return func(writer http.ResponseWriter, request *http.Request) {}
+	}
+	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
+	if err != nil {
+		log.Printf("[WARN] can't initialize assets server, %v", err)
+		return func(writer http.ResponseWriter, request *http.Request) {}
+	}
+	return h.CacheControl.Middleware(fs).ServeHTTP
+}
+
+func (h *Http) isAssetRequest(r *http.Request) bool {
+	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
+		return false
+	}
+	root := strings.TrimSuffix(h.AssetsWebRoot, "/")
+	return r.URL.Path == root || strings.HasPrefix(r.URL.Path, root+"/")
 }
 
 func (h *Http) toHTTP(address string, httpPort int) string {

@@ -91,6 +91,11 @@ var opts struct {
 		Listen  string `long:"listen" env:"LISTEN" default:"0.0.0.0:8081" description:"listen on host:port"`
 	} `group:"mgmt" namespace:"mgmt" env-namespace:"MGMT"`
 
+	ErrorReport struct {
+		Enabled  bool   `long:"enabled" env:"ENABLED" description:"enable html errors reporting"`
+		Template string `long:"template" env:"TEMPLATE" description:"error message template file"`
+	} `group:"error" namespace:"error" env-namespace:"ERROR"`
+
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 }
@@ -184,6 +189,11 @@ func run() error {
 		return fmt.Errorf("failed to make cache control: %w", err)
 	}
 
+	errReporter, err := makeErrorReporter()
+	if err != nil {
+		return fmt.Errorf("failed to make error reporter: %w", err)
+	}
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -209,7 +219,8 @@ func run() error {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics: metrics,
+		Metrics:  metrics,
+		Reporter: errReporter,
 	}
 
 	err = px.Run(ctx)
@@ -284,6 +295,20 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.RedirHTTPPort = opts.SSL.RedirHTTPPort
 	}
 	return config, err
+}
+
+func makeErrorReporter() (proxy.Reporter, error) {
+	result := &proxy.ErrorReporter{
+		Nice: opts.ErrorReport.Enabled,
+	}
+	if opts.ErrorReport.Template != "" {
+		data, err := ioutil.ReadFile(opts.ErrorReport.Template)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load error html template from %s, %w", opts.ErrorReport.Template, err)
+		}
+		result.Template = string(data)
+	}
+	return result, nil
 }
 
 func makeAccessLogWriter() (accessLog io.WriteCloser) {
