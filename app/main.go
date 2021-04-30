@@ -304,7 +304,7 @@ func makeErrorReporter() (proxy.Reporter, error) {
 	if opts.ErrorReport.Template != "" {
 		data, err := ioutil.ReadFile(opts.ErrorReport.Template)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load error html template, %w", err)
+			return nil, fmt.Errorf("failed to load error html template from %s, %w", opts.ErrorReport.Template, err)
 		}
 		result.Template = string(data)
 	}
