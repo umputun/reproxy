@@ -25,7 +25,9 @@ func Test_Main(t *testing.T) {
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
-		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature"}
+		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature",
+		"--error.enabled", "--error.template=proxy/testdata/errtmpl.html",
+	}
 	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
 	go func() {
@@ -84,6 +86,9 @@ func Test_Main(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "oh my! 502 - Bad Gateway", string(body))
 	}
 }
 

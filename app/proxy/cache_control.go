@@ -44,6 +44,7 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 		if len(c.maxAges) == 0 && c.defaultMaxAge > 0 {
 			setMaxAgeHeader(c.defaultMaxAge, w)
 			next.ServeHTTP(w, r)
+			return
 		}
 
 		ext := path.Ext(r.URL.Path) // the extension ext should begin with a leading dot, as in ".html"

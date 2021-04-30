@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +23,8 @@ import (
 func TestHttp_Do(t *testing.T) {
 	port := rand.Intn(10000) + 40000
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
-		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true}
+		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
+		Reporter: &ErrorReporter{Nice: true}}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -92,7 +94,10 @@ func TestHttp_Do(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
-
+		b, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(b), "Sorry for the inconvenience")
+		assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
 	}
 }
 
@@ -100,7 +105,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	port := rand.Intn(10000) + 40000
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
-		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", CacheControl: cc}
+		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", CacheControl: cc, Reporter: &ErrorReporter{Nice: false}}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -163,13 +168,24 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	}
 
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/svcbad")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), "Server error")
+		assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+	}
+
 }
 
 func TestHttp_DoWithAssetRules(t *testing.T) {
 	port := rand.Intn(10000) + 40000
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
-		AccessLog: io.Discard, CacheControl: cc}
+		AccessLog: io.Discard, CacheControl: cc, Reporter: &ErrorReporter{}}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -252,6 +268,33 @@ func TestHttp_toHttp(t *testing.T) {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			assert.Equal(t, tt.res, h.toHTTP(tt.addr, tt.port))
+		})
+	}
+
+}
+
+func TestHttp_isAssetRequest(t *testing.T) {
+	tbl := []struct {
+		req            string
+		assetsLocation string
+		assetsWebRoot  string
+		res            bool
+	}{
+		{"/static/123.html", "/tmp", "/static", true},
+		{"/static/123.html", "/tmp", "/static/", true},
+		{"/static", "/tmp", "/static", true},
+		{"/static/", "/tmp", "/static", true},
+		{"/bad/", "/tmp", "/static", false},
+		{"/static/", "", "/static", false},
+		{"/static/", "/tmp", "", false},
+	}
+
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			h := Http{AssetsLocation: tt.assetsLocation, AssetsWebRoot: tt.assetsWebRoot}
+			r, err := http.NewRequest("GET", tt.req, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.res, h.isAssetRequest(r))
 		})
 	}
 

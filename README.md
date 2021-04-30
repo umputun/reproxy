@@ -163,6 +163,10 @@ Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.l
 
 _see also [examples/metrics](https://github.com/umputun/reproxy/examples/metrics)_
 
+## Errors reporting
+
+Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any provider routes and assets. In case if some unexpected, internal error happened it returns 500. By default reproxy renders the simplest text version of the error - "Server error". Setting `--error.enabled` turns on the default html error message and with `--error.template` user may set any custom html template file for the error rendering. The template has two vars: `{{.ErrCode}}` and `{{.ErrMessage}}`. For example this template `oh my! {{.ErrCode}} - {{.ErrMessage}}` will be rendered to `oh my! 502 - Bad Gateway`
+
 ## All Application Options
 
 ```
@@ -226,6 +230,10 @@ timeout:
 mgmt:
       --mgmt.enabled                enable management API [$MGMT_ENABLED]
       --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081) [$MGMT_LISTEN]
+
+error:
+      --error.enabled               enable html errors reporting [$ERROR_ENABLED]
+      --error.template=             error message template file [$ERROR_TEMPLATE]
 
 Help Options:
   -h, --help                        Show this help message
