@@ -310,6 +310,7 @@ func makeErrorReporter() (proxy.Reporter, error) {
 	}
 	return result, nil
 }
+
 func makeAccessLogWriter() (accessLog io.WriteCloser) {
 	if !opts.Logger.Enabled {
 		return nopWriteCloser{ioutil.Discard}
