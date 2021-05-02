@@ -72,7 +72,9 @@ func TestHttp_healthHandler(t *testing.T) {
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
+	var count int
 	ps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count++
 		t.Logf("req: %v", r)
 		if r.URL.Path == "/123/ping" {
 			return
@@ -118,6 +120,7 @@ func TestHttp_healthHandler(t *testing.T) {
 	assert.Equal(t, 2., res["failed"])
 	assert.Equal(t, 2, len(res["errors"].([]interface{})))
 	assert.Contains(t, res["errors"].([]interface{})[0], "400 Bad Request")
+	assert.Equal(t, 3, count, "3 pings for non-assets routes")
 }
 
 func TestHttp_pingHandler(t *testing.T) {
