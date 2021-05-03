@@ -20,11 +20,16 @@ RUN \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
 
-FROM scratch
+FROM ghcr.io/umputun/baseimage/app:v1.6.1 as base
 
-COPY --from=backend /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=backend /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+FROM scratch
+ENV REPROXY_IN_DOCKER=1
+
 COPY --from=backend /build/reproxy /srv/reproxy
+COPY --from=base /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=base /etc/passwd /etc/passwd
+COPY --from=base /etc/group /etc/group
 
 WORKDIR /srv
 ENTRYPOINT ["/srv/reproxy"]
