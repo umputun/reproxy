@@ -24,7 +24,7 @@ import (
 )
 
 var opts struct {
-	Listen       string   `short:"l" long:"listen" env:"LISTEN" default:"127.0.0.1:8080" description:"listen on host:port"`
+	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port, default :8080"`
 	MaxSize      int64    `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
@@ -194,10 +194,13 @@ func run() error {
 		return fmt.Errorf("failed to make error reporter: %w", err)
 	}
 
+	addr := listenAddress(opts.Listen)
+	log.Printf("[DEBUG] listen address %s", addr)
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
-		Address:        listenAddress(opts.Listen),
+		Address:        addr,
 		MaxBodySize:    opts.MaxSize,
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
@@ -325,12 +328,17 @@ func makeAccessLogWriter() (accessLog io.WriteCloser) {
 	}
 }
 
+// listenAddress sets default to 127.0.0.0:8080 and, if detected REPROXY_IN_DOCKER env, to 0.0.0.0:8080
 func listenAddress(addr string) string {
-	v, ok := os.LookupEnv("REPROXY_IN_DOCKER")
-	if !ok || v == "" || v == "false" || v == "0" {
+	if addr != "" {
 		return addr
 	}
-	return strings.Replace(addr, "127.0.0.1:", "0.0.0.0:", 1)
+
+	v, ok := os.LookupEnv("REPROXY_IN_DOCKER")
+	if !ok || v == "" || v == "false" || v == "0" {
+		return "127.0.0.1:8080"
+	}
+	return "0.0.0.0:8080"
 }
 
 type nopWriteCloser struct{ io.Writer }
