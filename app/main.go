@@ -197,7 +197,7 @@ func run() error {
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
-		Address:        opts.Listen,
+		Address:        listenAddress(opts.Listen),
 		MaxBodySize:    opts.MaxSize,
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
@@ -323,6 +323,14 @@ func makeAccessLogWriter() (accessLog io.WriteCloser) {
 		Compress:   true,
 		LocalTime:  true,
 	}
+}
+
+func listenAddress(addr string) string {
+	v, ok := os.LookupEnv("REPROXY_IN_DOCKER")
+	if !ok || v == "" || v == "false" || v == "0" {
+		return addr
+	}
+	return strings.Replace(addr, "127.0.0.1:", "0.0.0.0:", 1)
 }
 
 type nopWriteCloser struct{ io.Writer }

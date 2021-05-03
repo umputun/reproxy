@@ -174,3 +174,31 @@ func waitForHTTPServerStart(port int) {
 		}
 	}
 }
+
+func Test_listenAddress(t *testing.T) {
+
+	tbl := []struct {
+		addr string
+		env  string
+		res  string
+	}{
+		{"127.0.0.1:8080", "1", "0.0.0.0:8080"},
+		{"127.0.0.1:8081", "true", "0.0.0.0:8081"},
+		{"192.168.1.1:8081", "true", "192.168.1.1:8081"},
+		{"127.0.0.1:8080", "0", "127.0.0.1:8080"},
+		{"127.0.0.1:8080", "", "127.0.0.1:8080"},
+	}
+
+	defer os.Unsetenv("REPROXY_IN_DOCKER")
+
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			assert.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
+			if tt.env != "" {
+				assert.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
+			}
+			assert.Equal(t, tt.res, listenAddress(tt.addr))
+		})
+	}
+
+}

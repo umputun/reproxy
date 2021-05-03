@@ -21,6 +21,7 @@ RUN \
 
 
 FROM scratch
+ENV REPROXY_IN_DOCKER=1
 
 COPY --from=backend /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=backend /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
