@@ -65,6 +65,8 @@ func (h *Http) redirectHandler() http.Handler {
 }
 
 func (h *Http) makeAutocertManager() *autocert.Manager {
+	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q",
+		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail)
 	return &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		Cache:      autocert.DirCache(h.SSLConfig.ACMELocation),
