@@ -1,0 +1,50 @@
+services:
+  reproxy:
+    image: umputun/reproxy:master
+    container_name: reproxy
+    hostname: reproxy
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./web:/web
+    environment:
+      - TZ=America/Chicago
+      - DOCKER_ENABLED=true
+      - SSL_TYPE=auto
+      - SSL_ACME_FQDN=example.com <-- replace it
+      - HEADER=
+          X-Frame-Options:SAMEORIGIN,
+          X-XSS-Protection:1; mode=block;,
+          Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
+
+  # automatic destination, will be mapped for ^/api/svc1/(.*)
+  svc1:
+    image: ghcr.io/umputun/echo-http
+    hostname: svc1
+    container_name: svc1
+    command: --message="hello world from svc1"
+    labels:
+      reproxy.route: '^/svc1/(.*)'
+      reproxy.dest: '/@1'
+
+
+  # explicit destination, will be mapped for ^/api/svc2/(.*)
+  svc2:
+    image: ghcr.io/umputun/echo-http
+    hostname: svc2
+    container_name: svc2
+    command: --message="hello world from svc2"
+    labels:
+      reproxy.route: '^/svc2/(.*)'
+      reproxy.dest: '/@1'
+
+  # explicit destination, routing match defined by lables
+  whoami:
+    image: 'containous/whoami'
+    hostname: whoami
+    container_name: whoami
+    labels:
+      reproxy.route: '^/whoami/(.*)'
+      reproxy.dest: '/@1'
