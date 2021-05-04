@@ -178,16 +178,19 @@ func waitForHTTPServerStart(port int) {
 func Test_listenAddress(t *testing.T) {
 
 	tbl := []struct {
-		addr string
-		env  string
-		res  string
+		addr    string
+		sslType string
+		env     string
+		res     string
 	}{
-		{"", "1", "0.0.0.0:8080"},
-		{"", "0", "127.0.0.1:8080"},
-		{"127.0.0.1:8081", "true", "127.0.0.1:8081"},
-		{"192.168.1.1:8081", "false", "192.168.1.1:8081"},
-		{"127.0.0.1:8080", "0", "127.0.0.1:8080"},
-		{"127.0.0.1:8080", "", "127.0.0.1:8080"},
+		{"", "none", "1", "0.0.0.0:8080"},
+		{"", "none", "0", "127.0.0.1:80"},
+		{"", "auto", "false", "127.0.0.1:8443"},
+		{"", "auto", "true", "0.0.0.0:443"},
+		{"127.0.0.1:8081", "none", "true", "127.0.0.1:8081"},
+		{"192.168.1.1:8081", "none", "false", "192.168.1.1:8081"},
+		{"127.0.0.1:8080", "none", "0", "127.0.0.1:8080"},
+		{"127.0.0.1:8443", "auto", "true", "127.0.0.1:8443"},
 	}
 
 	defer os.Unsetenv("REPROXY_IN_DOCKER")
@@ -198,8 +201,35 @@ func Test_listenAddress(t *testing.T) {
 			if tt.env != "" {
 				assert.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
 			}
-			assert.Equal(t, tt.res, listenAddress(tt.addr))
+			assert.Equal(t, tt.res, listenAddress(tt.addr, tt.sslType))
 		})
 	}
 
+}
+
+func Test_redirHTTPPort(t *testing.T) {
+	tbl := []struct {
+		port int
+		env  string
+		res  int
+	}{
+		{0, "1", 8080},
+		{0, "0", 80},
+		{0, "true", 8080},
+		{0, "false", 80},
+		{1234, "true", 1234},
+		{1234, "false", 1234},
+	}
+
+	defer os.Unsetenv("REPROXY_IN_DOCKER")
+
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			assert.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
+			if tt.env != "" {
+				assert.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
+			}
+			assert.Equal(t, tt.res, redirHTTPPort(tt.port))
+		})
+	}
 }

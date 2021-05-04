@@ -24,7 +24,7 @@ import (
 )
 
 var opts struct {
-	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port, default :8080"`
+	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
 	MaxSize      int64    `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
@@ -35,7 +35,7 @@ var opts struct {
 		Key           string   `long:"key" env:"KEY" description:"path to key.pem file"`
 		ACMELocation  string   `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
 		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
-		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" default:"80" description:"http port for redirect to https and acme challenge test"`
+		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
@@ -111,7 +111,7 @@ func main() {
 		if err.(*flags.Error).Type != flags.ErrHelp {
 			log.Printf("[ERROR] cli error: %v", err)
 		}
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	setupLog(opts.Dbg)
@@ -194,7 +194,7 @@ func run() error {
 		return fmt.Errorf("failed to make error reporter: %w", err)
 	}
 
-	addr := listenAddress(opts.Listen)
+	addr := listenAddress(opts.Listen, opts.SSL.Type)
 	log.Printf("[DEBUG] listen address %s", addr)
 
 	px := &proxy.Http{
@@ -289,13 +289,13 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.SSLMode = proxy.SSLStatic
 		config.Cert = opts.SSL.Cert
 		config.Key = opts.SSL.Key
-		config.RedirHTTPPort = opts.SSL.RedirHTTPPort
+		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	case "auto":
 		config.SSLMode = proxy.SSLAuto
 		config.ACMELocation = opts.SSL.ACMELocation
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = opts.SSL.FQDNs
-		config.RedirHTTPPort = opts.SSL.RedirHTTPPort
+		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	}
 	return config, err
 }
@@ -328,17 +328,38 @@ func makeAccessLogWriter() (accessLog io.WriteCloser) {
 	}
 }
 
-// listenAddress sets default to 127.0.0.0:8080 and, if detected REPROXY_IN_DOCKER env, to 0.0.0.0:8080
-func listenAddress(addr string) string {
+// listenAddress sets default to 127.0.0.0:8080/80443 and, if detected REPROXY_IN_DOCKER env, to 0.0.0.0:80/443
+func listenAddress(addr string, sslType string) string {
+
+	// don't set default if any opts.Listen address defined by user
 	if addr != "" {
 		return addr
 	}
 
-	v, ok := os.LookupEnv("REPROXY_IN_DOCKER")
-	if !ok || v == "" || v == "false" || v == "0" {
-		return "127.0.0.1:8080"
+	// http, set default to 8080 in docker, 80 without
+	if sslType == "none" {
+		if v, ok := os.LookupEnv("REPROXY_IN_DOCKER"); ok && (v == "1" || v == "true") {
+			return "0.0.0.0:8080"
+		}
+		return "127.0.0.1:80"
 	}
-	return "0.0.0.0:8080"
+
+	// https, set default to 8443 in docker, 443 without
+	if v, ok := os.LookupEnv("REPROXY_IN_DOCKER"); ok && (v == "1" || v == "true") {
+		return "0.0.0.0:443"
+	}
+	return "127.0.0.1:8443"
+}
+
+func redirHTTPPort(port int) int {
+	// don't set default if any ssl.http-port defined by user
+	if port != 0 {
+		return port
+	}
+	if v, ok := os.LookupEnv("REPROXY_IN_DOCKER"); ok && (v == "1" || v == "true") {
+		return 8080
+	}
+	return 80
 }
 
 type nopWriteCloser struct{ io.Writer }
