@@ -329,7 +329,7 @@ func makeAccessLogWriter() (accessLog io.WriteCloser) {
 }
 
 // listenAddress sets default to 127.0.0.0:8080/80443 and, if detected REPROXY_IN_DOCKER env, to 0.0.0.0:80/443
-func listenAddress(addr string, sslType string) string {
+func listenAddress(addr, sslType string) string {
 
 	// don't set default if any opts.Listen address defined by user
 	if addr != "" {
