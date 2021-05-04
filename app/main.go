@@ -346,9 +346,9 @@ func listenAddress(addr, sslType string) string {
 
 	// https, set default to 8443 in docker, 443 without
 	if v, ok := os.LookupEnv("REPROXY_IN_DOCKER"); ok && (v == "1" || v == "true") {
-		return "0.0.0.0:443"
+		return "0.0.0.0:8443"
 	}
-	return "127.0.0.1:8443"
+	return "127.0.0.1:443"
 }
 
 func redirHTTPPort(port int) int {
