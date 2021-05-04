@@ -177,6 +177,20 @@ _see also [examples/metrics](https://github.com/umputun/reproxy/examples/metrics
 
 Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any provided routes and assets. In case if some unexpected, internal error happened it returns 500. By default reproxy renders the simplest text version of the error - "Server error". Setting `--error.enabled` turns on the default html error message and with `--error.template` user may set any custom html template file for the error rendering. The template has two vars: `{{.ErrCode}}` and `{{.ErrMessage}}`. For example this template `oh my! {{.ErrCode}} - {{.ErrMessage}}` will be rendered to `oh my! 502 - Bad Gateway`
 
+
+## Options
+
+Each option can be provided in two forms: command line or environment key:value. Some command line options have a short form, like `-l localhost:8080` and all of them have the long form, i.e `--listen=localhost:8080`. The environment key (name) listed for each option as a suffix, i.e. `[$LISTEN]`.
+
+Some options are repeatable, in this case you may pass it multiple times with command line, or comma-separated in env. For example `--ssl.fqdn` is such an option and can be passed as `--ssl.fqdn=a1.example.com --ssl.fqdn=a2.example.com` or as env `SSL_ACME_FQDN=a1.example.com,a2.example.com`
+
+This is the list of all options supporting multiple elements: 
+
+- `ssl.fqdn` (`SSL_ACME_FQDN`)
+- `assets.cache` (`ASSETS_CACHE`)
+- `docker.exclude` (`DOCKER_EXCLUDE`)
+- `static.rule` (`$STATIC_RULES`)
+
 ## All Application Options
 
 ```
