@@ -147,6 +147,16 @@ There are two ways to set cache duration:
 
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
 
+## Default ports
+
+In order to eliminate the need to pass custom params/environment, the default `--listen` is dynamic and trying to be reasonable and helpful for the typical cases:
+
+- If anything set by users to `--listen` all the logic below ignored and host:port passed in and used directly.
+- If nothing set by users to `--listen` and reproxy runs outside of the docker container, the default is `127.0.0.1:80` for http mode (`ssl.type=none`) and `127.0.0.1:443` for ssl mode (`ssl.type=auto` or `ssl.type=static`).
+-  If nothing set by users to `--listen` and reproxy runs inside the docker, the default is `0.0.0.0:8080` for http mode, and `0.0.0.0:8443` for ssl mode.
+
+Another default set in the similar dynamic way is `-ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
+
 ## Ping and health checks
 
 reproxy provides 2 endpoints for this purpose:
@@ -170,7 +180,8 @@ Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any 
 ## All Application Options
 
 ```
-  -l, --listen=                     listen on host:port (default: 127.0.0.1:8080) [$LISTEN]
+Application Options:
+  -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64000) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
@@ -183,7 +194,7 @@ ssl:
       --ssl.key=                    path to key.pem file [$SSL_KEY]
       --ssl.acme-location=          dir where certificates will be stored by autocert manager (default: ./var/acme) [$SSL_ACME_LOCATION]
       --ssl.acme-email=             admin email for certificate notifications [$SSL_ACME_EMAIL]
-      --ssl.http-port=              http port for redirect to https and acme challenge test (default: 80) [$SSL_HTTP_PORT]
+      --ssl.http-port=              http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without) [$SSL_HTTP_PORT]
       --ssl.fqdn=                   FQDN(s) for ACME certificates [$SSL_ACME_FQDN]
 
 assets:
@@ -237,7 +248,6 @@ error:
 
 Help Options:
   -h, --help                        Show this help message
-
 ```
 
 ## Status
