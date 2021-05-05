@@ -110,8 +110,15 @@ func (h *Http) Run(ctx context.Context) error {
 		h.gzipHandler(),
 	)
 
-	if len(h.SSLConfig.FQDNs) == 0 {
-		h.SSLConfig.FQDNs = h.Servers() // fill all discovered if nothing defined
+	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
+		// discovery async and may happen not right away. Try to get servers for some time
+		for i := 0; i < 100; i++ {
+			h.SSLConfig.FQDNs = h.Servers() // fill all discovered if nothing defined
+			if len(h.SSLConfig.FQDNs) > 0 {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 
 	switch h.SSLConfig.SSLMode {
