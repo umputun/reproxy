@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/go-pkgz/rest"
-
 	"github.com/umputun/reproxy/app/discovery"
 )
 
@@ -25,63 +22,9 @@ func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 }
 
 func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
-
-	const concurrent = 8
-	sema := make(chan struct{}, concurrent) // limit health check to 8 concurrent calls
-
-	// runs pings in parallel
-	check := func(mappers []discovery.URLMapper) (ok bool, valid int, total int, errs []string) {
-		outCh := make(chan error, concurrent)
-		services, pinged := 0, 0
-		var wg sync.WaitGroup
-		for _, m := range mappers {
-			if m.MatchType != discovery.MTProxy {
-				continue
-			}
-			services++
-			if m.PingURL == "" {
-				continue
-			}
-			pinged++
-			wg.Add(1)
-
-			go func(m discovery.URLMapper) {
-				sema <- struct{}{}
-				defer func() {
-					<-sema
-					wg.Done()
-				}()
-
-				client := http.Client{Timeout: 500 * time.Millisecond}
-				resp, err := client.Get(m.PingURL)
-				if err != nil {
-					errMsg := strings.Replace(err.Error(), "\"", "", -1)
-					log.Printf("[WARN] failed to ping for health %s, %s", m.PingURL, errMsg)
-					outCh <- fmt.Errorf("%s %s: %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
-					return
-				}
-				if resp.StatusCode != http.StatusOK {
-					log.Printf("[WARN] failed ping status for health %s (%s)", m.PingURL, resp.Status)
-					outCh <- fmt.Errorf("%s %s: %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)
-					return
-				}
-			}(m)
-		}
-
-		go func() {
-			wg.Wait()
-			close(outCh)
-		}()
-
-		for e := range outCh {
-			errs = append(errs, e.Error())
-		}
-		return len(errs) == 0, pinged - len(errs), services, errs
-	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	ok, valid, total, errs := check(h.Mappers())
-	if !ok {
+	res := discovery.CheckHealth(h.Mappers())
+	if !res.Ok {
 		w.WriteHeader(http.StatusExpectationFailed)
 
 		errResp := struct {
@@ -90,13 +33,13 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 			Passed   int      `json:"passed,omitempty"`
 			Failed   int      `json:"failed,omitempty"`
 			Errors   []string `json:"errors,omitempty"`
-		}{Status: "failed", Services: total, Passed: valid, Failed: len(errs), Errors: errs}
+		}{Status: "failed", Services: res.Total, Passed: res.Valid, Failed: len(res.Errs), Errors: res.Errs}
 
 		rest.RenderJSON(w, errResp)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprintf(w, `{"status": "ok", "services": %d}`, valid)
+	_, err := fmt.Fprintf(w, `{"status": "ok", "services": %d}`, res.Valid)
 	if err != nil {
 		log.Printf("[WARN] failed to send health, %v", err)
 	}

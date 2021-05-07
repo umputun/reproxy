@@ -98,6 +98,11 @@ var opts struct {
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
+
+	HealthCheck struct {
+		Enabled  bool          `long:"health-check" env:"HEALTH_CHECK" description:"enable automatic health-check"`
+		Interval time.Duration `long:"health-check-interval" env:"HEALTH_CHECK_INTERVAL" default:"300s" description:"automatic health-check interval"`
+	}
 }
 
 var revision = "unknown"
@@ -153,6 +158,9 @@ func run() error {
 				log.Printf("[WARN] discovery failed, %v", e)
 			}
 		}()
+	}
+	if opts.HealthCheck.Enabled {
+		svc.ScheduleHealthCheck(context.Background(), opts.HealthCheck.Interval)
 	}
 
 	sslConfig, sslErr := makeSSLConfig()

@@ -36,6 +36,8 @@ type URLMapper struct {
 
 	AssetsLocation string
 	AssetsWebRoot  string
+
+	dead bool
 }
 
 // Provider defines sources of mappers
@@ -144,6 +146,36 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 	}
 
 	return src, MTProxy, false
+}
+
+// ScheduleHealthCheck starts background loop with health-check
+func (s *Service) ScheduleHealthCheck(ctx context.Context, interval time.Duration) {
+	log.Printf("health-check scheduled every %s seconds", interval)
+
+	go func() {
+	hloop:
+		for {
+			timer := time.NewTimer(interval)
+			select {
+			case <-timer.C:
+				s.lock.RLock()
+				cres := CheckHealth(s.Mappers())
+				s.lock.RUnlock()
+
+				sort.SliceStable(cres.mappers, func(i, j int) bool {
+					return cres.mappers[j].dead
+				})
+				s.lock.Lock()
+				s.mappers = make(map[string][]URLMapper)
+				for _, m := range cres.mappers {
+					s.mappers[m.Server] = append(s.mappers[m.Server], m)
+				}
+				s.lock.Unlock()
+			case <-ctx.Done():
+				break hloop
+			}
+		}
+	}()
 }
 
 // Servers return list of all servers, skips "*" (catch-all/default)
