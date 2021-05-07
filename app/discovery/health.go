@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// CheckResult is result of health-check
 type CheckResult struct {
 	Ok      bool
 	Valid   int
@@ -17,6 +18,7 @@ type CheckResult struct {
 	mappers []URLMapper
 }
 
+// CheckHealth starts health-check for service's mappers
 func CheckHealth(mappers []URLMapper) CheckResult {
 	const concurrent = 8
 	sema := make(chan struct{}, concurrent) // limit health check to 8 concurrent calls

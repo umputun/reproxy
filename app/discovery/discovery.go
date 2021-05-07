@@ -151,7 +151,7 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 
 // ScheduleHealthCheck starts background loop with health-check
 func (s *Service) ScheduleHealthCheck(ctx context.Context, interval time.Duration) {
-	log.Printf("health-check scheduled every %s seconds", interval)
+	log.Printf("health-check scheduled every %s", interval)
 
 	go func() {
 	hloop:
@@ -163,6 +163,7 @@ func (s *Service) ScheduleHealthCheck(ctx context.Context, interval time.Duratio
 				cres := CheckHealth(s.Mappers())
 				s.lock.RUnlock()
 
+				// alive services would be picked up first
 				sort.SliceStable(cres.mappers, func(i, j int) bool {
 					return cres.mappers[j].dead
 				})

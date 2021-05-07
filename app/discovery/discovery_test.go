@@ -3,6 +3,10 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strconv"
 	"testing"
@@ -222,4 +226,54 @@ func TestService_extendRule(t *testing.T) {
 		})
 	}
 
+}
+
+func TestService_ScheduleHealthCheck(t *testing.T) {
+	randomPort := rand.Intn(10000) + 40000
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer ts.Close()
+
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer ts2.Close()
+
+	wantMappers := []URLMapper{
+		{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker, PingURL: ts.URL},
+		{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker, PingURL: fmt.Sprintf("127.0.0.1:%d", randomPort)},
+		{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker, PingURL: ts2.URL},
+	}
+
+	p := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return wantMappers, nil
+		},
+	}
+
+	svc := NewService([]Provider{p}, time.Millisecond*10)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := svc.Run(ctx)
+	require.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	mappers := svc.Mappers()
+	assert.Equal(t, 3, len(mappers))
+	assert.Equal(t, wantMappers, mappers)
+
+	svc.ScheduleHealthCheck(context.Background(), time.Microsecond*2)
+	time.Sleep(time.Millisecond * 10)
+
+	mappers = svc.Mappers()
+	assert.Equal(t, false, mappers[0].dead)
+	assert.Equal(t, false, mappers[1].dead)
+	assert.Equal(t, true, mappers[2].dead)
 }
