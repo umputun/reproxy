@@ -49,9 +49,10 @@ type ProviderID string
 
 // enum of all provider ids
 const (
-	PIDocker ProviderID = "docker"
-	PIStatic ProviderID = "static"
-	PIFile   ProviderID = "file"
+	PIDocker        ProviderID = "docker"
+	PIStatic        ProviderID = "static"
+	PIFile          ProviderID = "file"
+	PIConsulCatalog ProviderID = "consul-catalog"
 )
 
 // MatchType defines the type of mapper (rule)

@@ -19,6 +19,7 @@ import (
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
+	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
 	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/proxy"
 )
@@ -61,6 +62,12 @@ var opts struct {
 		AutoAPI   bool     `long:"auto" env:"AUTO" description:"enable automatic routing (without labels)"`
 		APIPrefix string   `long:"prefix" env:"PREFIX" description:"prefix for docker source routes"`
 	} `group:"docker" namespace:"docker" env-namespace:"DOCKER"`
+
+	ConsulCatalog struct {
+		Enabled       bool          `long:"enabled" env:"ENABLED" description:"enable consul catalog provider"`
+		Address       string        `long:"address" env:"ADDRESS" default:"http://127.0.0.1:8500" description:"consul address"`
+		CheckInterval time.Duration `long:"interval" env:"INTERVAL" default:"1s" description:"consul catalog check interval"`
+	} `group:"consul-catalog" namespace:"consul-catalog" env-namespace:"CONSUL_CATALOG"`
 
 	File struct {
 		Enabled       bool          `long:"enabled" env:"ENABLED" description:"enable file provider"`
@@ -267,6 +274,11 @@ func makeProviders() ([]discovery.Provider, error) {
 
 		res = append(res, &provider.Docker{DockerClient: client, Excludes: opts.Docker.Excluded,
 			AutoAPI: opts.Docker.AutoAPI, APIPrefix: opts.Docker.APIPrefix, RefreshInterval: refreshInterval})
+	}
+
+	if opts.ConsulCatalog.Enabled {
+		client := consulcatalog.NewClient(opts.ConsulCatalog.Address, http.DefaultClient)
+		res = append(res, consulcatalog.New(client, opts.ConsulCatalog.CheckInterval))
 	}
 
 	if len(res) == 0 && opts.Assets.Location == "" {
