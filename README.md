@@ -2,7 +2,7 @@
   <img class="logo" src="https://raw.githubusercontent.com/umputun/reproxy/master/site/src/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
 </div>
 
-Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file). One or more providers supply information about the requested server, requested URL, destination URL, and health check URL. It is distributed as a single binary or as a docker container.
+Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file, consul catalog). One or more providers supply information about the requested server, requested URL, destination URL, and health check URL. It is distributed as a single binary or as a docker container.
 
 - Automatic SSL termination with <a href="https://letsencrypt.org/" rel="nofollow noopener noreferrer" target="_blank">Let's Encrypt</a>
 - Support of user-provided SSL certificates
@@ -10,6 +10,7 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Static, command-line proxy rules provider
 - Dynamic, file-based proxy rules provider
 - Docker provider with an automatic discovery
+- Consul Catalog provider with discovery by service tags
 - Support of multiple (virtual) hosts
 - Optional traffic compression
 - User-defined limits and timeouts
@@ -98,6 +99,37 @@ With `--docker.auto`, all containers with exposed port will be considered as rou
 If no `reproxy.route` defined, the default is `http://<container_name>:<container_port>/(.*)`. In case if all proxied source have the same pattern, for example `/api/(.*)` user can define the common prefix (in this case `/api`) for all container-based routes. This can be done with `--docker.prefix` parameter.
 
 This is a dynamic provider and any change in container's status will be applied automatically.
+
+### Consul Catalog
+
+Use: `reproxy --consul-catalog.enabled`
+
+Consul Catalog provider periodically (every second by default) calls Consul API for obtaining services, which has any tag with `reproxy.` prefix.
+
+You can redefine check interval with `--consul-catalog.interval` command line flag.
+
+Also, you can redefine consul address with `--consul-catalog.address` command line option. Default address is `http://127.0.0.1:8500`.
+
+For example:
+```
+reproxy --consul-catalog.enabled --consul-catalog.address=http://192.168.1.100:8500 --consul-catalog.interval=10s  
+```
+
+By default, provider sets values for every service:
+- enabled `false`
+- server `*`
+- route `^/(.*)`
+- dest `http://<SERVICE_ADDRESS_FROM_CONSUL>/$1`
+- ping `http://<SERVICE_ADDRESS_FROM_CONSUL>/ping`
+
+This default can be changed with tags:
+
+- `reproxy.server` - server (hostname) to match. Also, can be a list of comma-separated servers.
+- `reproxy.route` - source route (location)
+- `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to service's ip:port
+- `reproxy.port` - destination port for the discovered service
+- `reproxy.ping` - ping path for the destination service.
+- `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`any different value`) service from reproxy destinations.
 
 ## SSL support
 
