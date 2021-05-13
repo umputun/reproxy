@@ -104,11 +104,7 @@ This is a dynamic provider and any change in container's status will be applied 
 
 Use: `reproxy --consul-catalog.enabled`
 
-Consul Catalog provider periodically (every second by default) calls Consul API for obtaining services, which has any tag with `reproxy.` prefix.
-
-You can redefine check interval with `--consul-catalog.interval` command line flag.
-
-Also, you can redefine consul address with `--consul-catalog.address` command line option. Default address is `http://127.0.0.1:8500`.
+Consul Catalog provider periodically (every second by default) calls Consul API for obtaining services, which has any tag with `reproxy.` prefix. User can redefine check interval with `--consul-catalog.interval` command line flag as well as consul address with `--consul-catalog.address` command line option. The default address is `http://127.0.0.1:8500`. 
 
 For example:
 ```
@@ -262,6 +258,11 @@ docker:
       --docker.exclude=             excluded containers [$DOCKER_EXCLUDE]
       --docker.auto                 enable automatic routing (without labels) [$DOCKER_AUTO]
       --docker.prefix=              prefix for docker source routes [$DOCKER_PREFIX]
+
+consul-catalog:
+      --consul-catalog.enabled      enable consul catalog provider [$CONSUL_CATALOG_ENABLED]
+      --consul-catalog.address=     consul address (default: http://127.0.0.1:8500) [$CONSUL_CATALOG_ADDRESS]
+      --consul-catalog.interval=    consul catalog check interval (default: 1s) [$CONSUL_CATALOG_INTERVAL]
 
 file:
       --file.enabled                enable file provider [$FILE_ENABLED]
