@@ -40,7 +40,7 @@ func NewClient(address string, httpClient HTTPClient) ConsulClient {
 // Get implements ConsulClient interface and returns consul services list,
 // which have any tag with 'reproxy.' prefix
 func (cl *consulClient) Get() ([]consulService, error) {
-	var result []consulService
+	var result []consulService //nolint:prealloc // We cannot calc slice size
 
 	serviceNames, err := cl.getServiceNames()
 	if err != nil {
