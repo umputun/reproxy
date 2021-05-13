@@ -106,7 +106,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.headersHandler(h.ProxyHeaders),
 		h.accessLogHandler(h.AccessLog),
 		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
-		R.SizeLimit(h.MaxBodySize),
+		h.maxReqSizeHandler(h.MaxBodySize),
 		h.gzipHandler(),
 	)
 
@@ -333,6 +333,17 @@ func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Han
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (h *Http) maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Handler {
+	if maxSize <= 0 {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}
+	}
+	return R.SizeLimit(maxSize)
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
