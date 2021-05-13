@@ -6,6 +6,8 @@ package discovery
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -136,7 +138,10 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 			case MTProxy:
 				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 				if src != dest {
-					return dest, m.MatchType, true
+					if m.IsAlive() {
+						return dest, m.MatchType, true
+					}
+					return dest, m.MatchType, false
 				}
 			case MTStatic:
 				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
@@ -154,27 +159,27 @@ func (s *Service) ScheduleHealthCheck(ctx context.Context, interval time.Duratio
 	log.Printf("health-check scheduled every %s", interval)
 
 	go func() {
-	hloop:
+		ticker := time.NewTicker(interval)
 		for {
-			timer := time.NewTimer(interval)
 			select {
-			case <-timer.C:
-				s.lock.RLock()
-				cres := CheckHealth(s.Mappers())
-				s.lock.RUnlock()
+			case <-ticker.C:
+				pinged := s.CheckHealth()
 
-				// alive services would be picked up first
-				sort.SliceStable(cres.mappers, func(i, j int) bool {
-					return cres.mappers[j].dead
-				})
 				s.lock.Lock()
-				s.mappers = make(map[string][]URLMapper)
-				for _, m := range cres.mappers {
-					s.mappers[m.Server] = append(s.mappers[m.Server], m)
+				for _, mappers := range s.mappers {
+					for i := range mappers {
+						if err, ok := pinged[mappers[i].PingURL]; ok {
+							mappers[i].dead = false
+							if err != nil {
+								mappers[i].dead = true
+							}
+						}
+					}
 				}
 				s.lock.Unlock()
 			case <-ctx.Done():
-				break hloop
+				ticker.Stop()
+				return
 			}
 		}
 	}()
@@ -207,6 +212,64 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 		return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
 	})
 	return mappers
+}
+
+// CheckHealth starts health-check for service's mappers
+func (s *Service) CheckHealth() (pingResult map[string]error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	const concurrent = 8
+	sema := make(chan struct{}, concurrent) // limit health check to 8 concurrent calls
+
+	// runs pings in parallel
+	type pingError struct {
+		pingURL string
+		err     error
+	}
+	outCh := make(chan pingError, concurrent)
+
+	services, pinged := 0, 0
+	var wg sync.WaitGroup
+	for _, mappers := range s.mappers {
+		for _, m := range mappers {
+			if m.MatchType != MTProxy {
+				continue
+			}
+			services++
+			if m.PingURL == "" {
+				continue
+			}
+			pinged++
+			wg.Add(1)
+
+			go func(m URLMapper) {
+				sema <- struct{}{}
+				defer func() {
+					<-sema
+					wg.Done()
+				}()
+
+				errMsg, err := m.ping()
+				if err != nil {
+					log.Print(errMsg)
+				}
+				outCh <- pingError{m.PingURL, err}
+			}(m)
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(outCh)
+	}()
+
+	pingResult = make(map[string]error)
+	for res := range outCh {
+		pingResult[res.pingURL] = res.err
+	}
+
+	return pingResult
 }
 
 func (s *Service) mergeLists() (res []URLMapper) {
@@ -312,4 +375,25 @@ func Contains(e string, s []string) bool {
 		}
 	}
 	return false
+}
+
+func (m URLMapper) IsAlive() bool {
+	return !m.dead
+}
+
+func (m URLMapper) ping() (string, error) {
+	client := http.Client{Timeout: 500 * time.Millisecond}
+
+	resp, err := client.Get(m.PingURL)
+	if err != nil {
+		errMsg := strings.Replace(err.Error(), "\"", "", -1)
+		errMsg = fmt.Sprintf("[WARN] failed to ping for health %s, %s", m.PingURL, errMsg)
+		return errMsg, fmt.Errorf("%s %s: %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
+	}
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("[WARN] failed ping status for health %s (%s)", m.PingURL, resp.Status)
+		return errMsg, fmt.Errorf("%s %s: %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)
+	}
+
+	return "", err
 }
