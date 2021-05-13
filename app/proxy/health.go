@@ -23,8 +23,25 @@ func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 
 func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	res := discovery.CheckHealth(h.Mappers())
-	if !res.Ok {
+
+	mappers := h.Mappers()
+	total := 0
+	for _, m := range mappers {
+		if m.MatchType == discovery.MTProxy {
+			total++
+		}
+	}
+
+	pingRes := h.CheckHealth()
+
+	var errs []string
+	for _, pingErr := range pingRes {
+		if pingErr != nil {
+			errs = append(errs, pingErr.Error())
+		}
+	}
+
+	if len(errs) > 0 {
 		w.WriteHeader(http.StatusExpectationFailed)
 
 		errResp := struct {
@@ -33,13 +50,13 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 			Passed   int      `json:"passed,omitempty"`
 			Failed   int      `json:"failed,omitempty"`
 			Errors   []string `json:"errors,omitempty"`
-		}{Status: "failed", Services: res.Total, Passed: res.Valid, Failed: len(res.Errs), Errors: res.Errs}
+		}{Status: "failed", Services: total, Passed: len(pingRes) - len(errs), Failed: len(errs), Errors: errs}
 
 		rest.RenderJSON(w, errResp)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprintf(w, `{"status": "ok", "services": %d}`, res.Valid)
+	_, err := fmt.Fprintf(w, `{"status": "ok", "services": %d}`, total)
 	if err != nil {
 		log.Printf("[WARN] failed to send health, %v", err)
 	}

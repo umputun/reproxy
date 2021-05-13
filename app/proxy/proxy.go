@@ -47,6 +47,7 @@ type Matcher interface {
 	Match(srv, src string) (string, discovery.MatchType, bool)
 	Servers() (servers []string)
 	Mappers() (mappers []discovery.URLMapper)
+	CheckHealth() (pingResult map[string]error)
 }
 
 // MiddlewareProvider interface defines http middleware handler

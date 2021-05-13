@@ -86,6 +86,10 @@ func TestService_Match(t *testing.T) {
 				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1", ProviderID: PIFile},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc", ProviderID: PIFile},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc4/(.*)"),
+					Dst: "http://127.0.0.4:8080/blah2/$1/abc", MatchType: MTProxy, dead: true},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
+					Dst: "http://127.0.0.5:8080/blah2/$1/abc", MatchType: MTProxy, dead: false},
 			}, nil
 		},
 	}
@@ -111,7 +115,7 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 6, len(svc.Mappers()))
+	assert.Equal(t, 8, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
@@ -126,6 +130,8 @@ func TestService_Match(t *testing.T) {
 		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", MTProxy, false},
 		{"m.example.com", "/api/svc2/1234", "http://127.0.0.2:8080/blah2/1234/abc", MTProxy, true},
 		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", MTProxy, false},
+		{"m.example.com", "/api/svc4/id12345", "http://127.0.0.4:8080/blah2/id12345/abc", MTProxy, false},
+		{"m.example.com", "/api/svc5/num123456", "http://127.0.0.5:8080/blah2/num123456/abc", MTProxy, true},
 		{"m1.example.com", "/web/index.html", "/web:/var/web/", MTStatic, true},
 		{"m1.example.com", "/web/", "/web:/var/web/", MTStatic, true},
 		{"m1.example.com", "/www/something", "/www:/var/web/", MTStatic, true},
@@ -274,6 +280,131 @@ func TestService_ScheduleHealthCheck(t *testing.T) {
 
 	mappers = svc.Mappers()
 	assert.Equal(t, false, mappers[0].dead)
-	assert.Equal(t, false, mappers[1].dead)
-	assert.Equal(t, true, mappers[2].dead)
+	assert.Equal(t, true, mappers[1].dead)
+	assert.Equal(t, false, mappers[2].dead)
+}
+
+func Test_ping(t *testing.T) {
+	port := rand.Intn(10000) + 40000
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer ts.Close()
+
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer ts2.Close()
+
+	type args struct {
+		m URLMapper
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{name: "test server, expected OK", args: args{m: URLMapper{PingURL: ts.URL}}, want: "", wantErr: false},
+		{name: "random port, expected error", args: args{m: URLMapper{PingURL: fmt.Sprintf("127.0.0.1:%d", port)}}, want: "", wantErr: true},
+		{name: "error code != 200", args: args{m: URLMapper{PingURL: ts2.URL}}, want: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.args.m.ping()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ping() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+}
+
+func TestCheckHealth(t *testing.T) {
+	port := rand.Intn(10000) + 40000
+	failPingULR := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer ts.Close()
+
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	}))
+	defer ts2.Close()
+
+	p1 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah1/$1",
+					ProviderID: PIFile, PingURL: ts.URL},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/svc2/(.*)"),
+					Dst: "http://127.0.0.2:8080/blah2/@1/abc", ProviderID: PIFile, PingURL: ts2.URL},
+			}, nil
+		},
+	}
+	p2 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return make(chan ProviderID, 1)
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"),
+					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker, PingURL: failPingULR},
+			}, nil
+		},
+	}
+
+	p3 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return make(chan ProviderID, 1)
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return nil, errors.New("failed")
+		},
+	}
+
+	svc := NewService([]Provider{p1, p2, p3}, time.Millisecond*10)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	_ = svc.Run(ctx)
+	mappers := svc.Mappers()
+	fmt.Println(mappers)
+
+	tests := []struct {
+		name string
+		want map[string]error
+	}{
+		{name: "case 1",
+			want: map[string]error{
+				ts.URL:      nil,
+				ts2.URL:     nil,
+				failPingULR: fmt.Errorf("some error"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := svc.CheckHealth()
+			for pingURL, err := range got {
+				wantErr, ok := tt.want[pingURL]
+				if !ok {
+					t.Errorf("CheckHealth() = ping URL %s not found in test case", pingURL)
+					continue
+				}
+
+				if (err != nil && wantErr == nil) ||
+					(err == nil && wantErr != nil) {
+					t.Errorf("CheckHealth() error = %v, wantErr %v", err, wantErr)
+				}
+			}
+		})
+	}
 }
