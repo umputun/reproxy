@@ -104,7 +104,7 @@ This is a dynamic provider and any change in container's status will be applied 
 
 Use: `reproxy --consul-catalog.enabled`
 
-Consul Catalog provider periodically (every second by default) calls Consul API for obtaining services, which has any tag with `reproxy.` prefix. User can redefine check interval with `--consul-catalog.interval` command line flag as well as consul address with `--consul-catalog.address` command line option. The default address is `http://127.0.0.1:8500`. 
+Consul Catalog provider calls Consul API periodically (every second by default) to obtaini services, which has any tag with `reproxy.` prefix. User can redefine check interval with `--consul-catalog.interval` command line flag as well as consul address with `--consul-catalog.address` command line option. The default address is `http://127.0.0.1:8500`. 
 
 For example:
 ```
