@@ -3,8 +3,6 @@ package consulcatalog
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -68,24 +66,15 @@ func (cl *consulClient) getServiceNames() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error send request to consul, %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected response status code %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error read response body, %w", err)
-	}
-	err = resp.Body.Close()
-	if err != nil {
-		log.Printf("[ERROR] error close body, %v", err)
-	}
-
 	result := map[string][]string{}
 
-	err = json.Unmarshal(body, &result)
-	if err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("error unmarshal consul response, %w", err)
 	}
 
@@ -118,24 +107,14 @@ func (cl *consulClient) getServices(serviceName string) ([]consulService, error)
 	if err != nil {
 		return nil, fmt.Errorf("error send request to consul, %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected response status code %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error read response body, %w", err)
-	}
-	err = resp.Body.Close()
-	if err != nil {
-		log.Printf("[ERROR] error close body, %v", err)
-	}
-
 	var services []consulService
-
-	err = json.Unmarshal(body, &services)
-	if err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&services); err != nil {
 		return nil, fmt.Errorf("error unmarshal consul response, %w", err)
 	}
 

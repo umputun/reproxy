@@ -1,12 +1,13 @@
 package consulcatalog
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewClient(t *testing.T) {
@@ -254,5 +255,5 @@ func TestClient_Get_error_get_services(t *testing.T) {
 
 	_, err := cl.Get()
 	require.Error(t, err)
-	assert.Equal(t, "error get service names, error unmarshal consul response, unexpected end of JSON input", err.Error())
+	assert.Equal(t, "error get service names, error unmarshal consul response, EOF", err.Error())
 }
