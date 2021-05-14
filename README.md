@@ -162,7 +162,7 @@ There are two ways to set cache duration:
 ## More options
 
 - `--gzip` enables gzip compression for responses.
-- `--max=N` allows to set the maximum size of request (default 64k)
+- `--max=N` allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--header` sets extra header(s) added to each proxied response. For example this is how it can be done with the docker compose:
 
 ```yaml
