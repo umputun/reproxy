@@ -44,7 +44,7 @@ linters:
     - varcheck
     - stylecheck
     - gochecknoinits
-    - exportloopref
+    - scopelint
     - gocritic
     - nakedret
     - gosimple

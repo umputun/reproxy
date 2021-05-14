@@ -228,7 +228,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
-			fs, err := R.FileServer(ae[0], ae[1], nil)
+			fs, err := R.FileServer(ae[0], ae[1])
 			if err != nil {
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
@@ -242,7 +242,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
-	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation, nil)
+	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
 		return func(writer http.ResponseWriter, request *http.Request) {}
@@ -343,7 +343,27 @@ func (h *Http) maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Han
 			})
 		}
 	}
-	return R.SizeLimit(maxSize)
+
+	return func(next http.Handler) http.Handler {
+
+		fn := func(w http.ResponseWriter, r *http.Request) {
+
+			// check ContentLength
+			if r.ContentLength > maxSize {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				return
+			}
+
+			r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "Request Entity Too Large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			next.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
+	}
+
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
