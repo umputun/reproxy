@@ -199,7 +199,7 @@ Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.l
 - `GET /routes` - list of all discovered routes
 - `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
 
-_see also [examples/metrics](https://github.com/umputun/reproxy/examples/metrics)_
+_see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/examples/metrics)_
 
 ## Errors reporting
 
