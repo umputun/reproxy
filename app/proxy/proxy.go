@@ -228,7 +228,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
-			fs, err := R.FileServer(ae[0], ae[1])
+			fs, err := R.FileServer(ae[0], ae[1], nil)
 			if err != nil {
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
@@ -242,7 +242,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
-	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
+	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation, nil)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
 		return func(writer http.ResponseWriter, request *http.Request) {}

@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/go-pkgz/lgr v0.10.4
-	github.com/go-pkgz/rest v1.9.2
+	github.com/go-pkgz/rest v1.9.3-0.20210514184429-77a1bddb51db
 	github.com/gorilla/handlers v1.5.1
 	github.com/prometheus/client_golang v1.10.0
 	github.com/stretchr/testify v1.7.0
