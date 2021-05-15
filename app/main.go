@@ -347,7 +347,7 @@ func makeAccessLogWriter() (accessLog io.WriteCloser, err error) {
 		return nil, fmt.Errorf("can't parse logger MaxSize: %w", perr)
 	}
 
-	maxSize = maxSize / 1048576
+	maxSize /= 1048576
 
 	log.Printf("[INFO] logger enabled for %s, max size %dM", opts.Logger.FileName, maxSize)
 	return &lumberjack.Logger{
