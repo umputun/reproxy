@@ -377,6 +377,7 @@ func Contains(e string, s []string) bool {
 	return false
 }
 
+// IsAlive indicates whether mapper destination is alive
 func (m URLMapper) IsAlive() bool {
 	return !m.dead
 }
