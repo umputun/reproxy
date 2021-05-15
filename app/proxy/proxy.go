@@ -242,6 +242,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
+	log.Printf("[DEBUG] shared assets server enabled for %s %s", h.AssetsWebRoot, h.AssetsLocation)
 	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
@@ -265,6 +266,7 @@ func (h *Http) toHTTP(address string, httpPort int) string {
 
 func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 	if h.GzEnabled {
+		log.Printf("[DEBUG] gzip enabled")
 		return handlers.CompressHandler
 	}
 
@@ -277,6 +279,7 @@ func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
 
 func (h *Http) signatureHandler() func(next http.Handler) http.Handler {
 	if h.Signature {
+		log.Printf("[DEBUG] signature headers enabled")
 		return R.AppInfo("reproxy", "umputun", h.Version)
 	}
 	return func(next http.Handler) http.Handler {
@@ -315,6 +318,7 @@ func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handl
 func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Handler) func(next http.Handler) http.Handler {
 
 	if enable {
+		log.Printf("[DEBUG] stdout logging enabled")
 		return func(next http.Handler) http.Handler {
 			fn := func(w http.ResponseWriter, r *http.Request) {
 				// don't log to stdout GET ~/(.*)/ping$ requests
@@ -344,6 +348,7 @@ func (h *Http) maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Han
 		}
 	}
 
+	log.Printf("[DEBUG] request size limited to %d", maxSize)
 	return func(next http.Handler) http.Handler {
 
 		fn := func(w http.ResponseWriter, r *http.Request) {
