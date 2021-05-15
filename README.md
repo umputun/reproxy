@@ -212,7 +212,8 @@ Each option can be provided in two forms: command line or environment key:value.
 
 All size options support unit suffixes, i.e. 10KB for kilobytes, 16MB for megabytes, 10GB for gigabytes. Also you can use binary units of measurement 1KiB (2^10 bytes) MiB (2^20 bytes) GiB (2^30 bytes).
 
-Some options are repeatable, in this case you may pass it multiple times with command line, or comma-separated in env. For example `--ssl.fqdn` is such an option and can be passed as `--ssl.fqdn=a1.example.com --ssl.fqdn=a2.example.com` or as env `SSL_ACME_FQDN=a1.example.com,a2.example.com`
+
+Some options are repeatable, in this case user may pass it multiple times with command line, or comma-separated in env. For example `--ssl.fqdn` is such an option and can be passed as `--ssl.fqdn=a1.example.com --ssl.fqdn=a2.example.com` or as env `SSL_ACME_FQDN=a1.example.com,a2.example.com`
 
 This is the list of all options supporting multiple elements: 
 
