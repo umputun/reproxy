@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,7 +28,7 @@ import (
 
 var opts struct {
 	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
-	MaxSize      int64    `short:"m" long:"max" env:"MAX_SIZE" default:"64000" description:"max request size"`
+	MaxSize      string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
 
@@ -50,7 +52,7 @@ var opts struct {
 		StdOut     bool   `long:"stdout" env:"STDOUT" description:"enable stdout logging"`
 		Enabled    bool   `long:"enabled" env:"ENABLED" description:"enable access and error rotated logs"`
 		FileName   string `long:"file" env:"FILE"  default:"access.log" description:"location of access log"`
-		MaxSize    int    `long:"max-size" env:"MAX_SIZE" default:"100" description:"maximum size in megabytes before it gets rotated"`
+		MaxSize    string `long:"max-size" env:"MAX_SIZE" default:"100M" description:"maximum size before it gets rotated"`
 		MaxBackups int    `long:"max-backups" env:"MAX_BACKUPS" default:"10" description:"maximum number of old log files to retain"`
 	} `group:"logger" namespace:"logger" env-namespace:"LOGGER"`
 
@@ -167,7 +169,11 @@ func run() error {
 		return fmt.Errorf("failed to make config of ssl server params: %w", sslErr)
 	}
 
-	accessLog := makeAccessLogWriter()
+	accessLog, alErr := makeAccessLogWriter()
+	if alErr != nil {
+		return fmt.Errorf("failed to access log: %w", sslErr)
+	}
+
 	defer func() {
 		if logErr := accessLog.Close(); logErr != nil {
 			log.Printf("[WARN] can't close access log, %v", logErr)
@@ -204,11 +210,16 @@ func run() error {
 	addr := listenAddress(opts.Listen, opts.SSL.Type)
 	log.Printf("[DEBUG] listen address %s", addr)
 
+	maxBodySize, perr := sizeParse(opts.MaxSize)
+	if perr != nil {
+		return fmt.Errorf("failed to convert MaxSize: %w", err)
+	}
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
 		Address:        addr,
-		MaxBodySize:    opts.MaxSize,
+		MaxBodySize:    int64(maxBodySize),
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
 		CacheControl:   cacheControl,
@@ -326,18 +337,26 @@ func makeErrorReporter() (proxy.Reporter, error) {
 	return result, nil
 }
 
-func makeAccessLogWriter() (accessLog io.WriteCloser) {
+func makeAccessLogWriter() (accessLog io.WriteCloser, err error) {
 	if !opts.Logger.Enabled {
-		return nopWriteCloser{ioutil.Discard}
+		return nopWriteCloser{ioutil.Discard}, nil
 	}
-	log.Printf("[INFO] logger enabled for %s", opts.Logger.FileName)
+
+	maxSize, perr := sizeParse(opts.Logger.MaxSize)
+	if perr != nil {
+		return nil, fmt.Errorf("can't parse logger MaxSize: %w", perr)
+	}
+
+	maxSize = maxSize / 1048576
+
+	log.Printf("[INFO] logger enabled for %s, max size %dM", opts.Logger.FileName, maxSize)
 	return &lumberjack.Logger{
 		Filename:   opts.Logger.FileName,
-		MaxSize:    opts.Logger.MaxSize,
+		MaxSize:    int(maxSize), // in MB
 		MaxBackups: opts.Logger.MaxBackups,
 		Compress:   true,
 		LocalTime:  true,
-	}
+	}, nil
 }
 
 // listenAddress sets default to 127.0.0.0:8080/80443 and, if detected REPROXY_IN_DOCKER env, to 0.0.0.0:80/443
@@ -372,6 +391,22 @@ func redirHTTPPort(port int) int {
 		return 8080
 	}
 	return 80
+}
+
+func sizeParse(inp string) (uint64, error) {
+	if inp == "" {
+		return 0, errors.New("empty value")
+	}
+	for i, sfx := range []string{"k", "m", "g", "t"} {
+		if strings.HasSuffix(inp, strings.ToUpper(sfx)) || strings.HasSuffix(inp, strings.ToLower(sfx)) {
+			val, err := strconv.Atoi(inp[:len(inp)-1])
+			if err != nil {
+				return 0, fmt.Errorf("can't parse %s: %w", inp, err)
+			}
+			return uint64(float64(val) * math.Pow(float64(1024), float64(i+1))), nil
+		}
+	}
+	return strconv.ParseUint(inp, 10, 64)
 }
 
 type nopWriteCloser struct{ io.Writer }

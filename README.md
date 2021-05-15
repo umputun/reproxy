@@ -210,6 +210,8 @@ Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any 
 
 Each option can be provided in two forms: command line or environment key:value. Some command line options have a short form, like `-l localhost:8080` and all of them have the long form, i.e `--listen=localhost:8080`. The environment key (name) listed for each option as a suffix, i.e. `[$LISTEN]`.
 
+All size options support unit suffixes, i.e. 10K (or 10k) for kilobytes, 16M (or 16m) for megabytes, 10G (or 10g) for gigabytes. LAck of any suffix (i.e. 1024) means bytes.
+
 Some options are repeatable, in this case you may pass it multiple times with command line, or comma-separated in env. For example `--ssl.fqdn` is such an option and can be passed as `--ssl.fqdn=a1.example.com --ssl.fqdn=a2.example.com` or as env `SSL_ACME_FQDN=a1.example.com,a2.example.com`
 
 This is the list of all options supporting multiple elements: 
@@ -219,12 +221,13 @@ This is the list of all options supporting multiple elements:
 - `docker.exclude` (`DOCKER_EXCLUDE`)
 - `static.rule` (`$STATIC_RULES`)
 
+
 ## All Application Options
 
 ```
 Application Options:
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
-  -m, --max=                        max request size (default: 64000) [$MAX_SIZE]
+  -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
       --signature                   enable reproxy signature headers [$SIGNATURE]
@@ -248,7 +251,7 @@ logger:
       --logger.stdout               enable stdout logging [$LOGGER_STDOUT]
       --logger.enabled              enable access and error rotated logs [$LOGGER_ENABLED]
       --logger.file=                location of access log (default: access.log) [$LOGGER_FILE]
-      --logger.max-size=            maximum size in megabytes before it gets rotated (default: 100) [$LOGGER_MAX_SIZE]
+      --logger.max-size=            maximum size in megabytes before it gets rotated (default: 100M) [$LOGGER_MAX_SIZE]
       --logger.max-backups=         maximum number of old log files to retain (default: 10) [$LOGGER_MAX_BACKUPS]
 
 docker:
