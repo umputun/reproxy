@@ -3,6 +3,7 @@ module github.com/umputun/reproxy
 go 1.16
 
 require (
+	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d
 	github.com/go-pkgz/lgr v0.10.4
 	github.com/go-pkgz/rest v1.9.2
 	github.com/gorilla/handlers v1.5.1

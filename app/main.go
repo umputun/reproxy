@@ -6,15 +6,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/units"
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -393,20 +392,14 @@ func redirHTTPPort(port int) int {
 	return 80
 }
 
-func sizeParse(inp string) (uint64, error) {
+func sizeParse(inp string) (units.Base2Bytes, error) {
 	if inp == "" {
 		return 0, errors.New("empty value")
 	}
-	for i, sfx := range []string{"k", "m", "g", "t"} {
-		if strings.HasSuffix(inp, strings.ToUpper(sfx)) || strings.HasSuffix(inp, strings.ToLower(sfx)) {
-			val, err := strconv.Atoi(inp[:len(inp)-1])
-			if err != nil {
-				return 0, fmt.Errorf("can't parse %s: %w", inp, err)
-			}
-			return uint64(float64(val) * math.Pow(float64(1024), float64(i+1))), nil
-		}
-	}
-	return strconv.ParseUint(inp, 10, 64)
+
+	size, err := units.ParseBase2Bytes(inp)
+
+	return size, err
 }
 
 type nopWriteCloser struct{ io.Writer }

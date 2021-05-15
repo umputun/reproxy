@@ -233,38 +233,3 @@ func Test_redirHTTPPort(t *testing.T) {
 		})
 	}
 }
-
-func Test_sizeParse(t *testing.T) {
-
-	tbl := []struct {
-		inp string
-		res uint64
-		err bool
-	}{
-		{"1000", 1000, false},
-		{"0", 0, false},
-		{"", 0, true},
-		{"10K", 10240, false},
-		{"1k", 1024, false},
-		{"14m", 14 * 1024 * 1024, false},
-		{"7G", 7 * 1024 * 1024 * 1024, false},
-		{"170g", 170 * 1024 * 1024 * 1024, false},
-		{"17T", 17 * 1024 * 1024 * 1024 * 1024, false},
-		{"123aT", 0, true},
-		{"123a", 0, true},
-		{"123.45", 0, true},
-	}
-
-	for i, tt := range tbl {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res, err := sizeParse(tt.inp)
-			if tt.err {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.res, res)
-		})
-	}
-
-}
