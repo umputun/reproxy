@@ -105,13 +105,13 @@ var opts struct {
 		Template string `long:"template" env:"TEMPLATE" description:"error message template file"`
 	} `group:"error" namespace:"error" env-namespace:"ERROR"`
 
+	HealthCheck struct {
+		Enabled  bool          `long:"enabled" env:"ENABLED" description:"enable automatic health-check"`
+		Interval time.Duration `long:"interval" env:"INTERVAL" default:"300s" description:"automatic health-check interval"`
+	} `group:"health-check" namespace:"health-check" env-namespace:"HEALTH_CHECK"`
+
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
-
-	HealthCheck struct {
-		Enabled  bool          `long:"health-check" env:"HEALTH_CHECK" description:"enable automatic health-check"`
-		Interval time.Duration `long:"health-check-interval" env:"HEALTH_CHECK_INTERVAL" default:"300s" description:"automatic health-check interval"`
-	}
 }
 
 var revision = "unknown"

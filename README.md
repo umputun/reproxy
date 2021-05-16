@@ -192,6 +192,9 @@ reproxy provides 2 endpoints for this purpose:
 - `/ping` responds with `pong` and indicates what reproxy up and running
 - `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
 
+In addition to the controllers above, reproxy supports optional live health checks. In this case (in enabled), each destination checked for ping response periodically and excluded from the destination routes if failed. It is possible to return multiple identical destinations from the same or various providers, and the passed picked. If numerous matches were discovered and passed - the final one picked randomly.
+To turn live health check on, user should set `--health-check.enabled` (or env `HEALTH_CHECK_ENABLED=true`). To customize checking interval `--health-check.interval=` can be used.
+
 ## Management API
 
 Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.listen` (address:port):
@@ -295,6 +298,11 @@ mgmt:
 error:
       --error.enabled               enable html errors reporting [$ERROR_ENABLED]
       --error.template=             error message template file [$ERROR_TEMPLATE]
+
+health-check:
+      --health-check.enabled        enable automatic health-check [$HEALTH_CHECK_ENABLED]
+      --health-check.interval=      automatic health-check interval (default: 300s) [$HEALTH_CHECK_INTERVAL]
+
 
 Help Options:
   -h, --help                        Show this help message
