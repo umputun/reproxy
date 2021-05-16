@@ -148,7 +148,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
 
-			// if the first match found and the next src is not identical we can stop as mappers presorted by src len
+			// if the first match found and the next src match is not identical we can stop as src match regexes presorted
 			if len(res.Routes) > 0 && m.SrcMatch.String() != lastSrcMatch {
 				return res
 			}
@@ -229,7 +229,12 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 		mappers = append(mappers, m...)
 	}
 	sort.Slice(mappers, func(i, j int) bool {
-		return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
+		// sort by len first, to make longer matches first
+		if len(mappers[i].SrcMatch.String()) != len(mappers[j].SrcMatch.String()) {
+			return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
+		}
+		// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
+		return mappers[i].SrcMatch.String() < mappers[j].SrcMatch.String()
 	})
 	return mappers
 }
