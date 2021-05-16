@@ -205,7 +205,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			server = strings.Split(r.Host, ":")[0]
 		}
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
-		u, ok := h.getMatch(matches)
+		u, ok := h.getMatch(matches, func(len int) int { return rand.Intn(len) })
 		if !ok { // no route match
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
@@ -243,7 +243,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	}
 }
 
-func (h *Http) getMatch(mm discovery.Matches) (u string, ok bool) {
+func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (u string, ok bool) {
 	if len(mm.Routes) == 0 {
 		return "", false
 	}
@@ -260,7 +260,7 @@ func (h *Http) getMatch(mm discovery.Matches) (u string, ok bool) {
 	case 1:
 		return urls[0], true
 	default:
-		return urls[rand.Intn(len(urls)-1)], true
+		return urls[picker(len(urls))], true
 	}
 }
 
