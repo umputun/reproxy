@@ -137,10 +137,7 @@ func (s *Service) Match(srv, src string) (string, MatchType, bool) {
 			case MTProxy:
 				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 				if src != dest {
-					if m.IsAlive() {
-						return dest, m.MatchType, true
-					}
-					return dest, m.MatchType, false
+					return dest, m.MatchType, m.IsAlive()
 				}
 			case MTStatic:
 				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
@@ -159,15 +156,16 @@ func (s *Service) ScheduleHealthCheck(ctx context.Context, interval time.Duratio
 
 	go func() {
 		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				pinged := s.CheckHealth()
+				pingErrs := s.CheckHealth()
 
 				s.lock.Lock()
 				for _, mappers := range s.mappers {
 					for i := range mappers {
-						if err, ok := pinged[mappers[i].PingURL]; ok {
+						if err, ok := pingErrs[mappers[i].PingURL]; ok {
 							mappers[i].dead = false
 							if err != nil {
 								mappers[i].dead = true
@@ -177,7 +175,6 @@ func (s *Service) ScheduleHealthCheck(ctx context.Context, interval time.Duratio
 				}
 				s.lock.Unlock()
 			case <-ctx.Done():
-				ticker.Stop()
 				return
 			}
 		}

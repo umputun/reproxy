@@ -32,10 +32,10 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
-	pingRes := h.CheckHealth()
+	pingErrs := h.CheckHealth()
 
 	var errs []string
-	for _, pingErr := range pingRes {
+	for _, pingErr := range pingErrs {
 		if pingErr != nil {
 			errs = append(errs, pingErr.Error())
 		}
@@ -50,7 +50,7 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 			Passed   int      `json:"passed,omitempty"`
 			Failed   int      `json:"failed,omitempty"`
 			Errors   []string `json:"errors,omitempty"`
-		}{Status: "failed", Services: total, Passed: len(pingRes) - len(errs), Failed: len(errs), Errors: errs}
+		}{Status: "failed", Services: total, Passed: len(pingErrs) - len(errs), Failed: len(errs), Errors: errs}
 
 		rest.RenderJSON(w, errResp)
 		return
