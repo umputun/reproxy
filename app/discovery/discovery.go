@@ -144,20 +144,20 @@ func (s *Service) Match(srv, src string) (res Matches) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	lastMatchedSrc := ""
+	lastSrcMatch := ""
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
 
 			// if the first match found and the next src is not identical we can stop as mappers presorted by src len
-			if len(res.Routes) > 0 && src != lastMatchedSrc {
+			if len(res.Routes) > 0 && m.SrcMatch.String() != lastSrcMatch {
 				return res
 			}
 
 			switch m.MatchType {
 			case MTProxy:
 				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-				if src != dest {
-					lastMatchedSrc = src
+				if src != dest { // regex matched
+					lastSrcMatch = m.SrcMatch.String()
 					res.MatchType = MTProxy
 					res.Routes = append(res.Routes, MatchedRoute{dest, m.IsAlive()})
 				}
