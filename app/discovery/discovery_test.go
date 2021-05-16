@@ -88,8 +88,13 @@ func TestService_Match(t *testing.T) {
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc", ProviderID: PIFile},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc4/(.*)"),
 					Dst: "http://127.0.0.4:8080/blah2/$1/abc", MatchType: MTProxy, dead: true},
+
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
 					Dst: "http://127.0.0.5:8080/blah2/$1/abc", MatchType: MTProxy, dead: false},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
+					Dst: "http://127.0.0.5:8080/blah2/$1/abc/2", MatchType: MTProxy, dead: false},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
+					Dst: "http://127.0.0.5:8080/blah2/$1/abc/3", MatchType: MTProxy, dead: true},
 			}, nil
 		},
 	}
@@ -115,13 +120,12 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 8, len(svc.Mappers()))
+	assert.Equal(t, 10, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
 		res         Matches
 	}{
-
 		{"example.com", "/api/svc3/xyz/something", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.3:8080/blah3/xyz/something", true}}}},
 		{"example.com", "/api/svc3/xyz", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.3:8080/blah3/xyz", true}}}},
 		{"abc.example.com", "/api/svc1/1234", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.1:8080/blah1/1234", true}}}},
@@ -129,7 +133,12 @@ func TestService_Match(t *testing.T) {
 		{"m.example.com", "/api/svc2/1234", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.2:8080/blah2/1234/abc", true}}}},
 		{"m1.example.com", "/api/svc2/1234", Matches{MTProxy, nil}},
 		{"m.example.com", "/api/svc4/id12345", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.4:8080/blah2/id12345/abc", false}}}},
-		{"m.example.com", "/api/svc5/num123456", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.5:8080/blah2/num123456/abc", true}}}},
+
+		{"m.example.com", "/api/svc5/num123456", Matches{MTProxy, []MatchedRoute{
+			{"http://127.0.0.5:8080/blah2/num123456/abc", true},
+			{"http://127.0.0.5:8080/blah2/num123456/abc/2", true},
+			{"http://127.0.0.5:8080/blah2/num123456/abc/3", false},
+		}}},
 
 		{"m1.example.com", "/web/index.html", Matches{MTStatic, []MatchedRoute{{"/web:/var/web/", true}}}},
 		{"m1.example.com", "/web/", Matches{MTStatic, []MatchedRoute{{"/web:/var/web/", true}}}},

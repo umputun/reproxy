@@ -157,6 +157,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 			case MTProxy:
 				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
 				if src != dest {
+					lastMatchedSrc = src
 					res.MatchType = MTProxy
 					res.Routes = append(res.Routes, MatchedRoute{dest, m.IsAlive()})
 				}
