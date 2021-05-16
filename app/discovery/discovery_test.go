@@ -88,8 +88,13 @@ func TestService_Match(t *testing.T) {
 					Dst: "http://127.0.0.2:8080/blah2/$1/abc", ProviderID: PIFile},
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc4/(.*)"),
 					Dst: "http://127.0.0.4:8080/blah2/$1/abc", MatchType: MTProxy, dead: true},
+
 				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
 					Dst: "http://127.0.0.5:8080/blah2/$1/abc", MatchType: MTProxy, dead: false},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
+					Dst: "http://127.0.0.5:8080/blah2/$1/abc/2", MatchType: MTProxy, dead: false},
+				{Server: "m.example.com", SrcMatch: *regexp.MustCompile("^/api/svc5/(.*)"),
+					Dst: "http://127.0.0.5:8080/blah2/$1/abc/3", MatchType: MTProxy, dead: true},
 			}, nil
 		},
 	}
@@ -115,40 +120,39 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 8, len(svc.Mappers()))
+	assert.Equal(t, 10, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
-		dest        string
-		mt          MatchType
-		ok          bool
+		res         Matches
 	}{
+		{"example.com", "/api/svc3/xyz/something", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.3:8080/blah3/xyz/something", true}}}},
+		{"example.com", "/api/svc3/xyz", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.3:8080/blah3/xyz", true}}}},
+		{"abc.example.com", "/api/svc1/1234", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.1:8080/blah1/1234", true}}}},
+		{"zzz.example.com", "/aaa/api/svc1/1234", Matches{MTProxy, nil}},
+		{"m.example.com", "/api/svc2/1234", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.2:8080/blah2/1234/abc", true}}}},
+		{"m1.example.com", "/api/svc2/1234", Matches{MTProxy, nil}},
+		{"m.example.com", "/api/svc4/id12345", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.4:8080/blah2/id12345/abc", false}}}},
 
-		{"example.com", "/api/svc3/xyz/something", "http://127.0.0.3:8080/blah3/xyz/something", MTProxy, true},
-		{"example.com", "/api/svc3/xyz", "http://127.0.0.3:8080/blah3/xyz", MTProxy, true},
-		{"abc.example.com", "/api/svc1/1234", "http://127.0.0.1:8080/blah1/1234", MTProxy, true},
-		{"zzz.example.com", "/aaa/api/svc1/1234", "/aaa/api/svc1/1234", MTProxy, false},
-		{"m.example.com", "/api/svc2/1234", "http://127.0.0.2:8080/blah2/1234/abc", MTProxy, true},
-		{"m1.example.com", "/api/svc2/1234", "/api/svc2/1234", MTProxy, false},
-		{"m.example.com", "/api/svc4/id12345", "http://127.0.0.4:8080/blah2/id12345/abc", MTProxy, false},
-		{"m.example.com", "/api/svc5/num123456", "http://127.0.0.5:8080/blah2/num123456/abc", MTProxy, true},
-		{"m1.example.com", "/web/index.html", "/web:/var/web/", MTStatic, true},
-		{"m1.example.com", "/web/", "/web:/var/web/", MTStatic, true},
-		{"m1.example.com", "/www/something", "/www:/var/web/", MTStatic, true},
-		{"m1.example.com", "/www/", "/www:/var/web/", MTStatic, true},
-		{"m1.example.com", "/www", "/www:/var/web/", MTStatic, true},
-		{"xyx.example.com", "/path/something", "/path:/var/web/path/", MTStatic, true},
+		{"m.example.com", "/api/svc5/num123456", Matches{MTProxy, []MatchedRoute{
+			{"http://127.0.0.5:8080/blah2/num123456/abc", true},
+			{"http://127.0.0.5:8080/blah2/num123456/abc/2", true},
+			{"http://127.0.0.5:8080/blah2/num123456/abc/3", false},
+		}}},
+
+		{"m1.example.com", "/web/index.html", Matches{MTStatic, []MatchedRoute{{"/web:/var/web/", true}}}},
+		{"m1.example.com", "/web/", Matches{MTStatic, []MatchedRoute{{"/web:/var/web/", true}}}},
+		{"m1.example.com", "/www/something", Matches{MTStatic, []MatchedRoute{{"/www:/var/web/", true}}}},
+		{"m1.example.com", "/www/", Matches{MTStatic, []MatchedRoute{{"/www:/var/web/", true}}}},
+		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{"/www:/var/web/", true}}}},
+		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{"/path:/var/web/path/", true}}}},
 	}
 
 	for i, tt := range tbl {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res, mt, ok := svc.Match(tt.server, tt.src)
-			assert.Equal(t, tt.ok, ok)
-			assert.Equal(t, tt.dest, res)
-			if ok {
-				assert.Equal(t, tt.mt, mt)
-			}
+			res := svc.Match(tt.server, tt.src)
+			assert.Equal(t, tt.res, res)
 		})
 	}
 }

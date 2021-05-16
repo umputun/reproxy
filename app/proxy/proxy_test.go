@@ -363,3 +363,57 @@ func TestHttp_isAssetRequest(t *testing.T) {
 	}
 
 }
+
+func TestHttp_getMatch(t *testing.T) {
+
+	tbl := []struct {
+		matches discovery.Matches
+		res     string
+		ok      bool
+	}{
+		{
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{}}, "", false,
+		},
+		{
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
+				{Destination: "dest1", Alive: false},
+				{Destination: "dest2", Alive: true},
+				{Destination: "dest3", Alive: false},
+			}},
+			"dest2", true,
+		},
+		{
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
+				{Destination: "dest1", Alive: false},
+				{Destination: "dest2", Alive: true},
+				{Destination: "dest3", Alive: true},
+			}},
+			"dest2", true,
+		},
+		{
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
+				{Destination: "dest1", Alive: true},
+				{Destination: "dest2", Alive: true},
+				{Destination: "dest3", Alive: true},
+			}},
+			"dest1", true,
+		},
+		{
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
+				{Destination: "dest1", Alive: false},
+				{Destination: "dest2", Alive: false},
+				{Destination: "dest3", Alive: false},
+			}},
+			"", false,
+		},
+	}
+
+	h := Http{}
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res, ok := h.getMatch(tt.matches, func(len int) int { return 0 })
+			require.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.res, res)
+		})
+	}
+}

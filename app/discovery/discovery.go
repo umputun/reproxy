@@ -42,6 +42,18 @@ type URLMapper struct {
 	dead bool
 }
 
+// Matches returns result of url mapping. May have multiple routes. Lack of any routes means no match was wound
+type Matches struct {
+	MatchType MatchType
+	Routes    []MatchedRoute
+}
+
+// MatchedRoute contains a single match used to produce multi-matched Matches
+type MatchedRoute struct {
+	Destination string
+	Alive       bool
+}
+
 // Provider defines sources of mappers
 type Provider interface {
 	Events(ctx context.Context) (res <-chan ProviderID)
@@ -125,30 +137,41 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
-// Match url to all mappers
-func (s *Service) Match(srv, src string) (string, MatchType, bool) {
+// Match url to all mappers. Returns Matches with potentially multiple destinations for MTProxy.
+// For MTStatic always a single match because fail-over doesn't supported for assets
+func (s *Service) Match(srv, src string) (res Matches) {
 
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
+	lastSrcMatch := ""
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.mappers[srvName] {
+
+			// if the first match found and the next src match is not identical we can stop as src match regexes presorted
+			if len(res.Routes) > 0 && m.SrcMatch.String() != lastSrcMatch {
+				return res
+			}
 
 			switch m.MatchType {
 			case MTProxy:
 				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-				if src != dest {
-					return dest, m.MatchType, m.IsAlive()
+				if src != dest { // regex matched
+					lastSrcMatch = m.SrcMatch.String()
+					res.MatchType = MTProxy
+					res.Routes = append(res.Routes, MatchedRoute{dest, m.IsAlive()})
 				}
 			case MTStatic:
 				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
-					return m.AssetsWebRoot + ":" + m.AssetsLocation, MTStatic, true
+					res.MatchType = MTStatic
+					res.Routes = append(res.Routes, MatchedRoute{m.AssetsWebRoot + ":" + m.AssetsLocation, true})
+					return res
 				}
 			}
 		}
 	}
 
-	return src, MTProxy, false
+	return res
 }
 
 // ScheduleHealthCheck starts background loop with health-check
@@ -206,7 +229,12 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 		mappers = append(mappers, m...)
 	}
 	sort.Slice(mappers, func(i, j int) bool {
-		return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
+		// sort by len first, to make longer matches first
+		if len(mappers[i].SrcMatch.String()) != len(mappers[j].SrcMatch.String()) {
+			return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
+		}
+		// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
+		return mappers[i].SrcMatch.String() < mappers[j].SrcMatch.String()
 	})
 	return mappers
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -44,7 +45,7 @@ type Http struct { // nolint golint
 // Matcher source info (server and route) to the destination url
 // If no match found return ok=false
 type Matcher interface {
-	Match(srv, src string) (string, discovery.MatchType, bool)
+	Match(srv, src string) (res discovery.Matches)
 	Servers() (servers []string)
 	Mappers() (mappers []discovery.URLMapper)
 	CheckHealth() (pingResult map[string]error)
@@ -110,6 +111,8 @@ func (h *Http) Run(ctx context.Context) error {
 		h.maxReqSizeHandler(h.MaxBodySize),
 		h.gzipHandler(),
 	)
+
+	rand.Seed(time.Now().UnixNano())
 
 	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
 		// discovery async and may happen not right away. Try to get servers for some time
@@ -201,7 +204,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0]
 		}
-		u, mt, ok := h.Match(server, r.URL.Path)
+		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
+		u, ok := h.getMatch(matches, rand.Intn)
 		if !ok { // no route match
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
@@ -212,7 +216,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			return
 		}
 
-		switch mt {
+		switch matches.MatchType {
 		case discovery.MTProxy:
 			uu, err := url.Parse(u)
 			if err != nil {
@@ -236,6 +240,27 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			}
 			h.CacheControl.Middleware(fs).ServeHTTP(w, r)
 		}
+	}
+}
+
+func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (u string, ok bool) {
+	if len(mm.Routes) == 0 {
+		return "", false
+	}
+
+	var urls []string
+	for _, m := range mm.Routes {
+		if m.Alive {
+			urls = append(urls, m.Destination)
+		}
+	}
+	switch len(urls) {
+	case 0:
+		return "", false
+	case 1:
+		return urls[0], true
+	default:
+		return urls[picker(len(urls))], true
 	}
 }
 
