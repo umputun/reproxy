@@ -205,7 +205,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			server = strings.Split(r.Host, ":")[0]
 		}
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
-		u, ok := h.getMatch(matches, func(len int) int { return rand.Intn(len) })
+		u, ok := h.getMatch(matches, rand.Intn)
 		if !ok { // no route match
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
