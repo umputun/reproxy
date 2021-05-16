@@ -170,7 +170,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 		}
 	}
 
-	return Matches{MTProxy, nil}
+	return res
 }
 
 // ScheduleHealthCheck starts background loop with health-check
