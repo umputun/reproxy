@@ -17,6 +17,7 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server
+- Live health check and fail-over  
 - Management server with routes info and prometheus metrics
 
 ---
