@@ -13,7 +13,7 @@ import (
 )
 
 func TestFile_Events(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	tmp, err := ioutil.TempFile(os.TempDir(), "reproxy-events")
@@ -23,16 +23,16 @@ func TestFile_Events(t *testing.T) {
 
 	f := File{
 		FileName:      tmp.Name(),
-		CheckInterval: 10 * time.Millisecond,
-		Delay:         20 * time.Millisecond,
+		CheckInterval: 100 * time.Millisecond,
+		Delay:         200 * time.Millisecond,
 	}
 
 	go func() {
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
 
 		// all those event will be ignored, submitted too fast
