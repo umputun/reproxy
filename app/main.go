@@ -325,7 +325,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.SSLMode = proxy.SSLAuto
 		config.ACMELocation = opts.SSL.ACMELocation
 		config.ACMEEmail = opts.SSL.ACMEEmail
-		config.FQDNs = opts.SSL.FQDNs
+		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	}
 	return config, err
@@ -399,6 +399,14 @@ func redirHTTPPort(port int) int {
 		return 8080
 	}
 	return 80
+}
+
+// fqdns cleans space suffixes and prefixes which can sneak in from docker compose
+func fqdns(inp []string) (res []string) {
+	for _, v := range inp {
+		res = append(res, strings.TrimSpace(v))
+	}
+	return res
 }
 
 func sizeParse(inp string) (uint64, error) {
