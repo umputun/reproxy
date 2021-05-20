@@ -24,10 +24,16 @@ func (s *Static) Events(_ context.Context) <-chan discovery.ProviderID {
 // List all src dst pairs
 func (s *Static) List() (res []discovery.URLMapper, err error) {
 
+	// inp is 4 elements string server,source_url,destination,ping
+	// the last one can be omitted if no ping required
 	parse := func(inp string) (discovery.URLMapper, error) {
 		elems := strings.Split(inp, ",")
-		if len(elems) != 4 {
+		if len(elems) < 3 {
 			return discovery.URLMapper{}, fmt.Errorf("invalid rule %q", inp)
+		}
+		pingURL := ""
+		if len(elems) == 4 {
+			pingURL = strings.TrimSpace(elems[3])
 		}
 		rx, err := regexp.Compile(strings.TrimSpace(elems[1]))
 		if err != nil {
@@ -45,7 +51,7 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 			Server:     strings.TrimSpace(elems[0]),
 			SrcMatch:   *rx,
 			Dst:        dst,
-			PingURL:    strings.TrimSpace(elems[3]),
+			PingURL:    pingURL,
 			ProviderID: discovery.PIStatic,
 			MatchType:  discovery.MTProxy,
 		}
