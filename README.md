@@ -87,6 +87,7 @@ This default can be changed with labels:
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port
 - `reproxy.port` - destination port for the discovered container
 - `reproxy.ping` - ping path for the destination container.
+- `reproxy.assets` - set assets mapping as `web-root:location`, for example `reproxy.assets=/web:/var/www`
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
 
 Pls note: without `--docker.auto` the destination container has to have at least one of `reproxy.*` labels to be considered as a potential destination.
@@ -193,7 +194,7 @@ reproxy provides 2 endpoints for this purpose:
 - `/ping` responds with `pong` and indicates what reproxy up and running
 - `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
 
-In addition to the controllers above, reproxy supports optional live health checks. In this case (in enabled), each destination checked for ping response periodically and excluded from the destination routes if failed. It is possible to return multiple identical destinations from the same or various providers, and the passed picked. If numerous matches were discovered and passed - the final one picked randomly.
+In addition to the controllers above, reproxy supports optional live health checks. In this case (if enabled), each destination checked for ping response periodically and excluded failed destination routes. It is possible to return multiple identical destinations from the same or various providers, and the only passed picked. If numerous matches were discovered and passed - the final one picked randomly.
 To turn live health check on, user should set `--health-check.enabled` (or env `HEALTH_CHECK_ENABLED=true`). To customize checking interval `--health-check.interval=` can be used.
 
 ## Management API
@@ -212,11 +213,11 @@ Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any 
 
 ## Options
 
-Each option can be provided in two forms: command line or environment key:value. Some command line options have a short form, like `-l localhost:8080` and all of them have the long form, i.e `--listen=localhost:8080`. The environment key (name) listed for each option as a suffix, i.e. `[$LISTEN]`.
+Each option can be provided in two forms: command line or environment key:value pair. Some command line options have a short form, like `-l localhost:8080` and all of them have the long form, i.e `--listen=localhost:8080`. The environment key (name) [listed](#all-application-options) for each option as a suffix, i.e. `[$LISTEN]`.
 
 All size options support unit suffixes, i.e. 10K (or 10k) for kilobytes, 16M (or 16m) for megabytes, 10G (or 10g) for gigabytes. Lack of any suffix (i.e. 1024) means bytes.
 
-Some options are repeatable, in this case user may pass it multiple times with command line, or comma-separated in env. For example `--ssl.fqdn` is such an option and can be passed as `--ssl.fqdn=a1.example.com --ssl.fqdn=a2.example.com` or as env `SSL_ACME_FQDN=a1.example.com,a2.example.com`
+Some options are repeatable, in this case user may pass it multiple times with the command line, or comma-separated in env. For example `--ssl.fqdn` is such an option and can be passed as `--ssl.fqdn=a1.example.com --ssl.fqdn=a2.example.com` or as env `SSL_ACME_FQDN=a1.example.com,a2.example.com`
 
 This is the list of all options supporting multiple elements: 
 
@@ -225,11 +226,11 @@ This is the list of all options supporting multiple elements:
 - `docker.exclude` (`DOCKER_EXCLUDE`)
 - `static.rule` (`$STATIC_RULES`)
 
-
 ## All Application Options
 
+<details><summary>expand</summary>
+
 ```
-Application Options:
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
@@ -308,7 +309,8 @@ health-check:
 Help Options:
   -h, --help                        Show this help message
 ```
+</details>
 
 ## Status
 
-The project is under active development and may have breaking changes till `v1` released.
+The project is under active development and may have breaking changes till `v1` is released. However, we are trying our best not to break things unless there is a good reason. As of version 0.4.x, reproxy is considered good enough for real-life usage, and many setups are running it in production.
