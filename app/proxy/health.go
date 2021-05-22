@@ -7,6 +7,7 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/go-pkgz/rest"
+
 	"github.com/umputun/reproxy/app/discovery"
 )
 

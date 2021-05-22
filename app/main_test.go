@@ -25,7 +25,7 @@ func Test_Main(t *testing.T) {
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
-		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature",
+		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--mgmt.enabled",
 		"--error.enabled", "--error.template=proxy/testdata/errtmpl.html",
 	}
 	defer os.Remove("/tmp/reproxy.log")

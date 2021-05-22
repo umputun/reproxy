@@ -20,18 +20,13 @@ race_test:
 build: info
 	- cd app && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-X main.revision=$(REV) -s -w" -o ../dist/reproxy
 
-site: build_site deploy_site
-
-build_site:
+site:
 	@rm -f  site/public/*
 	docker build -f Dockerfile.site -t reproxy.site .
 	docker run -d --name=reproxy.site reproxy.site
 	docker cp reproxy.site:/build/public site/
 	docker rm -f reproxy.site
-
-deploy_site:
-	rsync -avz -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --progress \
-		./site/public/ reproxy.io:/srv/www/reproxy.io
+	rsync -avz -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --progress ./site/public/ reproxy.io:/srv/www/reproxy.io
 
 info:
 	- @echo "revision $(REV)"
