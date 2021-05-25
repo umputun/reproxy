@@ -56,6 +56,8 @@ This is the simplest provider defining all mapping rules directly in the command
 
 The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](#ping-and-health-checks) section for more details.
 
+_Pls note: in case if rules set as a part of docker compose enviroment, destination with the regex group will conflict with compose syntax. I.e. attmept to use `https://api.example.com/$1` in compose enviroment will fail due to a syntax error. The standard soulution here is to "escape" `$` sign by replacing it with `$$`, i.e. `https://api.example.com/$$1`. This substitution supported by docker compose and has nothing to do with reproxy itself. Another way is to use `@` insteaad of `$` which is supported on reproxy level, i.e. `https://api.example.com/@1`_ 
+
 ### File
 
 `reproxy --file.enabled --file.name=config.yml`
