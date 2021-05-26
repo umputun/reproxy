@@ -118,7 +118,11 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		}
 		if v, ok := d.labelN(c.Labels, n, "dest"); ok {
 			enabled, explicit = true, true
-			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
+			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+				destURL = v // proxy to http:// and https:// destinations as-is
+			} else {
+				destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
+			}
 		}
 		if v, ok := d.labelN(c.Labels, n, "server"); ok {
 			enabled = true
@@ -126,7 +130,11 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		}
 		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
 			enabled = true
-			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
+			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
+				pingURL = v // if ping is fulle url with http:// or https:// use it as-is
+			} else {
+				pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
+			}
 		}
 
 		if v, ok := d.labelN(c.Labels, n, "assets"); ok {
