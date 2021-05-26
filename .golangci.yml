@@ -37,7 +37,7 @@ linters-settings:
 linters:
   enable:
     - megacheck
-    - golint
+    - revive
     - govet
     - unconvert
     - megacheck

@@ -70,7 +70,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		return nil, err
 	}
 
-	var res []discovery.URLMapper
+	var res []discovery.URLMapper //nolint:prealloc // we don't know the final size
 	for _, c := range containers {
 		res = append(res, d.parseContainerInfo(c)...)
 	}
