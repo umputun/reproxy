@@ -25,6 +25,8 @@ import (
 // in the Dockerfile.
 // Alternatively labels can alter this. reproxy.route sets source route, and reproxy.dest sets the destination.
 // Optional reproxy.server enforces match by server name (hostname) and reproxy.ping sets the health check url
+// Labels can be presented multiple times with a numeric suffix to provide multiple matches for a single container
+// i.e. reproxy.1.server=example.com, reproxy.1.port=12345 and so on
 type Docker struct {
 	DockerClient    DockerClient
 	Excludes        []string
@@ -68,57 +70,66 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		return nil, err
 	}
 
-	res := make([]discovery.URLMapper, 0, len(containers))
+	var res []discovery.URLMapper //nolint:prealloc // we don't know the final size
 	for _, c := range containers {
+		res = append(res, d.parseContainerInfo(c)...)
+	}
+
+	// sort by len(SrcMatch) to have shorter matches after longer
+	// this way we can handle possible conflicts with more detailed match triggered before less detailed
+	sort.Slice(res, func(i, j int) bool {
+		return len(res[i].SrcMatch.String()) > len(res[j].SrcMatch.String())
+	})
+	return res, nil
+}
+
+// parseContainerInfo getting URLMappers for up to 10 routes for 0..9 N (reproxy.N.something)
+func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper) {
+
+	for n := 0; n < 9; n++ {
 		enabled, explicit := false, false
-		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name) // default destination
+		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name) // default src is /container-name/(.*)
 		if d.APIPrefix != "" {
-			prefix := strings.TrimLeft(d.APIPrefix, "/")
-			prefix = strings.TrimRight(prefix, "/")
-			srcURL = fmt.Sprintf("^/%s/%s/(.*)", prefix, c.Name) // default destination with api prefix
+			prefix := strings.TrimSuffix(strings.TrimPrefix(d.APIPrefix, "/"), "/")
+			srcURL = fmt.Sprintf("^/%s/%s/(.*)", prefix, c.Name) // default src with api prefix is /api-prefix/container-name/(.*)
 		}
 
-		if d.AutoAPI {
-			enabled = true
-		}
-
-		port, err := d.matchedPort(c)
+		port, err := d.matchedPort(c, n)
 		if err != nil {
-			log.Printf("[DEBUG] container %s disabled, %v", c.Name, err)
+			log.Printf("[DEBUG] container %s (route: %d) disabled, %v", c.Name, n, err)
 			continue
 		}
 
-		destURL := fmt.Sprintf("http://%s:%d/$1", c.IP, port)
-		pingURL := fmt.Sprintf("http://%s:%d/ping", c.IP, port)
-		server := "*"
+		// defaults
+		destURL, pingURL, server := fmt.Sprintf("http://%s:%d/$1", c.IP, port), fmt.Sprintf("http://%s:%d/ping", c.IP, port), "*"
 		assetsWebRoot, assetsLocation := "", ""
 
-		// we don't care about value because disabled will be filtered before
-		if _, ok := c.Labels["reproxy.enabled"]; ok {
+		if d.AutoAPI && n == 0 {
+			enabled = true
+		}
+
+		if _, ok := d.labelN(c.Labels, n, "enabled"); ok {
 			enabled, explicit = true, true
 		}
 
-		if v, ok := c.Labels["reproxy.route"]; ok {
+		if v, ok := d.labelN(c.Labels, n, "route"); ok {
 			enabled, explicit = true, true
 			srcURL = v
 		}
-
-		if v, ok := c.Labels["reproxy.dest"]; ok {
+		if v, ok := d.labelN(c.Labels, n, "dest"); ok {
 			enabled, explicit = true, true
 			destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 		}
-
-		if v, ok := c.Labels["reproxy.server"]; ok {
+		if v, ok := d.labelN(c.Labels, n, "server"); ok {
 			enabled = true
 			server = v
 		}
-
-		if v, ok := c.Labels["reproxy.ping"]; ok {
+		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
 			enabled = true
 			pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 		}
 
-		if v, ok := c.Labels["reproxy.assets"]; ok {
+		if v, ok := d.labelN(c.Labels, n, "assets"); ok {
 			if ae := strings.Split(v, ":"); len(ae) == 2 {
 				enabled = true
 				assetsWebRoot = ae[0]
@@ -127,18 +138,19 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 		}
 
 		// should not set anything, handled on matchedPort level. just use to enable implicitly
-		if _, ok := c.Labels["reproxy.port"]; ok {
+		if _, ok := d.labelN(c.Labels, n, "port"); ok {
 			enabled = true
 		}
 
 		if !enabled {
-			log.Printf("[DEBUG] container %s disabled", c.Name)
+			log.Printf("[DEBUG] container %s (route: %d) disabled", c.Name, n)
 			continue
 		}
 
 		srcRegex, err := regexp.Compile(srcURL)
 		if err != nil {
-			return nil, fmt.Errorf("invalid src regex: %w", err)
+			log.Printf("[DEBUG] container %s (route: %d) disabled, invalid src regex: %v", c.Name, n, err)
+			continue
 		}
 
 		// docker server label may have multiple, comma separated servers
@@ -158,35 +170,45 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 				mp.AssetsLocation = assetsLocation
 			}
 			res = append(res, mp)
-
 		}
 	}
 
-	// sort by len(SrcMatch) to have shorter matches after longer
-	// this way we can handle possible conflicts with more detailed match triggered before less detailed
-
-	sort.Slice(res, func(i, j int) bool {
-		return len(res[i].SrcMatch.String()) > len(res[j].SrcMatch.String())
-	})
-	return res, nil
+	return res
 }
 
-func (d *Docker) matchedPort(c containerInfo) (port int, err error) {
+// matchedPort gets port for route match, default the first exposed port
+// if reproxy.N.label found reruns this port only if it is one of exposed by the container
+func (d *Docker) matchedPort(c containerInfo, n int) (port int, err error) {
 	port = c.Ports[0] // by default use the first exposed port
-	if v, ok := c.Labels["reproxy.port"]; ok {
-		rp, err := strconv.Atoi(v)
+
+	if portLabel, ok := d.labelN(c.Labels, n, "port"); ok {
+		rp, err := strconv.Atoi(portLabel)
 		if err != nil {
-			return 0, fmt.Errorf("invalid reproxy port %s: %w", v, err)
+			return 0, fmt.Errorf("invalid reproxy port %s: %w", portLabel, err)
 		}
 		for _, p := range c.Ports {
-			// set port to reproxy.port if matched with one of exposed
+			// set port to reproxy.N.port if matched with one of exposed
 			if p == rp {
-				port = rp
-				break
+				return rp, nil
 			}
 		}
+		return 0, fmt.Errorf("reproxy port %s not exposed", portLabel)
 	}
 	return port, nil
+}
+
+// labelN returns label value from reproxy.N.suffix, i.e. reproxy.1.server
+func (d *Docker) labelN(labels map[string]string, n int, suffix string) (result string, ok bool) {
+	switch n {
+	case 0:
+		result, ok = labels["reproxy."+suffix]
+		if !ok {
+			result, ok = labels["reproxy.0."+suffix]
+		}
+	default:
+		result, ok = labels[fmt.Sprintf("reproxy.%d.%s", n, suffix)]
+	}
+	return result, ok
 }
 
 // events starts monitoring changes in running containers and sends refresh

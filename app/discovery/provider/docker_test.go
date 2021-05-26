@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,10 +40,10 @@ func TestDocker_List(t *testing.T) {
 					Name: "c3", State: "stopped",
 				},
 				{
-					Name: "c4", State: "running", IP: "127.0.0.2", Ports: []int{12345},
+					Name: "c4", State: "running", IP: "127.0.0.2", Ports: []int{12345}, // not enabled
 				},
 				{
-					Name: "c5", State: "running", IP: "127.0.0.122", Ports: []int{2345},
+					Name: "c5", State: "running", IP: "127.0.0.122", Ports: []int{2345}, // not enabled
 					Labels: map[string]string{"reproxy.enabled": "false"},
 				},
 			}, nil
@@ -68,6 +69,98 @@ func TestDocker_List(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[2].Dst)
 	assert.Equal(t, "http://127.0.0.2:12348/ping", res[2].PingURL)
 	assert.Equal(t, "example.com", res[2].Server)
+}
+
+func TestDocker_ListMulti(t *testing.T) {
+	dclient := &DockerClientMock{
+		ListContainersFunc: func() ([]containerInfo, error) {
+			return []containerInfo{
+				{
+					Name: "c0", State: "running", IP: "127.0.0.2", Ports: []int{12348},
+					Labels: map[string]string{"reproxy.route": "^/a/(.*)", "reproxy.dest": "/a/$1",
+						"reproxy.server": "example.com", "reproxy.ping": "/ping"},
+				},
+				{
+					Name: "c1", State: "running", IP: "127.0.0.2", Ports: []int{12345},
+					Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
+						"reproxy.server": "example.com", "reproxy.ping": "/ping"},
+				},
+				{
+					Name: "c2", State: "running", IP: "127.0.0.3", Ports: []int{12346},
+					Labels: map[string]string{"reproxy.enabled": "y"},
+				},
+				{
+					Name: "c2m", State: "running", IP: "127.0.0.3", Ports: []int{7890, 56789},
+					Labels: map[string]string{
+						"reproxy.enabled": "y",
+						"reproxy.1.route": "/api/1/(.*)",
+						"reproxy.1.dest":  "/blah/1/$1",
+					},
+				},
+				{
+					Name: "c4", State: "running", IP: "127.0.0.12", Ports: []int{12345},
+					Labels: map[string]string{"reproxy.port": "12345"},
+				},
+				{
+					Name: "c4", State: "running", IP: "127.0.0.12", Ports: []int{12345},
+					Labels: map[string]string{"reproxy.port": "12xx345"}, // bad port
+				},
+				{
+					Name: "c23", State: "running", IP: "127.0.0.3", Ports: []int{12346},
+					Labels: map[string]string{"reproxy.enabled": "y", "reproxy.route": "^/api/123/(.***)"}, // bad regex
+				},
+				{
+					Name: "c3", State: "stopped",
+				},
+				{
+					Name: "c4", State: "running", IP: "127.0.0.2", Ports: []int{12345}, // not enabled
+				},
+				{
+					Name: "c4", State: "running", IP: "127.0.0.2", Ports: []int{12345}, // not enabled, port mismatch
+					Labels: map[string]string{"reproxy.port": "9999"},
+				},
+				{
+					Name: "c5", State: "running", IP: "127.0.0.122", Ports: []int{2345}, // not enabled
+					Labels: map[string]string{"reproxy.enabled": "false"},
+				},
+			}, nil
+		},
+	}
+
+	d := Docker{DockerClient: dclient}
+	res, err := d.List()
+	require.NoError(t, err)
+	require.Equal(t, 6, len(res))
+
+	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
+	assert.Equal(t, "example.com", res[0].Server)
+	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
+
+	assert.Equal(t, "/api/1/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:7890/blah/1/$1", res[1].Dst)
+	assert.Equal(t, "http://127.0.0.3:7890/ping", res[1].PingURL)
+	assert.Equal(t, "*", res[1].Server)
+
+	assert.Equal(t, "^/c2m/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:7890/$1", res[2].Dst)
+	assert.Equal(t, "http://127.0.0.3:7890/ping", res[2].PingURL)
+	assert.Equal(t, "*", res[2].Server)
+
+	assert.Equal(t, "^/c2/(.*)", res[3].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:12346/$1", res[3].Dst)
+	assert.Equal(t, "http://127.0.0.3:12346/ping", res[3].PingURL)
+	assert.Equal(t, "*", res[3].Server)
+
+	assert.Equal(t, "^/c4/(.*)", res[4].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.12:12345/$1", res[4].Dst)
+	assert.Equal(t, "http://127.0.0.12:12345/ping", res[4].PingURL)
+	assert.Equal(t, "*", res[4].Server)
+
+	assert.Equal(t, "^/a/(.*)", res[5].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[5].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[5].PingURL)
+	assert.Equal(t, "example.com", res[5].Server)
 }
 
 func TestDocker_ListWithAutoAPI(t *testing.T) {
@@ -234,4 +327,36 @@ func TestDockerClient_error(t *testing.T) {
 	client := NewDockerClient(addr, "bridge")
 	_, err := client.ListContainers()
 	require.EqualError(t, err, "unexpected error from docker daemon: bruh")
+}
+
+func TestDocker_labelN(t *testing.T) {
+
+	tbl := []struct {
+		labels map[string]string
+		n      int
+		suffix string
+		res    string
+		ok     bool
+	}{
+		{map[string]string{}, 0, "port", "", false},
+		{map[string]string{"a": "123", "reproxy.port": "9999"}, 0, "port", "9999", true},
+		{map[string]string{"a": "123", "reproxy.0.port": "9999"}, 0, "port", "9999", true},
+		{map[string]string{"a": "123", "reproxy.1.port": "9999"}, 0, "port", "", false},
+		{map[string]string{"a": "123", "reproxy.1.port": "9999"}, 1, "port", "9999", true},
+		{map[string]string{"a": "123", "reproxy.1.port": "9999", "reproxy.0.port": "7777"}, 1, "port", "9999", true},
+		{map[string]string{"a": "123", "reproxy.1.port": "9999", "reproxy.0.port": "7777"}, 0, "port", "7777", true},
+	}
+
+	d := Docker{}
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res, ok := d.labelN(tt.labels, tt.n, tt.suffix)
+			require.Equal(t, tt.ok, ok)
+			if !ok {
+				return
+			}
+			assert.Equal(t, tt.res, res)
+		})
+	}
+
 }
