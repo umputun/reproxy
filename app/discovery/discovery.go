@@ -52,6 +52,7 @@ type Matches struct {
 type MatchedRoute struct {
 	Destination string
 	Alive       bool
+	Mapper      URLMapper
 }
 
 // Provider defines sources of mappers
@@ -159,12 +160,12 @@ func (s *Service) Match(srv, src string) (res Matches) {
 				if src != dest { // regex matched
 					lastSrcMatch = m.SrcMatch.String()
 					res.MatchType = MTProxy
-					res.Routes = append(res.Routes, MatchedRoute{dest, m.IsAlive()})
+					res.Routes = append(res.Routes, MatchedRoute{Destination: dest, Alive: m.IsAlive(), Mapper: m})
 				}
 			case MTStatic:
 				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
 					res.MatchType = MTStatic
-					res.Routes = append(res.Routes, MatchedRoute{m.AssetsWebRoot + ":" + m.AssetsLocation, true})
+					res.Routes = append(res.Routes, MatchedRoute{Destination: m.AssetsWebRoot + ":" + m.AssetsLocation, Alive: true})
 					return res
 				}
 			}

@@ -20,26 +20,28 @@ import (
 	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/plugin"
 )
 
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address        string
-	AssetsLocation string
-	AssetsWebRoot  string
-	MaxBodySize    int64
-	GzEnabled      bool
-	ProxyHeaders   []string
-	SSLConfig      SSLConfig
-	Version        string
-	AccessLog      io.Writer
-	StdOutEnabled  bool
-	Signature      bool
-	Timeouts       Timeouts
-	CacheControl   MiddlewareProvider
-	Metrics        MiddlewareProvider
-	Reporter       Reporter
+	Address         string
+	AssetsLocation  string
+	AssetsWebRoot   string
+	MaxBodySize     int64
+	GzEnabled       bool
+	ProxyHeaders    []string
+	SSLConfig       SSLConfig
+	Version         string
+	AccessLog       io.Writer
+	StdOutEnabled   bool
+	Signature       bool
+	Timeouts        Timeouts
+	CacheControl    MiddlewareProvider
+	Metrics         MiddlewareProvider
+	PluginConductor MiddlewareProvider
+	Reporter        Reporter
 }
 
 // Matcher source info (server and route) to the destination url
@@ -205,7 +207,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			server = strings.Split(r.Host, ":")[0]
 		}
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
-		u, ok := h.getMatch(matches, rand.Intn)
+		match, ok := h.getMatch(matches, rand.Intn)
 		if !ok { // no route match
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
@@ -218,17 +220,25 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 		switch matches.MatchType {
 		case discovery.MTProxy:
-			uu, err := url.Parse(u)
+			uu, err := url.Parse(match.Destination)
 			if err != nil {
 				h.Reporter.Report(w, http.StatusBadGateway)
 				return
 			}
 			log.Printf("[DEBUG] proxy to %s", uu)
 			ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
+
+			// set keys for plugin conductor
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("route"), match.Destination)
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("server"), match.Mapper.Server)
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("src"), match.Mapper.SrcMatch.String())
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("dst"), match.Mapper.Dst)
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("provider"), match.Mapper.ProviderID)
+
 			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
 		case discovery.MTStatic:
 			// static match result has webroot:location, i.e. /www:/var/somedir/
-			ae := strings.Split(u, ":")
+			ae := strings.Split(match.Destination, ":")
 			if len(ae) != 2 { // shouldn't happen
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
@@ -243,24 +253,24 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	}
 }
 
-func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (u string, ok bool) {
+func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (m discovery.MatchedRoute, ok bool) {
 	if len(mm.Routes) == 0 {
-		return "", false
+		return m, false
 	}
 
-	var urls []string
+	var matches []discovery.MatchedRoute
 	for _, m := range mm.Routes {
 		if m.Alive {
-			urls = append(urls, m.Destination)
+			matches = append(matches, m)
 		}
 	}
-	switch len(urls) {
+	switch len(matches) {
 	case 0:
-		return "", false
+		return m, false
 	case 1:
-		return urls[0], true
+		return matches[0], true
 	default:
-		return urls[picker(len(urls))], true
+		return matches[picker(len(matches))], true
 	}
 }
 

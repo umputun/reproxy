@@ -70,7 +70,7 @@ func TestHttp_Do(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
 		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
@@ -86,7 +86,7 @@ func TestHttp_Do(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /123/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	}
 
@@ -150,7 +150,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Name"))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	}
 
@@ -164,7 +164,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "test html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Name"))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "", resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	}
@@ -231,7 +231,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Name"))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	}
 
@@ -245,7 +245,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "test html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Name"))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "", resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	}
@@ -299,7 +299,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
 		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
@@ -413,7 +413,7 @@ func TestHttp_getMatch(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res, ok := h.getMatch(tt.matches, func(len int) int { return 0 })
 			require.Equal(t, tt.ok, ok)
-			assert.Equal(t, tt.res, res)
+			assert.Equal(t, tt.res, res.Destination)
 		})
 	}
 }
