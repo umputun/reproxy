@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/umputun/reproxy/app/lua"
 	"io"
 	"io/ioutil"
 	"math"
@@ -109,6 +110,11 @@ var opts struct {
 		Enabled  bool          `long:"enabled" env:"ENABLED" description:"enable automatic health-check"`
 		Interval time.Duration `long:"interval" env:"INTERVAL" default:"300s" description:"automatic health-check interval"`
 	} `group:"health-check" namespace:"health-check" env-namespace:"HEALTH_CHECK"`
+
+	Lua struct {
+		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable lua script middlewares"`
+		Scripts []string `long:"script" env:"SCRIPTS" description:"lua script paths" env-delim:";"`
+	} `group:"lua" namespace:"lua" env-namespace:"LUA"`
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
@@ -225,6 +231,14 @@ func run() error {
 		return fmt.Errorf("failed to convert MaxSize: %w", err)
 	}
 
+	var luaMiddlewareManager *lua.Manager
+	if opts.Lua.Enabled {
+		luaMiddlewareManager, err = lua.New(opts.Lua.Scripts)
+		if err != nil {
+			return fmt.Errorf("failed to make lua middleware manager: %w", err)
+		}
+	}
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -252,6 +266,7 @@ func run() error {
 		},
 		Metrics:  metrics,
 		Reporter: errReporter,
+		Lua:      luaMiddlewareManager,
 	}
 
 	err = px.Run(ctx)

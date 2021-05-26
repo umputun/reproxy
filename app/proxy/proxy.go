@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/lua"
 	"github.com/umputun/reproxy/app/mgmt"
 )
 
@@ -40,6 +41,7 @@ type Http struct { // nolint golint
 	Timeouts       Timeouts
 	CacheControl   MiddlewareProvider
 	Metrics        MiddlewareProvider
+	Lua            MiddlewareProvider
 	Reporter       Reporter
 }
 
@@ -111,6 +113,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		h.maxReqSizeHandler(h.MaxBodySize),
 		h.gzipHandler(),
+		h.luaHandler(),
 	)
 
 	rand.Seed(time.Now().UnixNano())
@@ -401,6 +404,18 @@ func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
 	if h.Metrics.(*mgmt.Metrics) != nil { // type assertion needed because we compare interface to nil
 		log.Printf("[DEBUG] metrics enabled")
 		return h.Metrics.Middleware
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (h *Http) luaHandler() func(next http.Handler) http.Handler {
+	if h.Lua.(*lua.Manager) != nil { // type assertion needed because we compare interface to nil
+		log.Printf("[DEBUG] lua enabled")
+		return h.Lua.Middleware
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
