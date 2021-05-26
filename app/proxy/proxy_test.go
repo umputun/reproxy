@@ -70,7 +70,7 @@ func TestHttp_Do(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Method"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
 		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
@@ -86,7 +86,7 @@ func TestHttp_Do(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /123/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Method"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	}
 
@@ -299,7 +299,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Method"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
 		assert.Equal(t, "vv2", resp.Header.Get("hh2"))

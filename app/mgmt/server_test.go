@@ -69,7 +69,7 @@ func TestServer_controllers(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		t.Logf("%+v", resp.Header)
-		assert.Equal(t, "reproxy-mgmt", resp.Header.Get("App-Method"))
+		assert.Equal(t, "reproxy-mgmt", resp.Header.Get("App-Name"))
 	}
 
 	{

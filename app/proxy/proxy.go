@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/plugin"
 )
 
