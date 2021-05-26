@@ -56,6 +56,8 @@ This is the simplest provider defining all mapping rules directly in the command
 
 The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](#ping-and-health-checks) section for more details.
 
+_Pls note: in case if rules set as a part of docker compose enviroment, destination with the regex group will conflict with compose syntax. I.e. attmept to use `https://api.example.com/$1` in compose enviroment will fail due to a syntax error. The standard soulution here is to "escape" `$` sign by replacing it with `$$`, i.e. `https://api.example.com/$$1`. This substitution supported by docker compose and has nothing to do with reproxy itself. Another way is to use `@` insteaad of `$` which is supported on reproxy level, i.e. `https://api.example.com/@1`_ 
+
 ### File
 
 `reproxy --file.enabled --file.name=config.yml`
@@ -99,6 +101,8 @@ With `--docker.auto`, all containers with exposed port will be considered as rou
 - Set the label `reproxy.enabled=false` or `reproxy.enabled=no` or `reproxy.enabled=0`
 
 If no `reproxy.route` defined, the default is `http://<container_name>:<container_port>/(.*)`. In case if all proxied source have the same pattern, for example `/api/(.*)` user can define the common prefix (in this case `/api`) for all container-based routes. This can be done with `--docker.prefix` parameter.
+
+Docker provider also allows to define multiple set of `reproxy.N.something` labels to match multiple distinct routes on the same container. This is useful as inn some cases, a container may expose multiple endpoints, for example, public API and some admin API. All the labels above can be used with "N-index", i.e. `reproxy.1.server`, `reproxy.1.port` and so on. N should be in 0 to 9 range.
 
 This is a dynamic provider and any change in container's status will be applied automatically.
 

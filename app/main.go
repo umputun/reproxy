@@ -188,22 +188,24 @@ func run() error {
 		}
 	}()
 
-	metrics := mgmt.NewMetrics()
-	go func() {
-		mgSrv := mgmt.Server{
-			Listen:         opts.Management.Listen,
-			Informer:       svc,
-			AssetsLocation: opts.Assets.Location,
-			AssetsWebRoot:  opts.Assets.WebRoot,
-			Version:        revision,
-			Metrics:        metrics,
-		}
-		if opts.Management.Enabled {
-			if mgErr := mgSrv.Run(ctx); err != nil {
-				log.Printf("[WARN] management service failed, %v", mgErr)
+	var metrics *mgmt.Metrics // disabled by default
+	if opts.Management.Enabled {
+		metrics = mgmt.NewMetrics()
+		go func() {
+			mgSrv := mgmt.Server{
+				Listen:         opts.Management.Listen,
+				Informer:       svc,
+				AssetsLocation: opts.Assets.Location,
+				AssetsWebRoot:  opts.Assets.WebRoot,
+				Version:        revision,
 			}
-		}
-	}()
+			if opts.Management.Enabled {
+				if mgErr := mgSrv.Run(ctx); err != nil {
+					log.Printf("[WARN] management service failed, %v", mgErr)
+				}
+			}
+		}()
+	}
 
 	cacheControl, err := proxy.MakeCacheControl(opts.Assets.CacheControl)
 	if err != nil {

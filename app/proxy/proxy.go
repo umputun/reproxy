@@ -106,7 +106,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.signatureHandler(),
 		h.pingHandler,
 		h.healthMiddleware,
-		h.Metrics.Middleware,
+		h.mgmtHandler(),
 		h.headersHandler(h.ProxyHeaders),
 		h.accessLogHandler(h.AccessLog),
 		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
@@ -404,7 +404,18 @@ func (h *Http) maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Han
 		}
 		return http.HandlerFunc(fn)
 	}
+}
 
+func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
+	if h.Metrics.(*mgmt.Metrics) != nil { // type assertion needed because we compare interface to nil
+		log.Printf("[DEBUG] metrics enabled")
+		return h.Metrics.Middleware
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
