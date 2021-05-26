@@ -173,6 +173,49 @@ func TestDocker_ListMulti(t *testing.T) {
 	assert.Equal(t, "example.com", res[5].Server)
 }
 
+func TestDocker_ListMultiFallBack(t *testing.T) {
+	dclient := &DockerClientMock{
+		ListContainersFunc: func() ([]containerInfo, error) {
+			return []containerInfo{
+				{
+					Name: "c0", State: "running", IP: "127.0.0.2", Ports: []int{12348},
+					Labels: map[string]string{
+						"reproxy.server": "example.com", "reproxy.route": "^/a/(.*)", "reproxy.dest": "/a/$1",
+						"reproxy.ping": "/ping", "reproxy.assets": "/web:/var/www",
+
+						"reproxy.1.route": "^/a/1/(.*)", "reproxy.1.dest": "/a/1/$1", "reproxy.1.ping": "/ping",
+
+						"reproxy.2.server": "m2.example.com", "reproxy.2.route": "^/a/2/(.*)",
+						"reproxy.2.dest": "/a/2/$1", "reproxy.2.assets": "/web2:/var/www2",
+					},
+				},
+			}, nil
+		},
+	}
+
+	d := Docker{DockerClient: dclient}
+	res, err := d.List()
+	require.NoError(t, err)
+	require.Equal(t, 5, len(res), "3 proxy, 2 assets")
+
+	assert.Equal(t, "^/a/1/(.*)", res[0].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/1/$1", res[0].Dst)
+	assert.Equal(t, "example.com", res[0].Server)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[0].PingURL)
+
+	assert.Equal(t, "^/a/2/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/2/$1", res[1].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[1].PingURL)
+	assert.Equal(t, "m2.example.com", res[1].Server)
+
+	assert.Equal(t, "^/a/2/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/2/$1", res[2].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[2].PingURL)
+	assert.Equal(t, "m2.example.com", res[2].Server)
+	assert.Equal(t, "/web2", res[2].AssetsWebRoot)
+	assert.Equal(t, "/var/www2", res[2].AssetsLocation)
+}
+
 func TestDocker_ListWithAutoAPI(t *testing.T) {
 	dclient := &DockerClientMock{
 		ListContainersFunc: func() ([]containerInfo, error) {

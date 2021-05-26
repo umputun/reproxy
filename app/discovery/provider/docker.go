@@ -116,6 +116,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			enabled, explicit = true, true
 			srcURL = v
 		}
+
 		if v, ok := d.labelN(c.Labels, n, "dest"); ok {
 			enabled, explicit = true, true
 			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
@@ -124,14 +125,18 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 				destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 			}
 		}
+
 		if v, ok := d.labelN(c.Labels, n, "server"); ok {
 			enabled = true
 			server = v
+		} else if v, ok = c.Labels["reproxy.server"]; ok { // fallback if no reproxy.N.server
+			server = v
 		}
+
 		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
 			enabled = true
 			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
-				pingURL = v // if ping is fulle url with http:// or https:// use it as-is
+				pingURL = v // if ping is full url with http:// or https:// use it as-is
 			} else {
 				pingURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 			}
@@ -140,8 +145,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		if v, ok := d.labelN(c.Labels, n, "assets"); ok {
 			if ae := strings.Split(v, ":"); len(ae) == 2 {
 				enabled = true
-				assetsWebRoot = ae[0]
-				assetsLocation = ae[1]
+				assetsWebRoot, assetsLocation = ae[0], ae[1]
 			}
 		}
 
@@ -209,9 +213,9 @@ func (d *Docker) matchedPort(c containerInfo, n int) (port int, err error) {
 func (d *Docker) labelN(labels map[string]string, n int, suffix string) (result string, ok bool) {
 	switch n {
 	case 0:
-		result, ok = labels["reproxy."+suffix]
+		result, ok = labels["reproxy.0."+suffix]
 		if !ok {
-			result, ok = labels["reproxy.0."+suffix]
+			result, ok = labels["reproxy."+suffix]
 		}
 	default:
 		result, ok = labels[fmt.Sprintf("reproxy.%d.%s", n, suffix)]
