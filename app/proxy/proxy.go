@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"github.com/umputun/reproxy/app/lua"
 	"io"
 	"math/rand"
 	"net"
@@ -20,7 +21,6 @@ import (
 	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/lua"
 	"github.com/umputun/reproxy/app/mgmt"
 )
 
@@ -413,7 +413,7 @@ func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
 }
 
 func (h *Http) luaHandler() func(next http.Handler) http.Handler {
-	if h.Lua.(*lua.Manager) != nil { // type assertion needed because we compare interface to nil
+	if h.Lua != nil && h.Lua.(*lua.Manager) != nil { // type assertion needed because we compare interface to nil
 		log.Printf("[DEBUG] lua enabled")
 		return h.Lua.Middleware
 	}
