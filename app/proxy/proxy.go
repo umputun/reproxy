@@ -41,6 +41,7 @@ type Http struct { // nolint golint
 	CacheControl   MiddlewareProvider
 	Metrics        MiddlewareProvider
 	Reporter       Reporter
+	LBSelector     func(len int) int
 }
 
 // Matcher source info (server and route) to the destination url
@@ -84,6 +85,10 @@ func (h *Http) Run(ctx context.Context) error {
 		log.Printf("[DEBUG] assets file server enabled for %s, webroot %s", h.AssetsLocation, h.AssetsWebRoot)
 	}
 
+	if h.LBSelector == nil {
+		h.LBSelector = rand.Intn
+	}
+
 	var httpServer, httpsServer *http.Server
 
 	go func() {
@@ -112,8 +117,6 @@ func (h *Http) Run(ctx context.Context) error {
 		h.maxReqSizeHandler(h.MaxBodySize),
 		h.gzipHandler(),
 	)
-
-	rand.Seed(time.Now().UnixNano())
 
 	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
 		// discovery async and may happen not right away. Try to get servers for some time
@@ -206,8 +209,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			server = strings.Split(r.Host, ":")[0]
 		}
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
-		u, ok := h.getMatch(matches, rand.Intn)
-		if !ok { // no route match
+		u, ok := h.getMatch(matches)           // pick a single match from alive only, uses LBSelector as the strategy
+		if !ok {                               // no route match
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
 				return
@@ -244,24 +247,25 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	}
 }
 
-func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (u string, ok bool) {
+func (h *Http) getMatch(mm discovery.Matches) (u string, ok bool) {
 	if len(mm.Routes) == 0 {
 		return "", false
 	}
 
-	var urls []string
+	var urls []string // alive destinations only
 	for _, m := range mm.Routes {
 		if m.Alive {
 			urls = append(urls, m.Destination)
 		}
 	}
+
 	switch len(urls) {
 	case 0:
 		return "", false
 	case 1:
 		return urls[0], true
 	default:
-		return urls[picker(len(urls))], true
+		return urls[h.LBSelector(len(urls))], true
 	}
 }
 

@@ -408,10 +408,10 @@ func TestHttp_getMatch(t *testing.T) {
 		},
 	}
 
-	h := Http{}
+	h := Http{LBSelector: func(len int) int { return 0 }}
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res, ok := h.getMatch(tt.matches, func(len int) int { return 0 })
+			res, ok := h.getMatch(tt.matches)
 			require.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.res, res)
 		})
