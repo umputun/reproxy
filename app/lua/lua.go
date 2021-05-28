@@ -3,10 +3,11 @@ package lua
 import (
 	"bytes"
 	"fmt"
+	log "github.com/go-pkgz/lgr"
 	"net/http"
 	"os"
+	"sync"
 
-	log "github.com/go-pkgz/lgr"
 	lua "github.com/yuin/gopher-lua"
 	"github.com/yuin/gopher-lua/parse"
 )
@@ -38,62 +39,42 @@ reproxy.stop(status_code[, response_body])  void
 // Manager represents LUA script manager
 // It loading scripts and provide MiddlewareProvider interface
 type Manager struct {
-	scripts []script
-}
-
-type script struct {
-	filename string
-	proto    *lua.LFunction
+	scripts map[string]*sync.Pool
 }
 
 // New creates new Manager instance
 func New(scripts []string) (*Manager, error) {
-	ss := make([]script, 0, len(scripts))
+	m := &Manager{
+		scripts: map[string]*sync.Pool{},
+	}
 
 	for _, filePath := range scripts {
-		s, err := loadScript(filePath)
+		body, err := os.ReadFile(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("error read lua script %s, %w", filePath, err)
+			return nil, fmt.Errorf("error read script, %w", err)
 		}
 
-		ss = append(ss, s)
+		chunk, err := parse.Parse(bytes.NewReader(body), filePath)
+		if err != nil {
+			return nil, fmt.Errorf("error parse lua script, %w", err)
+		}
+		proto, err := lua.Compile(chunk, filePath)
+		if err != nil {
+			return nil, fmt.Errorf("error compile lua script, %w", err)
+		}
+
+		f := func(filePath string, proto *lua.FunctionProto) func() interface{} {
+			return func() interface{} {
+				return newState(filePath, proto)
+			}
+		}
+
+		m.scripts[filePath] = &sync.Pool{New: f(filePath, proto)}
+
+		log.Printf("[DEBUG] add lua script: %s", filePath)
 	}
 
-	// todo: Allow to use with empty scripts list? Or return nil, nil?
-	if len(ss) == 0 {
-		return nil, fmt.Errorf("you should add at least one lua script, if lua support is enabled")
-	}
-
-	return &Manager{
-		scripts: ss,
-	}, nil
-}
-
-func loadScript(filePath string) (script, error) {
-	body, err := os.ReadFile(filePath)
-	if err != nil {
-		return script{}, err
-	}
-
-	chunk, err := parse.Parse(bytes.NewReader(body), filePath)
-	if err != nil {
-		return script{}, err
-	}
-	proto, err := lua.Compile(chunk, filePath)
-	if err != nil {
-		return script{}, err
-	}
-
-	return script{
-		filename: filePath,
-		proto: &lua.LFunction{
-			IsG:       false,
-			Env:       &lua.LTable{},
-			Proto:     proto,
-			GFunction: nil,
-			Upvalues:  make([]*lua.Upvalue, int(proto.NumUpvalues)),
-		},
-	}, nil
+	return m, nil
 }
 
 // Middleware implements MiddlewareProvider interface
@@ -101,26 +82,26 @@ func (mgr *Manager) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 
-		state := getState()
-		defer putState(state)
+		for _, pool := range mgr.scripts {
+			st := pool.Get().(*state)
 
-		state.w = w
-		state.r = r
-
-		for _, s := range mgr.scripts {
-			s.proto.Env = state.l.Env
-			state.l.Push(s.proto)
-
-			err = state.l.PCall(0, lua.MultRet, nil)
+			err = st.run(w, r)
 			if err != nil {
-				log.Printf("[ERROR] error call lua script %s, %v", s.filename, err)
+				log.Printf("[ERROR] error call lua script %s, %v", st.filePath, err)
 				next.ServeHTTP(w, r)
+				st.reset()
+				pool.Put(st)
 				return
 			}
 
-			if state.canceled {
+			if st.canceled {
+				st.reset()
+				pool.Put(st)
 				return
 			}
+
+			st.reset()
+			pool.Put(st)
 		}
 
 		next.ServeHTTP(w, r)

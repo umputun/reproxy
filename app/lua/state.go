@@ -1,45 +1,26 @@
 package lua
 
 import (
-	"net/http"
-	"strconv"
-	"sync"
-
 	log "github.com/go-pkgz/lgr"
 	lua "github.com/yuin/gopher-lua"
+	"net/http"
+	"strconv"
 )
 
-// state contains LuaState struct, which use for run lua script on request
 type state struct {
-	l *lua.LState
-	r *http.Request
-	w http.ResponseWriter
-
+	r        *http.Request
+	w        http.ResponseWriter
 	canceled bool
+
+	filePath string
+	l        *lua.LState
+	proto    *lua.LFunction
 }
 
-var (
-	pool = sync.Pool{
-		New: func() interface{} {
-			return newState()
-		},
-	}
-)
-
-func getState() *state {
-	return pool.Get().(*state)
-}
-
-func putState(st *state) {
-	st.canceled = false
-	st.w = nil
-	st.r = nil
-	pool.Put(st)
-}
-
-func newState() *state {
+func newState(filePath string, proto *lua.FunctionProto) *state {
 	st := &state{
-		l: lua.NewState(),
+		l:        lua.NewState(),
+		filePath: filePath,
 	}
 
 	mt := st.l.NewTable()
@@ -51,7 +32,23 @@ func newState() *state {
 
 	st.l.SetGlobal("reproxy", mt)
 
+	st.proto = st.l.NewFunctionFromProto(proto)
+
 	return st
+}
+
+func (st *state) run(w http.ResponseWriter, r *http.Request) error {
+	st.w = w
+	st.r = r
+
+	st.l.Push(st.proto)
+	return st.l.PCall(0, lua.MultRet, nil)
+}
+
+func (st *state) reset() {
+	st.r = nil
+	st.w = nil
+	st.canceled = false
 }
 
 func (st *state) stop(state *lua.LState) int {
