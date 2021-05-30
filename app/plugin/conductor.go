@@ -84,36 +84,34 @@ func (c *Conductor) Run(ctx context.Context) error {
 // Middleware hits all registered, alive-only plugins and modifies the original request accordingly
 // Failed plugin calls ignored. Status code from any plugin may stop the chain of calls if not 200. This is needed
 // to allow plugins like auth which has to terminate request in some cases.
-func (c *Conductor) Middleware() func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (c *Conductor) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			c.lock.RLock()
-			for _, p := range c.plugins {
-				if !p.Alive {
-					continue
-				}
-
-				var reply lib.HandlerResponse
-				if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
-					log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
-					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-					return
-				}
-				for k, vv := range reply.Header {
-					r.Header[k] = vv
-				}
-				if reply.StatusCode >= 400 {
-					c.lock.RUnlock()
-					http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)
-					return
-				}
+		c.lock.RLock()
+		for _, p := range c.plugins {
+			if !p.Alive {
+				continue
 			}
-			c.lock.RUnlock()
 
-			next.ServeHTTP(w, r)
-		})
-	}
+			var reply lib.HandlerResponse
+			if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
+				log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			for k, vv := range reply.Header {
+				r.Header[k] = vv
+			}
+			if reply.StatusCode >= 400 {
+				c.lock.RUnlock()
+				http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)
+				return
+			}
+		}
+		c.lock.RUnlock()
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // makeRequest creates plugin request from http.Request

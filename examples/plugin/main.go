@@ -23,8 +23,8 @@ func main() {
 type Handler struct{}
 
 func (h *Handler) List(_ lib.Request, res *lib.ListResponse) (err error) {
-	res.Handlers = append(res.Handlers, "HeaderThing")
-	res.Handlers = append(res.Handlers, "ErrorThing")
+	res.Methods = append(res.Methods, "HeaderThing")
+	res.Methods = append(res.Methods, "ErrorThing")
 	return
 }
 

@@ -301,7 +301,7 @@ func TestConductor_Middleware(t *testing.T) {
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("provider"), "provider123"))
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
 	w := httptest.NewRecorder()
-	h := c.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "v1", r.Header.Get("k1"))
 		w.Header().Set("k2", "v2")
 		w.Write([]byte("something"))
@@ -376,7 +376,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("provider"), "provider123"))
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
 	w := httptest.NewRecorder()
-	h := c.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Failed() // handler not called on plugin middleware error
 	}))
 	h.ServeHTTP(w, rr)
@@ -440,7 +440,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("provider"), "provider123"))
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
 	w := httptest.NewRecorder()
-	h := c.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Failed() // handler not called on plugin middleware error
 	}))
 	h.ServeHTTP(w, rr)

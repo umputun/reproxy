@@ -20,7 +20,6 @@ import (
 	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/plugin"
 )
 
@@ -108,6 +107,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.pingHandler,
 		h.healthMiddleware,
 		h.mgmtHandler(),
+		h.pluginHandler(),
 		h.headersHandler(h.ProxyHeaders),
 		h.accessLogHandler(h.AccessLog),
 		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
@@ -407,8 +407,20 @@ func (h *Http) maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Han
 	}
 }
 
+func (h *Http) pluginHandler() func(next http.Handler) http.Handler {
+	if h.PluginConductor != nil {
+		log.Printf("[INFO] plugin support enabled")
+		return h.PluginConductor.Middleware
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
-	if h.Metrics.(*mgmt.Metrics) != nil { // type assertion needed because we compare interface to nil
+	if h.Metrics != nil {
 		log.Printf("[DEBUG] metrics enabled")
 		return h.Metrics.Middleware
 	}
