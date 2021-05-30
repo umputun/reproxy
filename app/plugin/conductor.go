@@ -97,10 +97,14 @@ func (c *Conductor) Middleware() func(next http.Handler) http.Handler {
 				var reply lib.HandlerResponse
 				if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
 					log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
-					continue
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
 				}
-				r.Header = reply.Header
-				if reply.StatusCode != http.StatusOK {
+				for k, vv := range reply.Header {
+					r.Header[k] = vv
+				}
+				if reply.StatusCode >= 400 {
+					c.lock.RUnlock()
 					http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)
 					return
 				}
