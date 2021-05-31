@@ -106,6 +106,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.signatureHandler(),
 		h.pingHandler,
 		h.healthMiddleware,
+		h.matchHandler,
 		h.mgmtHandler(),
 		h.pluginHandler(),
 		h.headersHandler(h.ProxyHeaders),
@@ -171,8 +172,9 @@ func (h *Http) Run(ctx context.Context) error {
 	return fmt.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
 }
 
+type contextKey string
+
 func (h *Http) proxyHandler() http.HandlerFunc {
-	type contextKey string
 
 	reverseProxy := &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
@@ -235,7 +237,6 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("src"), match.Mapper.SrcMatch.String())
 			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("dst"), match.Mapper.Dst)
 			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("provider"), match.Mapper.ProviderID)
-
 			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
 		case discovery.MTStatic:
 			// static match result has webroot:location, i.e. /www:/var/somedir/
@@ -273,6 +274,35 @@ func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (m disco
 	default:
 		return matches[picker(len(matches))], true
 	}
+}
+
+func (h *Http) matchHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Hostname()
+		if server == "" {
+			server = strings.Split(r.Host, ":")[0]
+		}
+		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
+		match, ok := h.getMatch(matches, rand.Intn)
+		if ok {
+			uu, err := url.Parse(match.Destination)
+			if err != nil {
+				h.Reporter.Report(w, http.StatusBadGateway)
+				return
+			}
+			ctx := context.WithValue(r.Context(), contextKey("matched"), true)
+			ctx = context.WithValue(ctx, contextKey("url"), uu) // set destination url in request's context
+			ctx = context.WithValue(ctx, contextKey("type"), match.Mapper.MatchType)
+			// set keys for plugin conductor
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("route"), match.Destination)
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("server"), match.Mapper.Server)
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("src"), match.Mapper.SrcMatch.String())
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("dst"), match.Mapper.Dst)
+			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("provider"), match.Mapper.ProviderID)
+			r = r.WithContext(ctx)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Http) assetsHandler() http.HandlerFunc {

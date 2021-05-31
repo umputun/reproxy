@@ -17,36 +17,10 @@ import (
 	"github.com/umputun/reproxy/lib"
 )
 
-// func TestHandler_Execute(t *testing.T) {
-// 	client, err := rpc.Dial("tcp", "localhost:1234")
-// 	if err != nil {
-// 		log.Fatal("dialing:", err)
-// 	}
-//
-// 	var reply lib.HandlerResponse
-//
-// 	req, _ := http.NewRequest("POST", "https://exmple.com", nil)
-// 	req.Header.Set("inp", "blah")
-// 	err = client.Call("TestPlugin.Execute", lib.Request{HttpReq: *req}, &reply)
-// 	require.NoError(t, err)
-// 	log.Print(reply)
-//
-// 	var list lib.ListResponse
-// 	err = client.Call("TestPlugin.List", lib.Request{}, &list)
-// 	require.NoError(t, err)
-// 	log.Print(list)
-// }
-
 func TestConductor_registrationHandler(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
 		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
-			if serviceMethod == "Test1.List" {
-				reply.(*lib.ListResponse).Methods = []string{"Mw1", "Mw2"}
-			}
-			if serviceMethod == "Test2.List" {
-				reply.(*lib.ListResponse).Methods = []string{"Mw11", "Mw12", "Mw13"}
-			}
 			return nil
 		},
 	}
@@ -64,7 +38,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 
 	{ // register plugin with two methods
-		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:0001"}
+		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:0001", Methods: []string{"Mw1", "Mw2"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
 		req, err := http.NewRequest("POST", ts.URL, bytes.NewReader(data))
@@ -82,12 +56,12 @@ func TestConductor_registrationHandler(t *testing.T) {
 		assert.Equal(t, "Test1.Mw2", c.plugins[1].Method)
 		assert.Equal(t, true, c.plugins[1].Alive)
 
-		assert.Equal(t, 1, len(rpcClient.CallCalls()))
+		assert.Equal(t, 0, len(rpcClient.CallCalls()))
 		assert.Equal(t, 1, len(dialer.DialCalls()))
 	}
 
 	{ // same registration
-		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:0001"}
+		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:0001", Methods: []string{"Mw1", "Mw2"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
 		req, err := http.NewRequest("POST", ts.URL, bytes.NewReader(data))
@@ -96,12 +70,12 @@ func TestConductor_registrationHandler(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, 2, len(c.plugins), "two plugins registered")
-		assert.Equal(t, 1, len(rpcClient.CallCalls()))
+		assert.Equal(t, 0, len(rpcClient.CallCalls()))
 		assert.Equal(t, 1, len(dialer.DialCalls()))
 	}
 
 	{ // address changed
-		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.2:8002"}
+		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.2:8002", Methods: []string{"Mw1", "Mw2"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
 		req, err := http.NewRequest("POST", ts.URL, bytes.NewReader(data))
@@ -118,12 +92,12 @@ func TestConductor_registrationHandler(t *testing.T) {
 		assert.Equal(t, "Test1.Mw2", c.plugins[1].Method)
 		assert.Equal(t, true, c.plugins[1].Alive)
 
-		assert.Equal(t, 2, len(rpcClient.CallCalls()))
+		assert.Equal(t, 0, len(rpcClient.CallCalls()))
 		assert.Equal(t, 2, len(dialer.DialCalls()))
 	}
 
 	{ // address changed
-		plugin := lib.Plugin{Name: "Test2", Address: "127.0.0.3:8003"}
+		plugin := lib.Plugin{Name: "Test2", Address: "127.0.0.3:8003", Methods: []string{"Mw11", "Mw12", "Mw13"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
 		req, err := http.NewRequest("POST", ts.URL, bytes.NewReader(data))
@@ -136,7 +110,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 		assert.Equal(t, "127.0.0.3:8003", c.plugins[2].Address)
 		assert.Equal(t, true, c.plugins[2].Alive)
 
-		assert.Equal(t, 3, len(rpcClient.CallCalls()))
+		assert.Equal(t, 0, len(rpcClient.CallCalls()))
 		assert.Equal(t, 3, len(dialer.DialCalls()))
 	}
 
@@ -149,7 +123,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 	}
 
 	{ // unsupported registration method
-		plugin := lib.Plugin{Name: "Test2", Address: "127.0.0.3:8003"}
+		plugin := lib.Plugin{Name: "Test2", Address: "127.0.0.3:8003", Methods: []string{"Mw11", "Mw12", "Mw13"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
 		req, err := http.NewRequest("PUT", ts.URL, bytes.NewReader(data))
@@ -160,7 +134,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 	}
 
 	{ // unregister
-		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.2:8002"}
+		plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.2:8002", Methods: []string{"Mw1", "Mw2"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
 		req, err := http.NewRequest("DELETE", ts.URL, bytes.NewReader(data))
@@ -174,7 +148,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 		assert.Equal(t, "127.0.0.3:8003", c.plugins[0].Address)
 		assert.Equal(t, true, c.plugins[0].Alive)
 
-		assert.Equal(t, 3, len(rpcClient.CallCalls()))
+		assert.Equal(t, 0, len(rpcClient.CallCalls()))
 		assert.Equal(t, 3, len(dialer.DialCalls()))
 	}
 
@@ -190,15 +164,9 @@ func TestConductor_registrationHandler(t *testing.T) {
 
 func TestConductor_registrationHandlerInternalError(t *testing.T) {
 
-	rpcClient := &RPCClientMock{
-		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
-			return errors.New("failed")
-		},
-	}
-
 	dialer := &RPCDialerMock{
 		DialFunc: func(network string, address string) (RPCClient, error) {
-			return rpcClient, nil
+			return nil, errors.New("failed")
 		},
 	}
 
@@ -221,12 +189,6 @@ func TestConductor_Middleware(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
 		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
-			if serviceMethod == "Test1.List" {
-				reply.(*lib.ListResponse).Methods = []string{"Mw1", "Mw2", "Mw3"}
-			}
-			if serviceMethod == "Test2.List" {
-				reply.(*lib.ListResponse).Methods = []string{"Mw11", "Mw12", "Mw13"}
-			}
 
 			if serviceMethod == "Test1.Mw1" {
 				req := args.(lib.Request)
@@ -280,7 +242,7 @@ func TestConductor_Middleware(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 
 	// register plugin with 3 methods
-	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001"}
+	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1", "Mw2", "Mw3"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
 	req, err := http.NewRequest("POST", "http://127.0.0.1:50100", bytes.NewReader(data))
@@ -302,13 +264,12 @@ func TestConductor_Middleware(t *testing.T) {
 	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
 	w := httptest.NewRecorder()
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "v1", r.Header.Get("k1"))
 		w.Header().Set("k2", "v2")
 		w.Write([]byte("something"))
 	}))
 	h.ServeHTTP(w, rr)
 	assert.Equal(t, 200, w.Result().StatusCode)
-	assert.Equal(t, "v1", rr.Header.Get("k1"))
+	assert.Equal(t, "v1", w.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", w.Result().Header.Get("k2"))
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
@@ -318,10 +279,6 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
 		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
-			if serviceMethod == "Test1.List" {
-				reply.(*lib.ListResponse).Methods = []string{"Mw1"}
-			}
-
 			if serviceMethod == "Test1.Mw1" {
 				req := args.(lib.Request)
 				assert.Equal(t, "route123", req.Route)
@@ -356,7 +313,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 
 	// register plugin with one methods
-	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001"}
+	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
 	req, err := http.NewRequest("POST", "http://127.0.0.1:50100", bytes.NewReader(data))
@@ -390,10 +347,6 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
 		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
-			if serviceMethod == "Test1.List" {
-				reply.(*lib.ListResponse).Methods = []string{"Mw1"}
-			}
-
 			if serviceMethod == "Test1.Mw1" {
 				return errors.New("something failed")
 			}
@@ -420,7 +373,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	client := http.Client{Timeout: time.Second}
 
 	// register plugin with one methods
-	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001"}
+	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
 	req, err := http.NewRequest("POST", "http://127.0.0.1:50100", bytes.NewReader(data))

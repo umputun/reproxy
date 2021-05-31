@@ -62,7 +62,7 @@ type RPCClient interface {
 // Run creates and activates http registration server
 // TODO: add some basic auth in case if exposed by accident
 func (c *Conductor) Run(ctx context.Context) error {
-
+	log.Printf("[INFO] start plugin conductor on %s", c.Address)
 	httpServer := &http.Server{
 		Addr:              c.Address,
 		Handler:           c.registrationHandler(),
@@ -78,6 +78,7 @@ func (c *Conductor) Run(ctx context.Context) error {
 		}
 	}()
 
+	// gob.Register(url.URL{})
 	return httpServer.ListenAndServe()
 }
 
@@ -100,7 +101,9 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 				return
 			}
 			for k, vv := range reply.Header {
-				r.Header[k] = vv
+				for _, v := range vv {
+					w.Header().Add(k, v)
+				}
 			}
 			if reply.StatusCode >= 400 {
 				c.lock.RUnlock()
@@ -118,7 +121,12 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 // uses context set downstream (by proxyHandler)
 func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
-	res := lib.Request{HttpReq: *r}
+	res := lib.Request{
+		URL:        r.URL.String(),
+		RemoteAddr: r.RemoteAddr,
+		Host:       r.URL.Hostname(),
+		Header:     r.Header,
+	}
 
 	if v, ok := ctx.Value(ConductorCtxtKey("server")).(string); ok {
 		res.Server = v
@@ -151,6 +159,7 @@ func (c *Conductor) registrationHandler() http.Handler {
 			}
 			c.locked(func() {
 				if err := c.register(plugin); err != nil {
+					log.Printf("[WARN] rpc registration failed, %v", err)
 					http.Error(w, "rpc registration failed", http.StatusInternalServerError)
 					return
 				}
@@ -191,14 +200,10 @@ func (c *Conductor) register(p lib.Plugin) error {
 		return fmt.Errorf("can't reach plugin %+v: %v", p, err)
 	}
 
-	var list lib.ListResponse
-	if err := client.Call(p.Name+".List", lib.Request{}, &list); err != nil {
-		return fmt.Errorf("can't get lsit of handlers from %v: %w", p, err)
-	}
-
-	for _, l := range list.Methods {
+	for _, l := range p.Methods {
 		handler := Handler{client: client, Alive: true, Address: p.Address, Method: p.Name + "." + l}
 		pp = append(pp, handler)
+		log.Printf("[INFO] register plugin %s:%s, method: %s", p.Name, p.Address, handler.Method)
 	}
 	c.plugins = pp
 	return nil
@@ -206,6 +211,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 
 // unregister plugin, not thread safe! call should be enclosed with lock
 func (c *Conductor) unregister(p lib.Plugin) {
+	log.Printf("[INFO] unregister plugin %s:%s", p.Name, p.Address)
 	var res []Handler
 	for _, h := range c.plugins {
 		if strings.HasPrefix(h.Method, p.Name+".") {
