@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/lib"
 )
 
@@ -193,28 +195,29 @@ func TestConductor_Middleware(t *testing.T) {
 			if serviceMethod == "Test1.Mw1" {
 				req := args.(lib.Request)
 				assert.Equal(t, "route123", req.Route)
-				assert.Equal(t, "src123", req.Src)
-				assert.Equal(t, "dst123", req.Dst)
-				assert.Equal(t, "route123", req.Route)
-				assert.Equal(t, "provider123", req.Provider)
-				assert.Equal(t, "server123", req.Server)
+				assert.Equal(t, "src123", req.Match.Src)
+				assert.Equal(t, "dst123", req.Match.Dst)
+				assert.Equal(t, "docker", req.Match.ProviderID)
+				assert.Equal(t, "server123", req.Match.Server)
+				assert.Equal(t, "proxy", req.Match.MatchType)
+				assert.Equal(t, "/webroot", req.Match.AssetsWebRoot)
+				assert.Equal(t, "loc", req.Match.AssetsLocation)
 				log.Printf("rr: %+v", req)
-				reply.(*lib.HandlerResponse).StatusCode = 200
-				reply.(*lib.HandlerResponse).Header = map[string][]string{}
-				reply.(*lib.HandlerResponse).Header.Set("k1", "v1")
+				reply.(*lib.Response).StatusCode = 200
+				reply.(*lib.Response).Header = map[string][]string{}
+				reply.(*lib.Response).Header.Set("k1", "v1")
 			}
 			if serviceMethod == "Test1.Mw2" {
 				req := args.(lib.Request)
 				assert.Equal(t, "route123", req.Route)
-				assert.Equal(t, "src123", req.Src)
-				assert.Equal(t, "dst123", req.Dst)
-				assert.Equal(t, "route123", req.Route)
-				assert.Equal(t, "provider123", req.Provider)
-				assert.Equal(t, "server123", req.Server)
+				assert.Equal(t, "src123", req.Match.Src)
+				assert.Equal(t, "dst123", req.Match.Dst)
+				assert.Equal(t, "docker", req.Match.ProviderID)
+				assert.Equal(t, "server123", req.Match.Server)
 				log.Printf("rr: %+v", req)
-				reply.(*lib.HandlerResponse).StatusCode = 200
-				reply.(*lib.HandlerResponse).Header = map[string][]string{}
-				reply.(*lib.HandlerResponse).Header.Set("k11", "v11")
+				reply.(*lib.Response).StatusCode = 200
+				reply.(*lib.Response).Header = map[string][]string{}
+				reply.(*lib.Response).Header.Set("k11", "v11")
 			}
 			if serviceMethod == "Test1.Mw3" {
 				t.Fatal("shouldn't be called")
@@ -256,12 +259,19 @@ func TestConductor_Middleware(t *testing.T) {
 	rr, err := http.NewRequest("GET", "http://127.0.0.1", nil)
 	require.NoError(t, err)
 
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("route"), "route123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("src"), "src123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("dst"), "dst123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("route"), "route123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("provider"), "provider123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
+	m := discovery.MatchedRoute{
+		Destination: "route123",
+		Mapper: discovery.URLMapper{
+			Server:         "server123",
+			ProviderID:     discovery.PIDocker,
+			MatchType:      discovery.MTProxy,
+			SrcMatch:       *regexp.MustCompile("src123"),
+			Dst:            "dst123",
+			AssetsWebRoot:  "/webroot",
+			AssetsLocation: "loc",
+		},
+	}
+	rr = rr.WithContext(context.WithValue(rr.Context(), CtxMatch, m))
 	w := httptest.NewRecorder()
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("k2", "v2")
@@ -282,13 +292,12 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 			if serviceMethod == "Test1.Mw1" {
 				req := args.(lib.Request)
 				assert.Equal(t, "route123", req.Route)
-				assert.Equal(t, "src123", req.Src)
-				assert.Equal(t, "dst123", req.Dst)
-				assert.Equal(t, "route123", req.Route)
-				assert.Equal(t, "provider123", req.Provider)
-				assert.Equal(t, "server123", req.Server)
+				assert.Equal(t, "src123", req.Match.Src)
+				assert.Equal(t, "dst123", req.Match.Dst)
+				assert.Equal(t, "docker", req.Match.ProviderID)
+				assert.Equal(t, "server123", req.Match.Server)
 				log.Printf("rr: %+v", req)
-				reply.(*lib.HandlerResponse).StatusCode = 404
+				reply.(*lib.Response).StatusCode = 404
 			}
 			return nil
 		},
@@ -326,12 +335,19 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	rr, err := http.NewRequest("GET", "http://127.0.0.1", nil)
 	require.NoError(t, err)
 
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("route"), "route123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("src"), "src123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("dst"), "dst123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("route"), "route123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("provider"), "provider123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
+	m := discovery.MatchedRoute{
+		Destination: "route123",
+		Mapper: discovery.URLMapper{
+			Server:         "server123",
+			ProviderID:     discovery.PIDocker,
+			MatchType:      discovery.MTProxy,
+			SrcMatch:       *regexp.MustCompile("src123"),
+			Dst:            "dst123",
+			AssetsWebRoot:  "/webroot",
+			AssetsLocation: "loc",
+		},
+	}
+	rr = rr.WithContext(context.WithValue(rr.Context(), CtxMatch, m))
 	w := httptest.NewRecorder()
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Failed() // handler not called on plugin middleware error
@@ -385,13 +401,6 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 
 	rr, err := http.NewRequest("GET", "http://127.0.0.1", nil)
 	require.NoError(t, err)
-
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("route"), "route123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("src"), "src123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("dst"), "dst123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("route"), "route123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("provider"), "provider123"))
-	rr = rr.WithContext(context.WithValue(rr.Context(), ConductorCtxtKey("server"), "server123"))
 	w := httptest.NewRecorder()
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Failed() // handler not called on plugin middleware error

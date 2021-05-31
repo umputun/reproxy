@@ -344,7 +344,7 @@ func waitForHTTPServerStart(port int) {
 
 type TestPlugin struct{}
 
-func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.HandlerResponse) (err error) {
+func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	res.Header = req.Header
 	res.Header.Add("key1", "val1")
@@ -352,7 +352,7 @@ func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.HandlerResponse) (er
 	return
 }
 
-func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.HandlerResponse) (err error) {
+func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	if req.URL == "/fail" {
 		res.StatusCode = 500

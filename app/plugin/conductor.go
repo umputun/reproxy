@@ -13,6 +13,7 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 
+	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/lib"
 )
 
@@ -38,8 +39,11 @@ type Handler struct {
 	client RPCClient
 }
 
-// ConductorCtxtKey used to retrieve conductor from context
-type ConductorCtxtKey string
+// conductorCtxtKey used to retrieve conductor from context
+type conductorCtxtKey string
+
+// CtxMatch key used to retrieve matching request info from the request context
+const CtxMatch = conductorCtxtKey("match")
 
 // RPCDialer is a maker interface dialing to rpc server and returning new RPCClient
 type RPCDialer interface {
@@ -94,7 +98,7 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 				continue
 			}
 
-			var reply lib.HandlerResponse
+			var reply lib.Response
 			if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
 				log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -128,20 +132,16 @@ func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 		Header:     r.Header,
 	}
 
-	if v, ok := ctx.Value(ConductorCtxtKey("server")).(string); ok {
-		res.Server = v
-	}
-	if v, ok := ctx.Value(ConductorCtxtKey("src")).(string); ok {
-		res.Src = v
-	}
-	if v, ok := ctx.Value(ConductorCtxtKey("dst")).(string); ok {
-		res.Dst = v
-	}
-	if v, ok := ctx.Value(ConductorCtxtKey("route")).(string); ok {
-		res.Route = v
-	}
-	if v, ok := ctx.Value(ConductorCtxtKey("provider")).(string); ok {
-		res.Provider = v
+	if v, ok := ctx.Value(CtxMatch).(discovery.MatchedRoute); ok {
+		res.Route = v.Destination
+		res.Match.MatchType = v.Mapper.MatchType.String()
+		res.Match.ProviderID = string(v.Mapper.ProviderID)
+		res.Match.Server = v.Mapper.Server
+		res.Match.Src = v.Mapper.SrcMatch.String()
+		res.Match.Dst = v.Mapper.Dst
+		res.Match.PingURL = v.Mapper.PingURL
+		res.Match.AssetsLocation = v.Mapper.AssetsLocation
+		res.Match.AssetsWebRoot = v.Mapper.AssetsWebRoot
 	}
 
 	return res

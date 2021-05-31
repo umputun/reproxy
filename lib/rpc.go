@@ -10,16 +10,21 @@ type Request struct {
 	RemoteAddr string
 	Host       string
 	Header     http.Header
-
-	Server   string
-	Src      string // matches src
-	Dst      string // matched destination
-	Route    string // proxy route
-	Provider string // route provider
+	Route      string // final destination
+	Match      struct {
+		Server         string
+		Src            string
+		Dst            string
+		ProviderID     string
+		PingURL        string
+		MatchType      string
+		AssetsLocation string
+		AssetsWebRoot  string
+	}
 }
 
-// HandlerResponse from plugins Handle call
-type HandlerResponse struct {
+// Response from plugin's handler call
+type Response struct {
 	StatusCode int
 	Header     http.Header
 }

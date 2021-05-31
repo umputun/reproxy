@@ -174,6 +174,11 @@ func (h *Http) Run(ctx context.Context) error {
 
 type contextKey string
 
+const (
+	ctxURL       = contextKey("url")
+	ctxMatchType = contextKey("type")
+)
+
 func (h *Http) proxyHandler() http.HandlerFunc {
 
 	reverseProxy := &httputil.ReverseProxy{
@@ -205,13 +210,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		server := r.URL.Hostname()
-		if server == "" {
-			server = strings.Split(r.Host, ":")[0]
-		}
-		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
-		match, ok := h.getMatch(matches, rand.Intn)
-		if !ok { // no route match
+		uuVal := r.Context().Value(ctxURL)
+		if uuVal == nil { // no route match detected by matchHandler
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
 				return
@@ -220,24 +220,13 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			h.Reporter.Report(w, http.StatusBadGateway)
 			return
 		}
-
-		switch matches.MatchType {
+		uu := uuVal.(*url.URL)
+		match := r.Context().Value(plugin.CtxMatch).(discovery.MatchedRoute)
+		matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
+		switch matchType {
 		case discovery.MTProxy:
-			uu, err := url.Parse(match.Destination)
-			if err != nil {
-				h.Reporter.Report(w, http.StatusBadGateway)
-				return
-			}
 			log.Printf("[DEBUG] proxy to %s", uu)
-			ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
-
-			// set keys for plugin conductor
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("route"), match.Destination)
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("server"), match.Mapper.Server)
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("src"), match.Mapper.SrcMatch.String())
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("dst"), match.Mapper.Dst)
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("provider"), match.Mapper.ProviderID)
-			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
+			reverseProxy.ServeHTTP(w, r)
 		case discovery.MTStatic:
 			// static match result has webroot:location, i.e. /www:/var/somedir/
 			ae := strings.Split(match.Destination, ":")
@@ -276,6 +265,8 @@ func (h *Http) getMatch(mm discovery.Matches, picker func(len int) int) (m disco
 	}
 }
 
+// matchHandler is a part of middleware chain. Matches incoming request to one or more matched rules
+// and if match found sets it to the request context. Context used by proxy handler as well as by plugin conductor
 func (h *Http) matchHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server := r.URL.Hostname()
@@ -290,15 +281,9 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 				h.Reporter.Report(w, http.StatusBadGateway)
 				return
 			}
-			ctx := context.WithValue(r.Context(), contextKey("matched"), true)
-			ctx = context.WithValue(ctx, contextKey("url"), uu) // set destination url in request's context
-			ctx = context.WithValue(ctx, contextKey("type"), match.Mapper.MatchType)
-			// set keys for plugin conductor
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("route"), match.Destination)
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("server"), match.Mapper.Server)
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("src"), match.Mapper.SrcMatch.String())
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("dst"), match.Mapper.Dst)
-			ctx = context.WithValue(ctx, plugin.ConductorCtxtKey("provider"), match.Mapper.ProviderID)
+			ctx := context.WithValue(r.Context(), ctxURL, uu)             // set destination url in request's context
+			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
+			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set keys for plugin conductor
 			r = r.WithContext(ctx)
 		}
 		next.ServeHTTP(w, r)

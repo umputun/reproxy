@@ -214,6 +214,13 @@ _see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/exam
 
 Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any provided routes and assets. In case if some unexpected, internal error happened it returns 500. By default reproxy renders the simplest text version of the error - "Server error". Setting `--error.enabled` turns on the default html error message and with `--error.template` user may set any custom html template file for the error rendering. The template has two vars: `{{.ErrCode}}` and `{{.ErrMessage}}`. For example this template `oh my! {{.ErrCode}} - {{.ErrMessage}}` will be rendered to `oh my! 502 - Bad Gateway`
 
+## Plugins support
+
+The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error.
+
+To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
+
+_See [examples/plugin]() for more info_
 
 ## Options
 

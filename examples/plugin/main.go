@@ -9,40 +9,40 @@ import (
 
 func main() {
 
+	// create demo plugin on port 1234 with two methods: HeaderThing and ErrorThing
+	// both called via RPC from reproxy core with fully formed lib.Request
 	plugin := lib.Plugin{
 		Name:    "TestPlugin",
 		Address: ":1234",
+		Methods: []string{"HeaderThing", "ErrorThing"},
 	}
 	log.Printf("start demo plugin")
 
-	if err := plugin.Do(context.TODO(), "", new(Handler)); err != nil {
+	// Do starts the plugin listener and register with reproxy plugin conductor
+	if err := plugin.Do(context.TODO(), "http://127.0.0.1:8081", new(Handler)); err != nil {
 		log.Fatal(err)
 	}
 }
 
+// Handler is an example of middleware handler altering headers and stastus
 type Handler struct{}
 
-func (h *Handler) List(_ lib.Request, res *lib.ListResponse) (err error) {
-	res.Methods = append(res.Methods, "HeaderThing")
-	res.Methods = append(res.Methods, "ErrorThing")
-	return
-}
-
-func (h *Handler) HeaderThing(req lib.Request, res *lib.HandlerResponse) (err error) {
-	log.Printf("req: %+v", req.HttpReq)
-	res.Header = req.HttpReq.Header
+// HeaderThing adds key:val header to the response
+func (h *Handler) HeaderThing(req lib.Request, res *lib.Response) (err error) {
+	log.Printf("req: %+v", req)
+	res.Header = req.Header
 	res.Header.Add("key", "val")
-	res.StatusCode = 200
+	res.StatusCode = 200 // each handler has to set status code
 	return
 }
 
-func (h *Handler) ErrorThing(req lib.Request, res *lib.HandlerResponse) (err error) {
-	log.Printf("req: %+v", req.HttpReq)
-	if req.HttpReq.URL.Path == "/fail" {
+// ErrorThing returns status 500 on "/fail" url. This terminated processing chain on reproxy side immediately
+func (h *Handler) ErrorThing(req lib.Request, res *lib.Response) (err error) {
+	log.Printf("req: %+v", req)
+	if req.URL == "/fail" {
 		res.StatusCode = 500
 		return
 	}
-
 	res.StatusCode = 200
 	return
 }

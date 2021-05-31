@@ -13,7 +13,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 )
 
-// Plugin provides cancelable rpc server
+// Plugin provides cancelable rpc server used to run custom plugins
 type Plugin struct {
 	Name    string   `json:"name"`
 	Address string   `json:"address"`
@@ -22,6 +22,9 @@ type Plugin struct {
 
 // Do register the plugin, send info to reproxy conductor and activate RPC listener.
 // On completion unregister from reproxy. Blocking call, should run in goroutine on the caller side
+// rvcr is provided struct implemented at least one RPC methods with teh signature leike this:
+// func(req lib.Request, res *lib.Response) (err error)
+// see [examples/plugin]() for more info
 func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (err error) {
 	if err = rpc.RegisterName(p.Name, rcvr); err != nil {
 		return fmt.Errorf("can't register plugin %s: %v", p.Name, err)
