@@ -204,8 +204,11 @@ func TestConductor_Middleware(t *testing.T) {
 				assert.Equal(t, "loc", req.Match.AssetsLocation)
 				log.Printf("rr: %+v", req)
 				reply.(*lib.Response).StatusCode = 200
-				reply.(*lib.Response).Header = map[string][]string{}
-				reply.(*lib.Response).Header.Set("k1", "v1")
+				reply.(*lib.Response).HeadersOut = map[string][]string{}
+				reply.(*lib.Response).HeadersOut.Set("k1", "v1")
+				reply.(*lib.Response).HeadersIn = map[string][]string{}
+				reply.(*lib.Response).HeadersIn.Set("k21", "v21")
+
 			}
 			if serviceMethod == "Test1.Mw2" {
 				req := args.(lib.Request)
@@ -216,8 +219,8 @@ func TestConductor_Middleware(t *testing.T) {
 				assert.Equal(t, "server123", req.Match.Server)
 				log.Printf("rr: %+v", req)
 				reply.(*lib.Response).StatusCode = 200
-				reply.(*lib.Response).Header = map[string][]string{}
-				reply.(*lib.Response).Header.Set("k11", "v11")
+				reply.(*lib.Response).HeadersOut = map[string][]string{}
+				reply.(*lib.Response).HeadersOut.Set("k11", "v11")
 			}
 			if serviceMethod == "Test1.Mw3" {
 				t.Fatal("shouldn't be called")
@@ -276,11 +279,13 @@ func TestConductor_Middleware(t *testing.T) {
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("k2", "v2")
 		w.Write([]byte("something"))
+		assert.Equal(t, "v21", r.Header.Get("k21"))
 	}))
 	h.ServeHTTP(w, rr)
 	assert.Equal(t, 200, w.Result().StatusCode)
 	assert.Equal(t, "v1", w.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", w.Result().Header.Get("k2"))
+	assert.Equal(t, "v21", rr.Header.Get("k21"))
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
 }

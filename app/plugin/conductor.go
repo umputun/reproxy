@@ -104,7 +104,12 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			for k, vv := range reply.Header {
+			for k, vv := range reply.HeadersIn {
+				for _, v := range vv {
+					r.Header.Add(k, v)
+				}
+			}
+			for k, vv := range reply.HeadersOut {
 				for _, v := range vv {
 					w.Header().Add(k, v)
 				}

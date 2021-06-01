@@ -216,9 +216,13 @@ Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any 
 
 ## Plugins support
 
-The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error.
+The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
+
+- `HeadersIn` - incoming headers. Those will be sent to the proxied url
+- `HeadersOut` - outgoing headers. Will be sent back to the client 
 
 To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
+
 
 _See [examples/plugin]() for more info_
 

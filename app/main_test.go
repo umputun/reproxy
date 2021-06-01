@@ -213,7 +213,9 @@ func Test_MainWithPlugin(t *testing.T) {
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := ioutil.ReadAll(resp.Body)
 		assert.NoError(t, err)
+		t.Logf("body: %s", string(body))
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
+		assert.Contains(t, string(body), `"Inh": "val"`)
 		assert.Equal(t, "val1", resp.Header.Get("key1"))
 		assert.Equal(t, "val2", resp.Header.Get("key2"))
 	}
@@ -346,8 +348,10 @@ type TestPlugin struct{}
 
 func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
-	res.Header = req.Header
-	res.Header.Add("key1", "val1")
+	res.HeadersIn = http.Header{}
+	res.HeadersIn.Add("inh", "val")
+	res.HeadersOut = req.Header
+	res.HeadersOut.Add("key1", "val1")
 	res.StatusCode = 200
 	return
 }
@@ -358,8 +362,8 @@ func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) 
 		res.StatusCode = 500
 		return
 	}
-	res.Header = req.Header
-	res.Header.Add("key2", "val2")
+	res.HeadersOut = req.Header
+	res.HeadersOut.Add("key2", "val2")
 	res.StatusCode = 200
 	return
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 
 	"github.com/umputun/reproxy/lib"
 )
@@ -30,8 +31,8 @@ type Handler struct{}
 // HeaderThing adds key:val header to the response
 func (h *Handler) HeaderThing(req lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
-	res.Header = req.Header
-	res.Header.Add("key", "val")
+	res.HeadersOut = http.Header{}
+	res.HeadersOut.Add("key", "val")
 	res.StatusCode = 200 // each handler has to set status code
 	return
 }

@@ -26,5 +26,6 @@ type Request struct {
 // Response from plugin's handler call
 type Response struct {
 	StatusCode int
-	Header     http.Header
+	HeadersIn  http.Header
+	HeadersOut http.Header
 }
