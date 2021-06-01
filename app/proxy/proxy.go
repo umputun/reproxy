@@ -235,11 +235,13 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			// static match result has webroot:location, i.e. /www:/var/somedir/
 			ae := strings.Split(match.Destination, ":")
 			if len(ae) != 2 { // shouldn't happen
+				log.Printf("[WARN] unexpected static assets destination: %s", match.Destination)
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
 			fs, err := R.FileServer(ae[0], ae[1])
 			if err != nil {
+				log.Printf("[WARN] file server error, %v", err)
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
