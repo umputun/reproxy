@@ -221,21 +221,21 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 
 	client := http.Client{}
 
-	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		t.Logf("%+v", resp.Header)
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "v1", resp.Header.Get("h1"))
-	}
+	// {
+	// 	req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+	// 	require.NoError(t, err)
+	// 	resp, err := client.Do(req)
+	// 	require.NoError(t, err)
+	// 	defer resp.Body.Close()
+	// 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	// 	t.Logf("%+v", resp.Header)
+	//
+	// 	body, err := io.ReadAll(resp.Body)
+	// 	require.NoError(t, err)
+	// 	assert.Equal(t, "response /567/something", string(body))
+	// 	assert.Equal(t, "", resp.Header.Get("App-Method"))
+	// 	assert.Equal(t, "v1", resp.Header.Get("h1"))
+	// }
 
 	{
 		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/web/1.html")

@@ -212,8 +212,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		uuVal := r.Context().Value(ctxURL)
-		if uuVal == nil { // no route match detected by matchHandler
+		if r.Context().Value(plugin.CtxMatch) == nil { // no route match detected by matchHandler
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
 				return
@@ -222,13 +221,13 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			h.Reporter.Report(w, http.StatusBadGateway)
 			return
 		}
-		uu := uuVal.(*url.URL)
 
 		match := r.Context().Value(plugin.CtxMatch).(discovery.MatchedRoute)
 		matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
 
 		switch matchType {
 		case discovery.MTProxy:
+			uu := r.Context().Value(ctxURL).(*url.URL)
 			log.Printf("[DEBUG] proxy to %s", uu)
 			reverseProxy.ServeHTTP(w, r)
 		case discovery.MTStatic:
@@ -283,15 +282,18 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
 		match, ok := getMatch(matches, h.LBSelector)
 		if ok {
-			uu, err := url.Parse(match.Destination)
-			if err != nil {
-				log.Printf("[WARN] can't parse destination %s, %v", match.Destination, err)
-				h.Reporter.Report(w, http.StatusBadGateway)
-				return
+			ctx := context.WithValue(r.Context(), ctxMatchType, matches.MatchType) // set match type
+			ctx = context.WithValue(ctx, plugin.CtxMatch, match)                   // set keys for plugin conductor
+
+			if matches.MatchType == discovery.MTProxy {
+				uu, err := url.Parse(match.Destination)
+				if err != nil {
+					log.Printf("[WARN] can't parse destination %s, %v", match.Destination, err)
+					h.Reporter.Report(w, http.StatusBadGateway)
+					return
+				}
+				ctx = context.WithValue(ctx, ctxURL, uu) // set destination url in request's context
 			}
-			ctx := context.WithValue(r.Context(), ctxURL, uu)             // set destination url in request's context
-			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
-			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set keys for plugin conductor
 			r = r.WithContext(ctx)
 		}
 		next.ServeHTTP(w, r)
