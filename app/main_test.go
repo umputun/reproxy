@@ -23,7 +23,7 @@ import (
 
 func Test_Main(t *testing.T) {
 
-	port := chooseRandomUnusedPort()
+	port := 40000 + int(rand.Int31n(10000))
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
@@ -73,7 +73,6 @@ func Test_Main(t *testing.T) {
 		body, err := ioutil.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 	}
 	{
 		client := http.Client{Timeout: 10 * time.Second}
@@ -98,7 +97,7 @@ func Test_Main(t *testing.T) {
 }
 
 func Test_MainWithSSL(t *testing.T) {
-	port := chooseRandomUnusedPort()
+	port := 40000 + int(rand.Int31n(10000))
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",

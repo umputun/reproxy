@@ -20,7 +20,7 @@ services:
           X-XSS-Protection:1; mode=block;,
           Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
 
-  # automatic destination, will be mapped for ^/api/svc1/(.*)
+  # automatic destination, will be mapped for ^/svc1/(.*)
   svc1:
     image: ghcr.io/umputun/echo-http
     hostname: svc1
@@ -28,7 +28,7 @@ services:
     command: --message="hello world from svc1"
 
 
-  # automatic destination, will be mapped for ^/api/svc2/(.*)
+  # automatic destination, will be mapped for ^/svc2/(.*)
   svc2:
     image: ghcr.io/umputun/echo-http
     hostname: svc2

@@ -17,12 +17,11 @@ import (
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
+	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/plugin"
+	"github.com/umputun/reproxy/app/mgmt"
 )
-
-//go:generate moq -out matcher_mock.go -fmt goimports . Matcher
 
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
@@ -87,6 +86,10 @@ func (h *Http) Run(ctx context.Context) error {
 		log.Printf("[DEBUG] assets file server enabled for %s, webroot %s", h.AssetsLocation, h.AssetsWebRoot)
 	}
 
+	if h.LBSelector == nil {
+		h.LBSelector = rand.Intn
+	}
+
 	var httpServer, httpsServer *http.Server
 
 	go func() {
@@ -117,8 +120,6 @@ func (h *Http) Run(ctx context.Context) error {
 		maxReqSizeHandler(h.MaxBodySize),
 		gzipHandler(h.GzEnabled),
 	)
-
-	rand.Seed(time.Now().UnixNano())
 
 	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
 		// discovery async and may happen not right away. Try to get servers for some time

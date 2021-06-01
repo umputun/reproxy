@@ -17,7 +17,7 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server
-- Live health check and fail-over  
+- Live health check and fail-over/load-balancing  
 - Management server with routes info and prometheus metrics
 
 ---
@@ -36,29 +36,33 @@ Examples:
 
 ## Install
 
-- for a binary distribution pick the proper file in the [release section](https://github.com/umputun/reproxy/releases)
+Reproxy distributed as a small self-contained binary as well as a docker image. Both binary and image support multiple architectures and multiple operating systems, including linux_x86_64, linux_arm64, linux_arm, macos_x86_64, macos_arm64, windows_x86_64 and windows_arm. We also provide both arm64 and x86 deb and rpm packages.
+
+- for a binary distribution download the proper file in the [release section](https://github.com/umputun/reproxy/releases)
 - docker container available on [Docker Hub](https://hub.docker.com/r/umputun/reproxy) as well as on [Github Container Registry](https://github.com/users/umputun/packages/container/reproxy/versions). I.e. `docker pull umputun/reproxy` or `docker pull ghcr.io/umputun/reproxy`.
 
-Latest stable version has `:vX.Y.Z` tag (with `:latest` alias) and the current master has `:master` tag.
+Latest stable version has `:vX.Y.Z` docker tag (with `:latest` alias) and the current master has `:master` tag.
 
 ## Providers
 
-Proxy rules supplied by various providers. Currently included `file`, `docker` and `static`. Each provider may define multiple routing rules for both proxied request and static (assets). User can sets multiple providers at the same time.
+Proxy rules supplied by various providers. Currently included - `file`, `docker`, `static` and `consul-catalog`. Each provider may define multiple routing rules for both proxied request and static (assets). User can sets multiple providers at the same time.
 
 _See examples of various providers in [examples](https://github.com/umputun/reproxy/tree/master/examples)_
 
-### Static
+### Static provider
 
-This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported. Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination,[ping-url]`. For example:
+This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported. Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination[,ping-url]`. For example:
 
-- `*,^/api/(.*),https://api.example.com/$1,` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
-- `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz`. Uses `https://api.example.com/ping` for the health check
+- `*,^/api/(.*),https://api.example.com/$1` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
+- `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` and it sses `https://api.example.com/ping` for the health check.
 
 The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](#ping-and-health-checks) section for more details.
 
-_Pls note: in case if rules set as a part of docker compose enviroment, destination with the regex group will conflict with compose syntax. I.e. attmept to use `https://api.example.com/$1` in compose enviroment will fail due to a syntax error. The standard soulution here is to "escape" `$` sign by replacing it with `$$`, i.e. `https://api.example.com/$$1`. This substitution supported by docker compose and has nothing to do with reproxy itself. Another way is to use `@` insteaad of `$` which is supported on reproxy level, i.e. `https://api.example.com/@1`_ 
+_Pls note: in case if rules set as a part of docker compose environment, destination with the regex group will conflict with compose syntax. I.e. attempt to use `https://api.example.com/$1` in compose environment will fail due to a syntax error. The standard solution here is to "escape" `$` sign by replacing it with `$$`, i.e. `https://api.example.com/$$1`. This substitution supported by docker compose and has nothing to do with reproxy itself. Another way is to use `@` instead of `$` which is supported on reproxy level, i.e. `https://api.example.com/@1`_ 
 
-### File
+### File provider
+
+This provider uses yaml file with routing rules.
 
 `reproxy --file.enabled --file.name=config.yml`
 
@@ -70,17 +74,18 @@ default: # the same as * (catch-all) server
   - {
       route: "/api/svc3/xyz",
       dest: "http://127.0.0.3:8080/blah3/xyz",
-      "ping": "http://127.0.0.3:8080/ping",
+      ping: "http://127.0.0.3:8080/ping",
     }
 srv.example.com:
   - { route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc" }
+  - { route: "^/web/", dest: "/var/www", "assets": true }
 ```
 
 This is a dynamic provider and file change will be applied automatically.
 
-### Docker
+### Docker provider
 
-Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration and by default redirects all requests like `http://<container_name>:<container_port>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
+Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration needed.By default it redirects all requests like `http://<container_name>:<container_port>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
 
 This default can be changed with labels:
 
@@ -102,15 +107,15 @@ With `--docker.auto`, all containers with exposed port will be considered as rou
 
 If no `reproxy.route` defined, the default is `http://<container_name>:<container_port>/(.*)`. In case if all proxied source have the same pattern, for example `/api/(.*)` user can define the common prefix (in this case `/api`) for all container-based routes. This can be done with `--docker.prefix` parameter.
 
-Docker provider also allows to define multiple set of `reproxy.N.something` labels to match multiple distinct routes on the same container. This is useful as inn some cases, a container may expose multiple endpoints, for example, public API and some admin API. All the labels above can be used with "N-index", i.e. `reproxy.1.server`, `reproxy.1.port` and so on. N should be in 0 to 9 range.
+Docker provider also allows to define multiple set of `reproxy.N.something` labels to match multiple distinct routes on the same container. This is useful as in some cases a single container may expose multiple endpoints, for example, public API and some admin API. All the labels above can be used with "N-index", i.e. `reproxy.1.server`, `reproxy.1.port` and so on. N should be in 0 to 9 range.
 
 This is a dynamic provider and any change in container's status will be applied automatically.
 
-### Consul Catalog
+### Consul Catalog provider
 
 Use: `reproxy --consul-catalog.enabled`
 
-Consul Catalog provider calls Consul API periodically (every second by default) to obtaini services, which has any tag with `reproxy.` prefix. User can redefine check interval with `--consul-catalog.interval` command line flag as well as consul address with `--consul-catalog.address` command line option. The default address is `http://127.0.0.1:8500`. 
+Consul Catalog provider calls Consul API periodically (every second by default) to obtain services, which has any tag with `reproxy.` prefix. User can redefine check interval with `--consul-catalog.interval` command line flag as well as consul address with `--consul-catalog.address` command line option. The default address is `http://127.0.0.1:8500`. 
 
 For example:
 ```
@@ -141,7 +146,7 @@ SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static`
 
 By default no request log generated. This can be turned on by setting `--logger.enabled`. The log (auto-rotated) has [Apache Combined Log Format](http://httpd.apache.org/docs/2.2/logs.html#combined)
 
-User can also turn stdout log on with `--logger.stdout`. It won't affect the file logging but will output some minimal info about processed requests, something like this:
+User can also turn stdout log on with `--logger.stdout`. It won't affect the file logging above but will output some minimal info about processed requests, something like this:
 
 ```
 2021/04/16 01:17:25.601 [INFO]  GET - /echo/image.png - xxx.xxx.xxx.xxx - 200 (155400) - 371.661251ms
@@ -152,7 +157,7 @@ User can also turn stdout log on with `--logger.stdout`. It won't affect the fil
 
 Users may turn the assets server on (off by default) to serve static files. As long as `--assets.location` set it treats every non-proxied request under `assets.root` as a request for static files. The assets server can be used without any proxy providers; in this mode, reproxy acts as a simple web server for the static content.
 
-In addition to the common assets server, multiple custom static servers are supported. Each provider has a different way to define such a static rule, and some providers may not support it at all. For example, multiple static servers make sense in static (command line provider), file provider, and even useful with docker providers.
+In addition to the common assets server, multiple custom assets servers are supported. Each provider has a different way to define such a static rule, and some providers may not support it at all. For example, multiple asset servers make sense in static (command line provider), file provider, and even useful with docker providers, however it makes very little sense with consul catalog provider.
 
 1. static provider - if source element prefixed by `assets:` it will be treated as file-server. For example `*,assets:/web,/var/www,` will serve all `/web/*` request with a file server on top of `/var/www` directory.
 2. file provider - setting optional field `assets: true`
@@ -163,13 +168,15 @@ Assets server supports caching control with the `--assets.cache=<duration>` para
 There are two ways to set cache duration:
 
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
-2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e.  `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
+2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
 ## More options
 
-- `--gzip` enables gzip compression for responses.
-- `--max=N` allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
-- `--header` sets extra header(s) added to each proxied response. For example this is how it can be done with the docker compose:
+- `--gzip`   enables gzip compression for responses.
+- `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
+- `--header` sets extra header(s) added to each proxied response. 
+  
+For example this is how it can be done with the docker compose:
 
 ```yaml
   environment:
@@ -189,16 +196,17 @@ In order to eliminate the need to pass custom params/environment, the default `-
 - If nothing set by users to `--listen` and reproxy runs outside of the docker container, the default is `127.0.0.1:80` for http mode (`ssl.type=none`) and `127.0.0.1:443` for ssl mode (`ssl.type=auto` or `ssl.type=static`).
 -  If nothing set by users to `--listen` and reproxy runs inside the docker, the default is `0.0.0.0:8080` for http mode, and `0.0.0.0:8443` for ssl mode.
 
-Another default set in the similar dynamic way is `-ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
+Another default set in the similar dynamic way is `--ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
 
-## Ping and health checks
+## Ping, health checks and failover
 
 reproxy provides 2 endpoints for this purpose:
 
 - `/ping` responds with `pong` and indicates what reproxy up and running
 - `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
 
-In addition to the controllers above, reproxy supports optional live health checks. In this case (if enabled), each destination checked for ping response periodically and excluded failed destination routes. It is possible to return multiple identical destinations from the same or various providers, and the only passed picked. If numerous matches were discovered and passed - the final one picked randomly.
+In addition to the endpoints above, reproxy supports optional live health checks. In this case (if enabled), each destination checked for ping response periodically and excluded failed destination routes. It is possible to return multiple identical destinations from the same or various providers, and the only passed picked. If numerous matches were discovered and passed - the final one picked according to `lb-type` strategy (by default random selection).
+
 To turn live health check on, user should set `--health-check.enabled` (or env `HEALTH_CHECK_ENABLED=true`). To customize checking interval `--health-check.interval=` can be used.
 
 ## Management API
@@ -250,6 +258,7 @@ This is the list of all options supporting multiple elements:
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     proxy headers [$HEADER]
+      --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]  
       --signature                   enable reproxy signature headers [$SIGNATURE]
       --dbg                         debug mode [$DEBUG]
 

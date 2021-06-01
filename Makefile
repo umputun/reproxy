@@ -8,7 +8,7 @@ docker:
 
 dist:
 	- @mkdir -p dist
-	docker build -f Dockerfile.artifacts -t reproxy.bin .
+	docker build -f Dockerfile.artifacts --progress=plain -t reproxy.bin .
 	- @docker rm -f reproxy.bin 2>/dev/null || exit 0
 	docker run -d --name=reproxy.bin reproxy.bin
 	docker cp reproxy.bin:/artifacts dist/
@@ -22,7 +22,7 @@ build: info
 
 site:
 	@rm -f  site/public/*
-	docker build -f Dockerfile.site -t reproxy.site .
+	docker build -f Dockerfile.site --progress=plain -t reproxy.site .
 	docker run -d --name=reproxy.site reproxy.site
 	docker cp reproxy.site:/build/public site/
 	docker rm -f reproxy.site
