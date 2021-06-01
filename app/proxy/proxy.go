@@ -187,7 +187,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	reverseProxy := &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
 			ctx := r.Context()
-			uu := ctx.Value(contextKey("url")).(*url.URL)
+			uu := ctx.Value(ctxURL).(*url.URL)
 			r.Header.Add("X-Forwarded-Host", r.Host)
 			r.URL.Path = uu.Path
 			r.URL.Host = uu.Host
