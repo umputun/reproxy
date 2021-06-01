@@ -39,7 +39,7 @@ func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (er
 	client := http.Client{Timeout: time.Second}
 	time.AfterFunc(time.Millisecond*50, func() {
 		// registration http call delayed to let listener time to start
-		err := repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
+		err = repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
 			return p.send(&client, conductor, "POST")
 		})
 		if err != nil {
