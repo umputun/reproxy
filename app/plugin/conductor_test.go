@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -314,7 +316,9 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 		},
 	}
 
-	c := Conductor{RPCDialer: dialer, Address: "127.0.0.1:50100"}
+	rand.Seed(time.Now().UnixNano())
+	port := rand.Intn(30000)
+	c := Conductor{RPCDialer: dialer, Address: "127.0.0.1:" + strconv.Itoa(30000+port)}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -322,7 +326,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	go func() {
 		c.Run(ctx)
 	}()
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Millisecond * 150)
 
 	client := http.Client{Timeout: time.Second}
 
@@ -330,7 +334,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
-	req, err := http.NewRequest("POST", "http://127.0.0.1:50100", bytes.NewReader(data))
+	req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(30000+port), bytes.NewReader(data))
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
