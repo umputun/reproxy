@@ -179,6 +179,7 @@ type contextKey string
 const (
 	ctxURL       = contextKey("url")
 	ctxMatchType = contextKey("type")
+	ctxMatch     = contextKey("match")
 )
 
 func (h *Http) proxyHandler() http.HandlerFunc {
@@ -212,7 +213,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		if r.Context().Value(plugin.CtxMatch) == nil { // no route match detected by matchHandler
+		if r.Context().Value(ctxMatch) == nil { // no route match detected by matchHandler
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
 				return
@@ -222,7 +223,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			return
 		}
 
-		match := r.Context().Value(plugin.CtxMatch).(discovery.MatchedRoute)
+		match := r.Context().Value(ctxMatch).(discovery.MatchedRoute)
 		matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
 
 		switch matchType {
@@ -282,8 +283,9 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
 		match, ok := getMatch(matches, h.LBSelector)
 		if ok {
-			ctx := context.WithValue(r.Context(), ctxMatchType, matches.MatchType) // set match type
-			ctx = context.WithValue(ctx, plugin.CtxMatch, match)                   // set keys for plugin conductor
+			ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info
+			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
+			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set match info for plugin conductor
 
 			if matches.MatchType == discovery.MTProxy {
 				uu, err := url.Parse(match.Destination)
