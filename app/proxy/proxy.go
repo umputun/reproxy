@@ -285,6 +285,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		if ok {
 			uu, err := url.Parse(match.Destination)
 			if err != nil {
+				log.Printf("[WARN] can't parse destination %s, %v", match.Destination, err)
 				h.Reporter.Report(w, http.StatusBadGateway)
 				return
 			}
