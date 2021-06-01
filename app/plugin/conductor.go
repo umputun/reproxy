@@ -127,7 +127,7 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 }
 
 // makeRequest creates plugin request from http.Request
-// uses context set downstream (by proxyHandler)
+// uses context set by downstream (by proxyHandler)
 func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
 	res := lib.Request{

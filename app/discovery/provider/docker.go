@@ -155,7 +155,6 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		}
 
 		if !enabled {
-			log.Printf("[DEBUG] container %s (route: %d) disabled", c.Name, n)
 			continue
 		}
 
