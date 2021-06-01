@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/umputun/reproxy/lib"
 )
@@ -19,7 +18,6 @@ func main() {
 		Methods: []string{"HeaderThing", "ErrorThing"},
 	}
 	log.Printf("start demo plugin")
-	time.Sleep(time.Second) // allow reproxy container to start
 	// Do starts the plugin listener and register with reproxy plugin conductor
 	if err := plugin.Do(context.TODO(), "http://reproxy:8081", new(Handler)); err != nil {
 		log.Fatal(err)

@@ -208,7 +208,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 	for _, l := range p.Methods {
 		handler := Handler{client: client, Alive: true, Address: p.Address, Method: p.Name + "." + l}
 		pp = append(pp, handler)
-		log.Printf("[INFO] register plugin %s:%s, method: %s", p.Name, p.Address, handler.Method)
+		log.Printf("[INFO] register plugin %s, ip: %s, method: %s", p.Name, p.Address, handler.Method)
 	}
 	c.plugins = pp
 	return nil
@@ -216,7 +216,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 
 // unregister plugin, not thread safe! call should be enclosed with lock
 func (c *Conductor) unregister(p lib.Plugin) {
-	log.Printf("[INFO] unregister plugin %s:%s", p.Name, p.Address)
+	log.Printf("[INFO] unregister plugin %s, ip: %s", p.Name, p.Address)
 	var res []Handler
 	for _, h := range c.plugins {
 		if strings.HasPrefix(h.Method, p.Name+".") {

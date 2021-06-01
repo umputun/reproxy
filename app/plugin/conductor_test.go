@@ -389,7 +389,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	go func() {
 		c.Run(ctx)
 	}()
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Millisecond * 250)
 
 	client := http.Client{Timeout: time.Second}
 
