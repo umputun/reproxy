@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/go-pkgz/lgr v0.10.4
+	github.com/go-pkgz/repeater v1.1.3
 	github.com/go-pkgz/rest v1.9.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/prometheus/client_golang v1.10.0

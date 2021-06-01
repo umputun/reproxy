@@ -17,31 +17,31 @@ import (
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
-	"github.com/gorilla/handlers"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/mgmt"
+	"github.com/umputun/reproxy/app/plugin"
 )
 
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address        string
-	AssetsLocation string
-	AssetsWebRoot  string
-	MaxBodySize    int64
-	GzEnabled      bool
-	ProxyHeaders   []string
-	SSLConfig      SSLConfig
-	Version        string
-	AccessLog      io.Writer
-	StdOutEnabled  bool
-	Signature      bool
-	Timeouts       Timeouts
-	CacheControl   MiddlewareProvider
-	Metrics        MiddlewareProvider
-	Reporter       Reporter
-	LBSelector     func(len int) int
+	Address         string
+	AssetsLocation  string
+	AssetsWebRoot   string
+	MaxBodySize     int64
+	GzEnabled       bool
+	ProxyHeaders    []string
+	SSLConfig       SSLConfig
+	Version         string
+	AccessLog       io.Writer
+	StdOutEnabled   bool
+	Signature       bool
+	Timeouts        Timeouts
+	CacheControl    MiddlewareProvider
+	Metrics         MiddlewareProvider
+	PluginConductor MiddlewareProvider
+	Reporter        Reporter
+	LBSelector      func(len int) int
 }
 
 // Matcher source info (server and route) to the destination url
@@ -107,15 +107,17 @@ func (h *Http) Run(ctx context.Context) error {
 
 	handler := R.Wrap(h.proxyHandler(),
 		R.Recoverer(log.Default()),
-		h.signatureHandler(),
+		signatureHandler(h.Signature, h.Version),
 		h.pingHandler,
 		h.healthMiddleware,
+		h.matchHandler,
 		h.mgmtHandler(),
-		h.headersHandler(h.ProxyHeaders),
-		h.accessLogHandler(h.AccessLog),
-		h.stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
-		h.maxReqSizeHandler(h.MaxBodySize),
-		h.gzipHandler(),
+		h.pluginHandler(),
+		headersHandler(h.ProxyHeaders),
+		accessLogHandler(h.AccessLog),
+		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
+		maxReqSizeHandler(h.MaxBodySize),
+		gzipHandler(h.GzEnabled),
 	)
 
 	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
@@ -172,8 +174,14 @@ func (h *Http) Run(ctx context.Context) error {
 	return fmt.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
 }
 
+type contextKey string
+
+const (
+	ctxURL       = contextKey("url")
+	ctxMatchType = contextKey("type")
+)
+
 func (h *Http) proxyHandler() http.HandlerFunc {
-	type contextKey string
 
 	reverseProxy := &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
@@ -204,13 +212,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		server := r.URL.Hostname()
-		if server == "" {
-			server = strings.Split(r.Host, ":")[0]
-		}
-		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
-		u, ok := h.getMatch(matches)           // pick a single match from alive only, uses LBSelector as the strategy
-		if !ok {                               // no route match
+		uuVal := r.Context().Value(ctxURL)
+		if uuVal == nil { // no route match detected by matchHandler
 			if h.isAssetRequest(r) {
 				assetsHandler.ServeHTTP(w, r)
 				return
@@ -219,20 +222,18 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			h.Reporter.Report(w, http.StatusBadGateway)
 			return
 		}
+		uu := uuVal.(*url.URL)
 
-		switch matches.MatchType {
+		match := r.Context().Value(plugin.CtxMatch).(discovery.MatchedRoute)
+		matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
+
+		switch matchType {
 		case discovery.MTProxy:
-			uu, err := url.Parse(u)
-			if err != nil {
-				h.Reporter.Report(w, http.StatusBadGateway)
-				return
-			}
 			log.Printf("[DEBUG] proxy to %s", uu)
-			ctx := context.WithValue(r.Context(), contextKey("url"), uu) // set destination url in request's context
-			reverseProxy.ServeHTTP(w, r.WithContext(ctx))
+			reverseProxy.ServeHTTP(w, r)
 		case discovery.MTStatic:
 			// static match result has webroot:location, i.e. /www:/var/somedir/
-			ae := strings.Split(u, ":")
+			ae := strings.Split(match.Destination, ":")
 			if len(ae) != 2 { // shouldn't happen
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
@@ -247,26 +248,51 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 	}
 }
 
-func (h *Http) getMatch(mm discovery.Matches) (u string, ok bool) {
-	if len(mm.Routes) == 0 {
-		return "", false
-	}
+// matchHandler is a part of middleware chain. Matches incoming request to one or more matched rules
+// and if match found sets it to the request context. Context used by proxy handler as well as by plugin conductor
+func (h *Http) matchHandler(next http.Handler) http.Handler {
 
-	var urls []string // alive destinations only
-	for _, m := range mm.Routes {
-		if m.Alive {
-			urls = append(urls, m.Destination)
+	getMatch := func(mm discovery.Matches, picker func(len int) int) (m discovery.MatchedRoute, ok bool) {
+		if len(mm.Routes) == 0 {
+			return m, false
+		}
+
+		var matches []discovery.MatchedRoute
+		for _, m := range mm.Routes {
+			if m.Alive {
+				matches = append(matches, m)
+			}
+		}
+		switch len(matches) {
+		case 0:
+			return m, false
+		case 1:
+			return matches[0], true
+		default:
+			return matches[picker(len(matches))], true
 		}
 	}
 
-	switch len(urls) {
-	case 0:
-		return "", false
-	case 1:
-		return urls[0], true
-	default:
-		return urls[h.LBSelector(len(urls))], true
-	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := r.URL.Hostname()
+		if server == "" {
+			server = strings.Split(r.Host, ":")[0]
+		}
+		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
+		match, ok := getMatch(matches, h.LBSelector)
+		if ok {
+			uu, err := url.Parse(match.Destination)
+			if err != nil {
+				h.Reporter.Report(w, http.StatusBadGateway)
+				return
+			}
+			ctx := context.WithValue(r.Context(), ctxURL, uu)             // set destination url in request's context
+			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
+			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set keys for plugin conductor
+			r = r.WithContext(ctx)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Http) assetsHandler() http.HandlerFunc {
@@ -295,114 +321,20 @@ func (h *Http) toHTTP(address string, httpPort int) string {
 	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
 }
 
-func (h *Http) gzipHandler() func(next http.Handler) http.Handler {
-	if h.GzEnabled {
-		log.Printf("[DEBUG] gzip enabled")
-		return handlers.CompressHandler
-	}
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func (h *Http) signatureHandler() func(next http.Handler) http.Handler {
-	if h.Signature {
-		log.Printf("[DEBUG] signature headers enabled")
-		return R.AppInfo("reproxy", "umputun", h.Version)
+func (h *Http) pluginHandler() func(next http.Handler) http.Handler {
+	if h.PluginConductor != nil {
+		log.Printf("[INFO] plugin support enabled")
+		return h.PluginConductor.Middleware
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 		})
-	}
-}
-
-func (h *Http) headersHandler(headers []string) func(next http.Handler) http.Handler {
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if len(h.ProxyHeaders) == 0 {
-				next.ServeHTTP(w, r)
-				return
-			}
-			for _, h := range headers {
-				elems := strings.Split(h, ":")
-				if len(elems) != 2 {
-					continue
-				}
-				w.Header().Set(strings.TrimSpace(elems[0]), strings.TrimSpace(elems[1]))
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func (h *Http) accessLogHandler(wr io.Writer) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return handlers.CombinedLoggingHandler(wr, next)
-	}
-}
-
-func (h *Http) stdoutLogHandler(enable bool, lh func(next http.Handler) http.Handler) func(next http.Handler) http.Handler {
-
-	if enable {
-		log.Printf("[DEBUG] stdout logging enabled")
-		return func(next http.Handler) http.Handler {
-			fn := func(w http.ResponseWriter, r *http.Request) {
-				// don't log to stdout GET ~/(.*)/ping$ requests
-				if r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/ping") {
-					next.ServeHTTP(w, r)
-					return
-				}
-				lh(next).ServeHTTP(w, r)
-			}
-			return http.HandlerFunc(fn)
-		}
-	}
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func (h *Http) maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Handler {
-	if maxSize <= 0 {
-		return func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				next.ServeHTTP(w, r)
-			})
-		}
-	}
-
-	log.Printf("[DEBUG] request size limited to %d", maxSize)
-	return func(next http.Handler) http.Handler {
-
-		fn := func(w http.ResponseWriter, r *http.Request) {
-
-			// check ContentLength
-			if r.ContentLength > maxSize {
-				w.WriteHeader(http.StatusRequestEntityTooLarge)
-				return
-			}
-
-			r.Body = http.MaxBytesReader(w, r.Body, maxSize)
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "Request Entity Too Large", http.StatusRequestEntityTooLarge)
-				return
-			}
-			next.ServeHTTP(w, r)
-		}
-		return http.HandlerFunc(fn)
 	}
 }
 
 func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
-	if h.Metrics.(*mgmt.Metrics) != nil { // type assertion needed because we compare interface to nil
+	if h.Metrics != nil {
 		log.Printf("[DEBUG] metrics enabled")
 		return h.Metrics.Middleware
 	}

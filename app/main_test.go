@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -12,8 +13,11 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/go-pkgz/lgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/reproxy/lib"
 )
 
 func Test_Main(t *testing.T) {
@@ -151,15 +155,70 @@ func Test_MainWithSSL(t *testing.T) {
 	}
 }
 
-func waitForHTTPServerStart(port int) {
-	// wait for up to 10 seconds for server to start before returning it
-	client := http.Client{Timeout: time.Second}
-	for i := 0; i < 100; i++ {
-		time.Sleep(time.Millisecond * 100)
-		if resp, err := client.Get(fmt.Sprintf("http://localhost:%d", port)); err == nil {
-			_ = resp.Body.Close()
-			return
+func Test_MainWithPlugin(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+	proxyPort := rand.Intn(10000) + 40000
+	conductorPort := rand.Intn(10000) + 40000
+	os.Args = []string{"test", "--static.enabled",
+		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
+		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
+		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
+		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
+		"--listen=127.0.0.1:" + strconv.Itoa(proxyPort), "--signature", "--error.enabled",
+		"--header=hh1:vv1",
+		"--plugin.enabled", "--plugin.listen=127.0.0.1:" + strconv.Itoa(conductorPort),
+	}
+	defer os.Remove("/tmp/reproxy.log")
+	done := make(chan struct{})
+	go func() {
+		<-done
+		e := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+		require.NoError(t, e)
+	}()
+
+	finished := make(chan struct{})
+	go func() {
+		main()
+		close(finished)
+	}()
+
+	// defer cleanup because require check below can fail
+	defer func() {
+		close(done)
+		<-finished
+	}()
+
+	waitForHTTPServerStart(proxyPort)
+
+	pluginPort := rand.Intn(10000) + 40000
+	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"}}
+	go func() {
+		if err := plugin.Do(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", conductorPort), &TestPlugin{}); err != nil {
+			require.NotEqual(t, "proxy server closed, http: Server closed", err.Error())
 		}
+	}()
+
+	time.Sleep(time.Second)
+
+	client := http.Client{Timeout: 10 * time.Second}
+	{
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc1", proxyPort))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 200, resp.StatusCode)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		t.Logf("body: %s", string(body))
+		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
+		assert.Contains(t, string(body), `"Inh": "val"`)
+		assert.Equal(t, "val1", resp.Header.Get("key1"))
+		assert.Equal(t, "val2", resp.Header.Get("key2"))
+	}
+	{
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/fail", proxyPort))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, 500, resp.StatusCode)
 	}
 }
 
@@ -254,5 +313,42 @@ func Test_sizeParse(t *testing.T) {
 			assert.Equal(t, tt.res, res)
 		})
 	}
+}
 
+func waitForHTTPServerStart(port int) {
+	// wait for up to 10 seconds for server to start before returning it
+	client := http.Client{Timeout: time.Second}
+	for i := 0; i < 100; i++ {
+		time.Sleep(time.Millisecond * 100)
+		if resp, err := client.Get(fmt.Sprintf("http://localhost:%d/ping", port)); err == nil {
+			_ = resp.Body.Close()
+			return
+		}
+	}
+}
+
+type TestPlugin struct{}
+
+//nolint
+func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error) {
+	log.Printf("req: %+v", req)
+	res.HeadersIn = http.Header{}
+	res.HeadersIn.Add("inh", "val")
+	res.HeadersOut = req.Header
+	res.HeadersOut.Add("key1", "val1")
+	res.StatusCode = 200
+	return nil
+}
+
+//nolint
+func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) {
+	log.Printf("req: %+v", req)
+	if req.URL == "/fail" {
+		res.StatusCode = 500
+		return nil
+	}
+	res.HeadersOut = req.Header
+	res.HeadersOut.Add("key2", "val2")
+	res.StatusCode = 200
+	return nil
 }

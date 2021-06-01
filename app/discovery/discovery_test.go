@@ -126,33 +126,43 @@ func TestService_Match(t *testing.T) {
 		server, src string
 		res         Matches
 	}{
-		{"example.com", "/api/svc3/xyz/something", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.3:8080/blah3/xyz/something", true}}}},
-		{"example.com", "/api/svc3/xyz", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.3:8080/blah3/xyz", true}}}},
-		{"abc.example.com", "/api/svc1/1234", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.1:8080/blah1/1234", true}}}},
+		{"example.com", "/api/svc3/xyz/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.3:8080/blah3/xyz/something", Alive: true}}}},
+		{"example.com", "/api/svc3/xyz", Matches{MTProxy, []MatchedRoute{{
+			Destination: "http://127.0.0.3:8080/blah3/xyz", Alive: true}}}},
+		{"abc.example.com", "/api/svc1/1234", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.1:8080/blah1/1234", Alive: true}}}},
 		{"zzz.example.com", "/aaa/api/svc1/1234", Matches{MTProxy, nil}},
-		{"m.example.com", "/api/svc2/1234", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.2:8080/blah2/1234/abc", true}}}},
+		{"m.example.com", "/api/svc2/1234", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.2:8080/blah2/1234/abc", Alive: true}}}},
 		{"m1.example.com", "/api/svc2/1234", Matches{MTProxy, nil}},
-		{"m.example.com", "/api/svc4/id12345", Matches{MTProxy, []MatchedRoute{{"http://127.0.0.4:8080/blah2/id12345/abc", false}}}},
+		{"m.example.com", "/api/svc4/id12345", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.4:8080/blah2/id12345/abc", Alive: false}}}},
 
 		{"m.example.com", "/api/svc5/num123456", Matches{MTProxy, []MatchedRoute{
-			{"http://127.0.0.5:8080/blah2/num123456/abc", true},
-			{"http://127.0.0.5:8080/blah2/num123456/abc/2", true},
-			{"http://127.0.0.5:8080/blah2/num123456/abc/3", false},
+			{Destination: "http://127.0.0.5:8080/blah2/num123456/abc", Alive: true},
+			{Destination: "http://127.0.0.5:8080/blah2/num123456/abc/2", Alive: true},
+			{Destination: "http://127.0.0.5:8080/blah2/num123456/abc/3", Alive: false},
 		}}},
 
-		{"m1.example.com", "/web/index.html", Matches{MTStatic, []MatchedRoute{{"/web:/var/web/", true}}}},
-		{"m1.example.com", "/web/", Matches{MTStatic, []MatchedRoute{{"/web:/var/web/", true}}}},
-		{"m1.example.com", "/www/something", Matches{MTStatic, []MatchedRoute{{"/www:/var/web/", true}}}},
-		{"m1.example.com", "/www/", Matches{MTStatic, []MatchedRoute{{"/www:/var/web/", true}}}},
-		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{"/www:/var/web/", true}}}},
-		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{"/path:/var/web/path/", true}}}},
+		{"m1.example.com", "/web/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/web:/var/web/", Alive: true}}}},
+		{"m1.example.com", "/web/", Matches{MTStatic, []MatchedRoute{{Destination: "/web:/var/web/", Alive: true}}}},
+		{"m1.example.com", "/www/something", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/", Alive: true}}}},
+		{"m1.example.com", "/www/", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/", Alive: true}}}},
+		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/", Alive: true}}}},
+		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{Destination: "/path:/var/web/path/", Alive: true}}}},
 	}
 
 	for i, tt := range tbl {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
-			assert.Equal(t, tt.res, res)
+			require.Equal(t, len(tt.res.Routes), len(res.Routes))
+			for i := 0; i < len(res.Routes); i++ {
+				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
+				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+			}
+			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
 	}
 }

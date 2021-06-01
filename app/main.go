@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"net/rpc"
 	"os"
 	"os/signal"
 	"strconv"
@@ -24,6 +25,7 @@ import (
 	"github.com/umputun/reproxy/app/discovery/provider"
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
 	"github.com/umputun/reproxy/app/mgmt"
+	"github.com/umputun/reproxy/app/plugin"
 	"github.com/umputun/reproxy/app/proxy"
 )
 
@@ -112,6 +114,11 @@ var opts struct {
 		Interval time.Duration `long:"interval" env:"INTERVAL" default:"300s" description:"automatic health-check interval"`
 	} `group:"health-check" namespace:"health-check" env-namespace:"HEALTH_CHECK"`
 
+	Plugin struct {
+		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
+		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
+	} `group:"plugin" namespace:"plugin" env-namespace:"PLUGIN"`
+
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 }
@@ -190,25 +197,6 @@ func run() error {
 		}
 	}()
 
-	var metrics *mgmt.Metrics // disabled by default
-	if opts.Management.Enabled {
-		metrics = mgmt.NewMetrics()
-		go func() {
-			mgSrv := mgmt.Server{
-				Listen:         opts.Management.Listen,
-				Informer:       svc,
-				AssetsLocation: opts.Assets.Location,
-				AssetsWebRoot:  opts.Assets.WebRoot,
-				Version:        revision,
-			}
-			if opts.Management.Enabled {
-				if mgErr := mgSrv.Run(ctx); err != nil {
-					log.Printf("[WARN] management service failed, %v", mgErr)
-				}
-			}
-		}()
-	}
-
 	cacheControl, err := proxy.MakeCacheControl(opts.Assets.CacheControl)
 	if err != nil {
 		return fmt.Errorf("failed to make cache control: %w", err)
@@ -253,8 +241,9 @@ func run() error {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics:  metrics,
-		Reporter: errReporter,
+		Metrics:         makeMetrics(ctx, svc),
+		Reporter:        errReporter,
+		PluginConductor: makePluginConductor(ctx),
 	}
 
 	err = px.Run(ctx)
@@ -311,16 +300,43 @@ func makeProviders() ([]discovery.Provider, error) {
 	return res, nil
 }
 
-func makeLBSelector() func(len int) int {
-	switch opts.LBType {
-	case "random":
-		rand.Seed(time.Now().UnixNano())
-		return rand.Intn
-	case "failover":
-		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
-	default:
-		return func(int) int { return 0 }
+func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
+	if !opts.Plugin.Enabled {
+		return nil
 	}
+
+	conductor := &plugin.Conductor{
+		Address: opts.Plugin.Listen,
+		RPCDialer: plugin.RPCDialerFunc(func(network, address string) (plugin.RPCClient, error) {
+			return rpc.Dial("tcp", address)
+		}),
+	}
+	go func() {
+		if err := conductor.Run(ctx); err != nil {
+			log.Printf("[WARN] plugin conductor error, %v", err)
+		}
+	}()
+	return conductor
+}
+
+func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewareProvider {
+	if !opts.Management.Enabled {
+		return nil
+	}
+	metrics := mgmt.NewMetrics()
+	go func() {
+		mgSrv := mgmt.Server{
+			Listen:         opts.Management.Listen,
+			Informer:       informer,
+			AssetsLocation: opts.Assets.Location,
+			AssetsWebRoot:  opts.Assets.WebRoot,
+			Version:        revision,
+		}
+		if err := mgSrv.Run(ctx); err != nil {
+			log.Printf("[WARN] management service failed, %v", err)
+		}
+	}()
+	return metrics
 }
 
 func makeSSLConfig() (config proxy.SSLConfig, err error) {
@@ -346,6 +362,18 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	}
 	return config, err
+}
+
+func makeLBSelector() func(len int) int {
+	switch opts.LBType {
+	case "random":
+		rand.Seed(time.Now().UnixNano())
+		return rand.Intn
+	case "failover":
+		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
+	default:
+		return func(int) int { return 0 }
+	}
 }
 
 func makeErrorReporter() (proxy.Reporter, error) {
