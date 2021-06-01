@@ -1,0 +1,44 @@
+services:
+  reproxy:
+    image: umputun/reproxy:master
+    container_name: reproxy
+    hostname: reproxy
+    ports:
+      - "80:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./web:/web
+    environment:
+      - TZ=America/Chicago
+      - LISTEN=0.0.0.0:8080
+      - DOCKER_ENABLED=true
+      - DOCKER_AUTO=true
+      - ASSETS_LOCATION=/web
+      - DEBUG=true
+      - PLUGIN_ENABLED=true
+      - PLUGIN_LISTEN=0.0.0.0:8081
+      - HEADER=
+          X-Frame-Options:SAMEORIGIN,
+          X-XSS-Protection:1; mode=block;,
+          Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
+
+  plugin-example:
+    build: .
+    container_name: plugin-example
+    hostname: plugin-example
+
+  # automatic destination, will be mapped for ^/svc1/(.*)
+  svc1:
+    image: ghcr.io/umputun/echo-http
+    hostname: svc1
+    container_name: svc1
+    command: --message="hello world from svc1"
+
+
+  # automatic destination, will be mapped for ^/svc2/(.*)
+  svc2:
+    image: ghcr.io/umputun/echo-http
+    hostname: svc2
+    container_name: svc2
+    command: --message="hello world from svc2"
+

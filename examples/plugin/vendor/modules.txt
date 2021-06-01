@@ -1,0 +1,6 @@
+# github.com/go-pkgz/lgr v0.10.4
+github.com/go-pkgz/lgr
+# github.com/umputun/reproxy v0.6.0 => ../../
+## explicit
+github.com/umputun/reproxy/lib
+# github.com/umputun/reproxy => ../../

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/umputun/reproxy/lib"
 )
@@ -14,13 +15,13 @@ func main() {
 	// both called via RPC from reproxy core with fully formed lib.Request
 	plugin := lib.Plugin{
 		Name:    "TestPlugin",
-		Address: ":1234",
+		Address: "plugin-example:1234",
 		Methods: []string{"HeaderThing", "ErrorThing"},
 	}
 	log.Printf("start demo plugin")
-
+	time.Sleep(time.Second) // allow reproxy container to start
 	// Do starts the plugin listener and register with reproxy plugin conductor
-	if err := plugin.Do(context.TODO(), "http://127.0.0.1:8081", new(Handler)); err != nil {
+	if err := plugin.Do(context.TODO(), "http://reproxy:8081", new(Handler)); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -33,6 +34,8 @@ func (h *Handler) HeaderThing(req lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	res.HeadersOut = http.Header{}
 	res.HeadersOut.Add("key", "val")
+	res.HeadersIn = http.Header{}
+	res.HeadersIn.Add("token", "something")
 	res.StatusCode = 200 // each handler has to set status code
 	return
 }
