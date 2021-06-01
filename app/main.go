@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/rpc"
 	"os"
@@ -33,6 +34,7 @@ var opts struct {
 	MaxSize      string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
 	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
+	LBType       string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` //nolint
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
@@ -227,6 +229,7 @@ func run() error {
 		AccessLog:      accessLog,
 		StdOutEnabled:  opts.Logger.StdOut,
 		Signature:      opts.Signature,
+		LBSelector:     makeLBSelector(),
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
 			Write:          opts.Timeouts.Write,
@@ -359,6 +362,18 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	}
 	return config, err
+}
+
+func makeLBSelector() func(len int) int {
+	switch opts.LBType {
+	case "random":
+		rand.Seed(time.Now().UnixNano())
+		return rand.Intn
+	case "failover":
+		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
+	default:
+		return func(int) int { return 0 }
+	}
 }
 
 func makeErrorReporter() (proxy.Reporter, error) {

@@ -9,7 +9,9 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -364,16 +366,23 @@ func TestHttp_isAssetRequest(t *testing.T) {
 
 }
 
-func TestHttp_getMatch(t *testing.T) {
+func TestHttp_matchHandler(t *testing.T) {
 
 	tbl := []struct {
 		matches discovery.Matches
 		res     string
 		ok      bool
 	}{
+
 		{
-			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{}}, "", false,
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
+				{Destination: "dest1", Alive: true},
+				{Destination: "dest2", Alive: true},
+				{Destination: "dest3", Alive: true},
+			}},
+			"dest1", true,
 		},
+
 		{
 			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
 				{Destination: "dest1", Alive: false},
@@ -392,11 +401,11 @@ func TestHttp_getMatch(t *testing.T) {
 		},
 		{
 			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
-				{Destination: "dest1", Alive: true},
-				{Destination: "dest2", Alive: true},
+				{Destination: "dest1", Alive: false},
+				{Destination: "dest2", Alive: false},
 				{Destination: "dest3", Alive: true},
 			}},
-			"dest1", true,
+			"dest3", true,
 		},
 		{
 			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{
@@ -406,14 +415,43 @@ func TestHttp_getMatch(t *testing.T) {
 			}},
 			"", false,
 		},
+		{
+			discovery.Matches{MatchType: discovery.MTProxy, Routes: []discovery.MatchedRoute{}}, "", false,
+		},
 	}
 
-	h := Http{}
+	var count int32
+	matcherMock := &MatcherMock{
+		MatchFunc: func(srv string, src string) discovery.Matches {
+			return tbl[atomic.LoadInt32(&count)].matches
+		},
+	}
+
+	client := http.Client{}
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			res, ok := h.getMatch(tt.matches, func(len int) int { return 0 })
-			require.Equal(t, tt.ok, ok)
-			assert.Equal(t, tt.res, res.Destination)
+
+			h := Http{Matcher: matcherMock, LBSelector: func(len int) int { return 0 }}
+			handler := h.matchHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Logf("req: %+v", r)
+				t.Logf("dst: %v", r.Context().Value(ctxURL))
+
+				v := r.Context().Value(ctxURL)
+				if v == nil {
+					require.False(t, tt.ok)
+					return
+				}
+				assert.Equal(t, tt.res, v.(*url.URL).String())
+			}))
+
+			req, err := http.NewRequest("GET", "http://example.com", nil)
+			require.NoError(t, err)
+			wr := httptest.NewRecorder()
+			handler.ServeHTTP(wr, req)
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			assert.Equal(t, 200, resp.StatusCode)
+			atomic.AddInt32(&count, 1)
 		})
 	}
 }
