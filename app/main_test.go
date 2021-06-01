@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -195,10 +194,7 @@ func Test_MainWithPlugin(t *testing.T) {
 	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"}}
 	go func() {
 		if err := plugin.Do(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", conductorPort), &TestPlugin{}); err != nil {
-			if err.Error() != "proxy server closed, http: Server closed" {
-				t.Fatal(err)
-			}
-
+			require.NotEqual(t, "proxy server closed, http: Server closed", err.Error())
 		}
 	}()
 
@@ -317,18 +313,6 @@ func Test_sizeParse(t *testing.T) {
 			assert.Equal(t, tt.res, res)
 		})
 	}
-
-}
-
-func chooseRandomUnusedPort() (port int) {
-	for i := 0; i < 10; i++ {
-		port = 40000 + int(rand.Int31n(10000))
-		if ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port)); err == nil {
-			_ = ln.Close()
-			break
-		}
-	}
-	return port
 }
 
 func waitForHTTPServerStart(port int) {
@@ -345,6 +329,7 @@ func waitForHTTPServerStart(port int) {
 
 type TestPlugin struct{}
 
+//nolint
 func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	res.HeadersIn = http.Header{}
@@ -352,17 +337,18 @@ func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error
 	res.HeadersOut = req.Header
 	res.HeadersOut.Add("key1", "val1")
 	res.StatusCode = 200
-	return
+	return nil
 }
 
+//nolint
 func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	if req.URL == "/fail" {
 		res.StatusCode = 500
-		return
+		return nil
 	}
 	res.HeadersOut = req.Header
 	res.HeadersOut.Add("key2", "val2")
 	res.StatusCode = 200
-	return
+	return nil
 }

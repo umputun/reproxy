@@ -34,9 +34,7 @@ type Handler struct {
 	Address string
 	Method  string // full method name for rpc call, i.e. Plugin.Thing
 	Alive   bool
-
-	delete bool
-	client RPCClient
+	client  RPCClient
 }
 
 // conductorCtxtKey used to retrieve conductor from context
@@ -82,7 +80,6 @@ func (c *Conductor) Run(ctx context.Context) error {
 		}
 	}()
 
-	// gob.Register(url.URL{})
 	return httpServer.ListenAndServe()
 }
 
@@ -186,7 +183,8 @@ func (c *Conductor) registrationHandler() http.Handler {
 // creates tcp client, retrieves list of handlers (methods) and adds each one with the full method name
 func (c *Conductor) register(p lib.Plugin) error {
 
-	var pp []Handler // collect all handlers after registration
+	// collect all handlers after registration
+	var pp []Handler //nolint
 	for _, h := range c.plugins {
 		if strings.HasPrefix(h.Method, p.Name+".") && h.Address == p.Address { // already registered
 			log.Printf("[WARN] plugin %+v already registered", p)
@@ -217,7 +215,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 // unregister plugin, not thread safe! call should be enclosed with lock
 func (c *Conductor) unregister(p lib.Plugin) {
 	log.Printf("[INFO] unregister plugin %s, ip: %s", p.Name, p.Address)
-	var res []Handler
+	var res []Handler //nolint
 	for _, h := range c.plugins {
 		if strings.HasPrefix(h.Method, p.Name+".") {
 			continue

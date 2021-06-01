@@ -23,7 +23,7 @@ type Plugin struct {
 
 // Do register the plugin, send info to reproxy conductor and activate RPC listener.
 // On completion unregister from reproxy. Blocking call, should run in goroutine on the caller side
-// rvcr is provided struct implemented at least one RPC methods with teh signature leike this:
+// rvcr is provided struct implemented at least one RPC methods with the signature like this:
 // func(req lib.Request, res *lib.Response) (err error)
 // see [examples/plugin]() for more info
 func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (err error) {
@@ -65,7 +65,9 @@ func (p *Plugin) listen(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		listener.Close()
+		if err := listener.Close(); err != nil {
+			log.Printf("[WARN] can't lose plugin listener")
+		}
 	}()
 
 	for {
@@ -83,7 +85,7 @@ func (p *Plugin) listen(ctx context.Context) error {
 	}
 }
 
-func (p *Plugin) send(client *http.Client, conductor string, method string) error {
+func (p *Plugin) send(client *http.Client, conductor, method string) error {
 
 	if conductor == "" {
 		return nil
