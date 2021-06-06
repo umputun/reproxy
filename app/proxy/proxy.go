@@ -228,9 +228,19 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 
 		switch matchType {
 		case discovery.MTProxy:
-			uu := r.Context().Value(ctxURL).(*url.URL)
-			log.Printf("[DEBUG] proxy to %s", uu)
-			reverseProxy.ServeHTTP(w, r)
+			switch match.Mapper.RedirectType {
+			case discovery.RTNone:
+				uu := r.Context().Value(ctxURL).(*url.URL)
+				log.Printf("[DEBUG] proxy to %s", uu)
+				reverseProxy.ServeHTTP(w, r)
+			case discovery.RTPerm:
+				log.Printf("[DEBUG] redirect (301) to %s", match.Destination)
+				http.Redirect(w, r, match.Destination, http.StatusMovedPermanently)
+			case discovery.RTTemp:
+				log.Printf("[DEBUG] redirect (302) to %s", match.Destination)
+				http.Redirect(w, r, match.Destination, http.StatusFound)
+			}
+
 		case discovery.MTStatic:
 			// static match result has webroot:location, i.e. /www:/var/somedir/
 			ae := strings.Split(match.Destination, ":")
