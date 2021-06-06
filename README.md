@@ -170,6 +170,15 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
+## Redirects 
+
+By default reproxy treats destination as a proxy location, i.e. it invokes http call internally and returns response back to the client. However by prefixing destination url with `@code` this behaviour can be changed to a permanent (status code 301) or temporary (status code 302) redirects. I.e. destination set to `@301 https://example.com/something` with cause permanent http redirect to `Location: https://example.com/something`
+
+supported codes:
+
+- `@301`, `@perm` - permanent redirect
+- `@302`, `@temp`, `@tmp` - temporary redirect
+
 ## More options
 
 - `--gzip`   enables gzip compression for responses.
