@@ -248,6 +248,56 @@ func TestService_extendRule(t *testing.T) {
 
 }
 
+func TestService_redirects(t *testing.T) {
+
+	tbl := []struct {
+		inp URLMapper
+		out URLMapper
+	}{
+		{
+			URLMapper{Dst: "/blah"},
+			URLMapper{Dst: "/blah", RedirectType: RTNone},
+		},
+		{
+			URLMapper{Dst: "http://example.com/blah"},
+			URLMapper{Dst: "http://example.com/blah", RedirectType: RTNone},
+		},
+		{
+			URLMapper{Dst: "@301 http://example.com/blah"},
+			URLMapper{Dst: "http://example.com/blah", RedirectType: RTPerm},
+		},
+		{
+			URLMapper{Dst: "@perm http://example.com/blah"},
+			URLMapper{Dst: "http://example.com/blah", RedirectType: RTPerm},
+		},
+		{
+			URLMapper{Dst: "@302 http://example.com/blah"},
+			URLMapper{Dst: "http://example.com/blah", RedirectType: RTTemp},
+		},
+		{
+			URLMapper{Dst: "@tmp http://example.com/blah"},
+			URLMapper{Dst: "http://example.com/blah", RedirectType: RTTemp},
+		},
+		{
+			URLMapper{Dst: "@temp http://example.com/blah"},
+			URLMapper{Dst: "http://example.com/blah", RedirectType: RTTemp},
+		},
+		{
+			URLMapper{Dst: "@blah http://example.com/blah"},
+			URLMapper{Dst: "@blah http://example.com/blah", RedirectType: RTNone},
+		},
+	}
+
+	svc := &Service{}
+	for i, tt := range tbl {
+		tt := tt
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res := svc.redirects(tt.inp)
+			assert.Equal(t, tt.out, res)
+		})
+	}
+}
+
 func TestService_ScheduleHealthCheck(t *testing.T) {
 	randomPort := rand.Intn(10000) + 40000
 
