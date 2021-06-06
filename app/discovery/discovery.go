@@ -29,12 +29,13 @@ type Service struct {
 
 // URLMapper contains all info about source and destination routes
 type URLMapper struct {
-	Server     string
-	SrcMatch   regexp.Regexp
-	Dst        string
-	ProviderID ProviderID
-	PingURL    string
-	MatchType  MatchType
+	Server       string
+	SrcMatch     regexp.Regexp
+	Dst          string
+	ProviderID   ProviderID
+	PingURL      string
+	MatchType    MatchType
+	RedirectType RedirectType
 
 	AssetsLocation string
 	AssetsWebRoot  string
@@ -91,6 +92,16 @@ func (m MatchType) String() string {
 		return "unknown"
 	}
 }
+
+// RedirectType defines types of redirects
+type RedirectType int
+
+// enum of all redirect types
+const (
+	RTNone RedirectType = 0
+	RTPerm RedirectType = 301
+	RTTemp RedirectType = 302
+)
 
 // NewService makes service with given providers
 func NewService(providers []Provider, interval time.Duration) *Service {
@@ -306,6 +317,7 @@ func (s *Service) mergeLists() (res []URLMapper) {
 			continue
 		}
 		for i := range lst {
+			lst[i] = s.redirects(lst[i])
 			lst[i] = s.extendMapper(lst[i])
 		}
 		res = append(res, lst...)
@@ -360,6 +372,27 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	}
 	res.SrcMatch = *rx
 	return res
+}
+
+// redirects process @code prefix and sets redirect type
+func (s *Service) redirects(m URLMapper) URLMapper {
+	switch {
+	case strings.HasPrefix(m.Dst, "@301 ") && len(m.Dst) > 4:
+		m.Dst = m.Dst[5:]
+		m.RedirectType = RTPerm
+	case strings.HasPrefix(m.Dst, "@perm ") && len(m.Dst) > 5:
+		m.Dst = m.Dst[6:]
+		m.RedirectType = RTPerm
+	case (strings.HasPrefix(m.Dst, "@302 ") || strings.HasPrefix(m.Dst, "@tmp ")) && len(m.Dst) > 4:
+		m.Dst = m.Dst[5:]
+		m.RedirectType = RTTemp
+	case strings.HasPrefix(m.Dst, "@temp ") && len(m.Dst) > 5:
+		m.Dst = m.Dst[6:]
+		m.RedirectType = RTTemp
+	default:
+		m.RedirectType = RTNone
+	}
+	return m
 }
 
 func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-chan ProviderID {
