@@ -110,6 +110,8 @@ func TestService_Match(t *testing.T) {
 				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
 					AssetsWebRoot: "/www", AssetsLocation: "/var/web"},
 				{SrcMatch: *regexp.MustCompile("/path/"), Dst: "/var/web/path", ProviderID: PIDocker, MatchType: MTStatic},
+				{SrcMatch: *regexp.MustCompile("/www2/"), Dst: "/var/web2", ProviderID: PIDocker, MatchType: MTStatic,
+					AssetsWebRoot: "/www2", AssetsLocation: "/var/web2", AssetsSPA: true},
 			}, nil
 		},
 	}
@@ -120,7 +122,7 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 10, len(svc.Mappers()))
+	assert.Equal(t, 11, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
@@ -145,12 +147,13 @@ func TestService_Match(t *testing.T) {
 			{Destination: "http://127.0.0.5:8080/blah2/num123456/abc/3", Alive: false},
 		}}},
 
-		{"m1.example.com", "/web/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/web:/var/web/", Alive: true}}}},
-		{"m1.example.com", "/web/", Matches{MTStatic, []MatchedRoute{{Destination: "/web:/var/web/", Alive: true}}}},
-		{"m1.example.com", "/www/something", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/", Alive: true}}}},
-		{"m1.example.com", "/www/", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/", Alive: true}}}},
-		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/", Alive: true}}}},
-		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{Destination: "/path:/var/web/path/", Alive: true}}}},
+		{"m1.example.com", "/web/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/web:/var/web/:norm", Alive: true}}}},
+		{"m1.example.com", "/web/", Matches{MTStatic, []MatchedRoute{{Destination: "/web:/var/web/:norm", Alive: true}}}},
+		{"m1.example.com", "/www/something", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/:norm", Alive: true}}}},
+		{"m1.example.com", "/www/", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/:norm", Alive: true}}}},
+		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/:norm", Alive: true}}}},
+		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{Destination: "/path:/var/web/path/:norm", Alive: true}}}},
+		{"m1.example.com", "/www2", Matches{MTStatic, []MatchedRoute{{Destination: "/www2:/var/web2/:spa", Alive: true}}}},
 	}
 
 	for i, tt := range tbl {

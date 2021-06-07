@@ -28,6 +28,7 @@ type Http struct { // nolint golint
 	Address         string
 	AssetsLocation  string
 	AssetsWebRoot   string
+	AssetsSPA       bool
 	MaxBodySize     int64
 	GzEnabled       bool
 	ProxyHeaders    []string
@@ -242,14 +243,14 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			}
 
 		case discovery.MTStatic:
-			// static match result has webroot:location, i.e. /www:/var/somedir/
+			// static match result has webroot:location:[spa:normal], i.e. /www:/var/somedir/:normal
 			ae := strings.Split(match.Destination, ":")
-			if len(ae) != 2 { // shouldn't happen
+			if len(ae) != 3 { // shouldn't happen
 				log.Printf("[WARN] unexpected static assets destination: %s", match.Destination)
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
-			fs, err := R.FileServer(ae[0], ae[1])
+			fs, err := h.fileServer(ae[0], ae[1], ae[2] == "spa")
 			if err != nil {
 				log.Printf("[WARN] file server error, %v", err)
 				h.Reporter.Report(w, http.StatusInternalServerError)
@@ -288,7 +289,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server := r.URL.Hostname()
 		if server == "" {
-			server = strings.Split(r.Host, ":")[0]
+			server = strings.Split(r.Host, ":")[0] // drop port
 		}
 		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
 		match, ok := getMatch(matches, h.LBSelector)
@@ -317,12 +318,19 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
 	log.Printf("[DEBUG] shared assets server enabled for %s %s", h.AssetsWebRoot, h.AssetsLocation)
-	fs, err := R.FileServer(h.AssetsWebRoot, h.AssetsLocation)
+	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
 	return h.CacheControl.Middleware(fs).ServeHTTP
+}
+
+func (h *Http) fileServer(assetsWebRoot, assetsLocation string, spa bool) (http.Handler, error) {
+	if spa {
+		return R.FileServerSPA(assetsWebRoot, assetsLocation, nil)
+	}
+	return R.FileServer(assetsWebRoot, assetsLocation, nil)
 }
 
 func (h *Http) isAssetRequest(r *http.Request) bool {

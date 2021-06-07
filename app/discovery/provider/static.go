@@ -41,10 +41,15 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 
 		dst := strings.TrimSpace(elems[2])
-		assets := false
+		assets, spa := false, false
 		if strings.HasPrefix(dst, "assets:") {
 			dst = strings.TrimPrefix(dst, "assets:")
 			assets = true
+		}
+		if strings.HasPrefix(dst, "spa:") {
+			dst = strings.TrimPrefix(dst, "spa:")
+			assets = true
+			spa = true
 		}
 
 		res := discovery.URLMapper{
@@ -57,6 +62,7 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 		if assets {
 			res.MatchType = discovery.MTStatic
+			res.AssetsSPA = spa
 		}
 
 		return res, nil

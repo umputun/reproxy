@@ -39,6 +39,7 @@ type URLMapper struct {
 
 	AssetsLocation string
 	AssetsWebRoot  string
+	AssetsSPA      bool
 
 	dead bool
 }
@@ -176,7 +177,12 @@ func (s *Service) Match(srv, src string) (res Matches) {
 			case MTStatic:
 				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
 					res.MatchType = MTStatic
-					res.Routes = append(res.Routes, MatchedRoute{Destination: m.AssetsWebRoot + ":" + m.AssetsLocation, Alive: true})
+					destSfx := ":norm"
+					if m.AssetsSPA {
+						destSfx = ":spa"
+					}
+					res.Routes = append(res.Routes, MatchedRoute{
+						Destination: m.AssetsWebRoot + ":" + m.AssetsLocation + destSfx, Alive: true})
 					return res
 				}
 			}
@@ -370,6 +376,7 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		MatchType:      m.MatchType,
 		AssetsWebRoot:  m.AssetsWebRoot,
 		AssetsLocation: m.AssetsLocation,
+		AssetsSPA:      m.AssetsSPA,
 	}
 
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
