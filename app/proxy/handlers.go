@@ -51,10 +51,6 @@ func maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Handler {
 			}
 
 			r.Body = http.MaxBytesReader(w, r.Body, maxSize)
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "Request Entity Too Large", http.StatusRequestEntityTooLarge)
-				return
-			}
 			next.ServeHTTP(w, r)
 		}
 		return http.HandlerFunc(fn)
