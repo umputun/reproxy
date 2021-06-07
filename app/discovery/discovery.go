@@ -240,14 +240,14 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 	for _, m := range s.mappers {
 		mappers = append(mappers, m...)
 	}
-	sort.Slice(mappers, func(i, j int) bool {
-		// sort by len first, to make longer matches first
-		if len(mappers[i].SrcMatch.String()) != len(mappers[j].SrcMatch.String()) {
-			return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
-		}
-		// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
-		return mappers[i].SrcMatch.String() < mappers[j].SrcMatch.String()
-	})
+	// sort.Slice(mappers, func(i, j int) bool {
+	// 	// sort by len first, to make longer matches first
+	// 	if len(mappers[i].SrcMatch.String()) != len(mappers[j].SrcMatch.String()) {
+	// 		return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
+	// 	}
+	// 	// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
+	// 	return mappers[i].SrcMatch.String() < mappers[j].SrcMatch.String()
+	// })
 	return mappers
 }
 
@@ -322,6 +322,21 @@ func (s *Service) mergeLists() (res []URLMapper) {
 		}
 		res = append(res, lst...)
 	}
+
+	// sort rules to make assets last and prioritize longer rules first
+	sort.Slice(res, func(i, j int) bool {
+		// sort by len first, to make longer matches first
+		if len(res[i].SrcMatch.String()) != len(res[j].SrcMatch.String()) {
+			return len(res[i].SrcMatch.String()) > len(res[j].SrcMatch.String())
+		}
+		// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
+		return res[i].SrcMatch.String() < res[j].SrcMatch.String()
+	})
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].MatchType < res[j].MatchType
+	})
+
 	return res
 }
 
