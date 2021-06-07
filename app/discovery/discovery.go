@@ -240,14 +240,6 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 	for _, m := range s.mappers {
 		mappers = append(mappers, m...)
 	}
-	// sort.Slice(mappers, func(i, j int) bool {
-	// 	// sort by len first, to make longer matches first
-	// 	if len(mappers[i].SrcMatch.String()) != len(mappers[j].SrcMatch.String()) {
-	// 		return len(mappers[i].SrcMatch.String()) > len(mappers[j].SrcMatch.String())
-	// 	}
-	// 	// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
-	// 	return mappers[i].SrcMatch.String() < mappers[j].SrcMatch.String()
-	// })
 	return mappers
 }
 
