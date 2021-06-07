@@ -15,16 +15,17 @@ func TestStatic_List(t *testing.T) {
 	tbl := []struct {
 		rule                   string
 		server, src, dst, ping string
-		static                 bool
+		static, spa            bool
 		err                    bool
 	}{
-		{"example.com,123,456, ping ", "example.com", "123", "456", "ping", false, false},
-		{"*,123,456,", "*", "123", "456", "", false, false},
-		{"123,456", "", "", "", "", false, true},
-		{"123", "", "", "", "", false, true},
-		{"example.com , 123, 456 ,ping", "example.com", "123", "456", "ping", false, false},
-		{"example.com,123, assets:456, ping ", "example.com", "123", "456", "ping", true, false},
-		{"example.com,123, assets:456 ", "example.com", "123", "456", "", true, false},
+		{"example.com,123,456, ping ", "example.com", "123", "456", "ping", false, false, false},
+		{"*,123,456,", "*", "123", "456", "", false, false, false},
+		{"123,456", "", "", "", "", false, false, true},
+		{"123", "", "", "", "", false, false, true},
+		{"example.com , 123, 456 ,ping", "example.com", "123", "456", "ping", false, false, false},
+		{"example.com,123, assets:456, ping ", "example.com", "123", "456", "ping", true, false, false},
+		{"example.com,123, assets:456 ", "example.com", "123", "456", "", true, false, false},
+		{"example.com,123, spa:456 ", "example.com", "123", "456", "", true, true, false},
 	}
 
 	for i, tt := range tbl {
@@ -43,6 +44,7 @@ func TestStatic_List(t *testing.T) {
 			assert.Equal(t, tt.ping, res[0].PingURL)
 			if tt.static {
 				assert.Equal(t, discovery.MTStatic, res[0].MatchType)
+				assert.Equal(t, tt.spa, res[0].AssetsSPA)
 			} else {
 				assert.Equal(t, discovery.MTProxy, res[0].MatchType)
 			}

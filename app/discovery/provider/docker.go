@@ -102,7 +102,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 
 		// defaults
 		destURL, pingURL, server := fmt.Sprintf("http://%s:%d/$1", c.IP, port), fmt.Sprintf("http://%s:%d/ping", c.IP, port), "*"
-		assetsWebRoot, assetsLocation := "", ""
+		assetsWebRoot, assetsLocation, assetsSPA := "", "", false
 
 		if d.AutoAPI && n == 0 {
 			enabled = true
@@ -149,6 +149,10 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			}
 		}
 
+		if _, ok := d.labelN(c.Labels, n, "spa"); ok {
+			assetsSPA = true
+		}
+
 		// should not set anything, handled on matchedPort level. just use to enable implicitly
 		if _, ok := d.labelN(c.Labels, n, "port"); ok {
 			enabled = true
@@ -179,6 +183,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 				mp.MatchType = discovery.MTStatic
 				mp.AssetsWebRoot = assetsWebRoot
 				mp.AssetsLocation = assetsLocation
+				mp.AssetsSPA = assetsSPA
 			}
 			res = append(res, mp)
 		}

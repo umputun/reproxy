@@ -204,6 +204,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 			"localhost,^/api/(.*)," + ds.URL + "/123/$1,",
 			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1,",
 			"*,/web,assets:testdata,",
+			"*,/web2,spa:testdata,",
 		},
 		}}, time.Millisecond*10)
 
@@ -220,6 +221,20 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	client := http.Client{}
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/web2/nop.html")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "index html", string(body))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
+	}
 
 	{
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
@@ -251,6 +266,14 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		assert.Equal(t, "", resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	}
+
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/web/nop.html")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	}
+
 }
 
 func TestHttp_DoWithRedirects(t *testing.T) {

@@ -74,6 +74,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		Dest          string `yaml:"dest"`
 		Ping          string `yaml:"ping"`
 		AssetsEnabled bool   `yaml:"assets"`
+		AssetsSPA     bool   `yaml:"spa"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -103,8 +104,9 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 				ProviderID: discovery.PIFile,
 				MatchType:  discovery.MTProxy,
 			}
-			if f.AssetsEnabled {
+			if f.AssetsEnabled || f.AssetsSPA {
 				mapper.MatchType = discovery.MTStatic
+				mapper.AssetsSPA = f.AssetsSPA
 			}
 			res = append(res, mapper)
 		}
