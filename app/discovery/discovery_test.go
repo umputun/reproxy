@@ -112,8 +112,8 @@ func TestService_Match(t *testing.T) {
 				{SrcMatch: *regexp.MustCompile("/path/"), Dst: "/var/web/path", ProviderID: PIDocker, MatchType: MTStatic},
 				{SrcMatch: *regexp.MustCompile("/www2/"), Dst: "/var/web2", ProviderID: PIDocker, MatchType: MTStatic,
 					AssetsWebRoot: "/www2", AssetsLocation: "/var/web2", AssetsSPA: true},
-				{SrcMatch: *regexp.MustCompile("/"), Dst: "/var/web0", ProviderID: PIDocker, MatchType: MTStatic,
-					AssetsWebRoot: "/", AssetsLocation: "/var/web0", AssetsSPA: false, Server: "m22.example.com"},
+				{SrcMatch: *regexp.MustCompile(""), Dst: "", ProviderID: PIDocker, MatchType: MTStatic,
+					AssetsWebRoot: "/", AssetsLocation: "/var/web0", AssetsSPA: true, Server: "m22.example.com"},
 			}, nil
 		},
 	}
@@ -156,7 +156,7 @@ func TestService_Match(t *testing.T) {
 		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/:norm", Alive: true}}}},
 		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{Destination: "/path:/var/web/path/:norm", Alive: true}}}},
 		{"m1.example.com", "/www2", Matches{MTStatic, []MatchedRoute{{Destination: "/www2:/var/web2/:spa", Alive: true}}}},
-		{"m22.example.com", "/someplace/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/:/var/web0/:norm", Alive: true}}}},
+		{"m22.example.com", "/someplace/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/:/var/web0/:spa", Alive: true}}}},
 	}
 
 	for i, tt := range tbl {
