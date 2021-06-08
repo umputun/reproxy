@@ -49,6 +49,7 @@ var opts struct {
 	Assets struct {
 		Location     string   `short:"a" long:"location" env:"LOCATION" default:"" description:"assets location"`
 		WebRoot      string   `long:"root" env:"ROOT" default:"/" description:"assets web root"`
+		SPA          bool     `long:"spa" env:"SPA" description:"spa treatment for assets"`
 		CacheControl []string `long:"cache" env:"CACHE" description:"cache duration for assets" env-delim:","`
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
@@ -222,6 +223,7 @@ func run() error {
 		MaxBodySize:    int64(maxBodySize),
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
+		AssetsSPA:      opts.Assets.SPA,
 		CacheControl:   cacheControl,
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,

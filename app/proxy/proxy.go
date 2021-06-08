@@ -317,7 +317,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
-	log.Printf("[DEBUG] shared assets server enabled for %s %s", h.AssetsWebRoot, h.AssetsLocation)
+	log.Printf("[DEBUG] shared assets server enabled for %s %s, spa=%v", h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA)
 	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
