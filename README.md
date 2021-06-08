@@ -58,8 +58,6 @@ This is the simplest provider defining all mapping rules directly in the command
 
 The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](#ping-and-health-checks) section for more details.
 
-_Pls note: in case if rules set as a part of docker compose environment, destination with the regex group will conflict with compose syntax. I.e. attempt to use `https://api.example.com/$1` in compose environment will fail due to a syntax error. The standard solution here is to "escape" `$` sign by replacing it with `$$`, i.e. `https://api.example.com/$$1`. This substitution supported by docker compose and has nothing to do with reproxy itself. Another way is to use `@` instead of `$` which is supported on reproxy level, i.e. `https://api.example.com/@1`_ 
-
 ### File provider
 
 This provider uses yaml file with routing rules.
@@ -137,6 +135,11 @@ This default can be changed with tags:
 - `reproxy.port` - destination port for the discovered service
 - `reproxy.ping` - ping path for the destination service.
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`any different value`) service from reproxy destinations.
+
+### Compose-specific details
+
+In case if rules set as a part of docker compose environment, destination with the regex group will conflict with compose syntax. I.e. attempt to use `https://api.example.com/$1` in compose environment will fail due to a syntax error. The standard solution here is to "escape" `$` sign by replacing it with `$$`, i.e. `https://api.example.com/$$1`. This substitution supported by docker compose and has nothing to do with reproxy itself. Another way is to use `@` instead of `$` which is supported on reproxy level, i.e. `https://api.example.com/@1`_
+
 
 ## SSL support
 
