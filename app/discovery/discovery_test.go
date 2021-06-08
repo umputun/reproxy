@@ -112,6 +112,8 @@ func TestService_Match(t *testing.T) {
 				{SrcMatch: *regexp.MustCompile("/path/"), Dst: "/var/web/path", ProviderID: PIDocker, MatchType: MTStatic},
 				{SrcMatch: *regexp.MustCompile("/www2/"), Dst: "/var/web2", ProviderID: PIDocker, MatchType: MTStatic,
 					AssetsWebRoot: "/www2", AssetsLocation: "/var/web2", AssetsSPA: true},
+				{SrcMatch: *regexp.MustCompile("/"), Dst: "/var/web0", ProviderID: PIDocker, MatchType: MTStatic,
+					AssetsWebRoot: "/", AssetsLocation: "/var/web0", AssetsSPA: false, Server: "m22.example.com"},
 			}, nil
 		},
 	}
@@ -122,7 +124,7 @@ func TestService_Match(t *testing.T) {
 	err := svc.Run(ctx)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 11, len(svc.Mappers()))
+	assert.Equal(t, 12, len(svc.Mappers()))
 
 	tbl := []struct {
 		server, src string
@@ -154,13 +156,14 @@ func TestService_Match(t *testing.T) {
 		{"m1.example.com", "/www", Matches{MTStatic, []MatchedRoute{{Destination: "/www:/var/web/:norm", Alive: true}}}},
 		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{Destination: "/path:/var/web/path/:norm", Alive: true}}}},
 		{"m1.example.com", "/www2", Matches{MTStatic, []MatchedRoute{{Destination: "/www2:/var/web2/:spa", Alive: true}}}},
+		{"m22.example.com", "/someplace/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/:/var/web0/:norm", Alive: true}}}},
 	}
 
 	for i, tt := range tbl {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
-			require.Equal(t, len(tt.res.Routes), len(res.Routes))
+			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)

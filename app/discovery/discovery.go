@@ -175,14 +175,18 @@ func (s *Service) Match(srv, src string) (res Matches) {
 					res.Routes = append(res.Routes, MatchedRoute{Destination: dest, Alive: m.IsAlive(), Mapper: m})
 				}
 			case MTStatic:
-				if src == m.AssetsWebRoot || strings.HasPrefix(src, m.AssetsWebRoot+"/") {
+				wr := m.AssetsWebRoot
+				if wr != "/" {
+					wr += "/"
+				}
+				if src == m.AssetsWebRoot || strings.HasPrefix(src, wr) {
 					res.MatchType = MTStatic
 					destSfx := ":norm"
 					if m.AssetsSPA {
 						destSfx = ":spa"
 					}
 					res.Routes = append(res.Routes, MatchedRoute{
-						Destination: m.AssetsWebRoot + ":" + m.AssetsLocation + destSfx, Alive: true})
+						Destination: m.AssetsWebRoot + ":" + m.AssetsLocation + destSfx, Alive: true, Mapper: m})
 					return res
 				}
 			}
@@ -350,13 +354,17 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	// static match with assets uses AssetsWebRoot and AssetsLocation
 	if m.MatchType == MTStatic && m.AssetsWebRoot != "" && m.AssetsLocation != "" {
-		m.AssetsWebRoot = strings.TrimSuffix(m.AssetsWebRoot, "/")
+		if m.AssetsWebRoot != "/" {
+			m.AssetsWebRoot = strings.TrimSuffix(m.AssetsWebRoot, "/")
+		}
 		m.AssetsLocation = strings.TrimSuffix(m.AssetsLocation, "/") + "/"
 	}
 
 	// static match without assets defined defaulted to src:dst/
 	if m.MatchType == MTStatic && m.AssetsWebRoot == "" && m.AssetsLocation == "" {
-		m.AssetsWebRoot = strings.TrimSuffix(src, "/")
+		if src != "/" {
+			m.AssetsWebRoot = strings.TrimSuffix(src, "/")
+		}
 		m.AssetsLocation = strings.TrimSuffix(m.Dst, "/") + "/"
 	}
 
