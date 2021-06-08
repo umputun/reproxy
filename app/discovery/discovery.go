@@ -37,9 +37,9 @@ type URLMapper struct {
 	MatchType    MatchType
 	RedirectType RedirectType
 
-	AssetsLocation string
-	AssetsWebRoot  string
-	AssetsSPA      bool
+	AssetsLocation string // local FS root location
+	AssetsWebRoot  string // web root location
+	AssetsSPA      bool   // spa mode, redirect to webroot/index.html on not found
 
 	dead bool
 }
@@ -331,6 +331,7 @@ func (s *Service) mergeLists() (res []URLMapper) {
 		return res[i].SrcMatch.String() < res[j].SrcMatch.String()
 	})
 
+	// sort to put assets down in the list
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].MatchType < res[j].MatchType
 	})
@@ -364,6 +365,7 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		return m
 	}
 
+	// destination with with / suffix don't need more dst extension
 	if !strings.HasSuffix(src, "/") && m.MatchType == MTProxy {
 		return m
 	}
@@ -388,7 +390,7 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	return res
 }
 
-// redirects process @code prefix and sets redirect type
+// redirects process @code prefix and sets redirect type, i.e. "@302 /something"
 func (s *Service) redirects(m URLMapper) URLMapper {
 	switch {
 	case strings.HasPrefix(m.Dst, "@301 ") && len(m.Dst) > 4:

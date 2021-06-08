@@ -159,9 +159,9 @@ Users may turn the assets server on (off by default) to serve static files. As l
 
 In addition to the common assets server, multiple custom assets servers are supported. Each provider has a different way to define such a static rule, and some providers may not support it at all. For example, multiple asset servers make sense in static (command line provider), file provider, and even useful with docker providers, however it makes very little sense with consul catalog provider.
 
-1. static provider - if source element prefixed by `assets:` it will be treated as file-server. For example `*,[assets|spa]:/web,/var/www,` will serve all `/web/*` request with a file server on top of `/var/www` directory. 
-2. file provider - setting optional fields `assets: true` or `spa:true`
-3. docker provider - `reproxy.assets=web-root:location`, i.e. `reproxy.assets=/web:/var/www`. Switching to spa mode done by setting `reproxy.spa` to `1`, `yes` or `true` 
+1. static provider - if source element prefixed by `assets:` or `spa:` it will be treated as file-server. For example `*,assets:/web,/var/www,` will serve all `/web/*` request with a file server on top of `/var/www` directory. 
+2. file provider - setting optional fields `assets: true` or `spa: true`
+3. docker provider - `reproxy.assets=web-root:location`, i.e. `reproxy.assets=/web:/var/www`. Switching to spa mode done by setting `reproxy.spa` to `yes` or `true` 
 
 Assets server supports caching control with the `--assets.cache=<duration>` parameter. `0s` duration (default) turns caching control off. A duration is a sequence of decimal numbers, each with optional fraction and a unit suffix, such as "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h" and "d".
 
