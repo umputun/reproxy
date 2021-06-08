@@ -362,8 +362,9 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	// static match without assets defined defaulted to src:dst/
 	if m.MatchType == MTStatic && m.AssetsWebRoot == "" && m.AssetsLocation == "" {
-		if src != "/" {
-			m.AssetsWebRoot = strings.TrimSuffix(src, "/")
+		m.AssetsWebRoot = src
+		if m.AssetsWebRoot != "/" {
+			m.AssetsWebRoot = strings.TrimSuffix(m.AssetsWebRoot, "/")
 		}
 		m.AssetsLocation = strings.TrimSuffix(m.Dst, "/") + "/"
 	}
