@@ -62,10 +62,10 @@ func TestService_Run(t *testing.T) {
 	assert.Equal(t, context.DeadlineExceeded, err)
 	mappers := svc.Mappers()
 	assert.Equal(t, 3, len(mappers))
-	assert.Equal(t, PIFile, mappers[0].ProviderID)
-	assert.Equal(t, "*", mappers[0].Server)
-	assert.Equal(t, "^/api/svc1/(.*)", mappers[0].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.1:8080/blah1/$1", mappers[0].Dst)
+	assert.Equal(t, PIDocker, mappers[0].ProviderID)
+	assert.Equal(t, "localhost", mappers[0].Server)
+	assert.Equal(t, "/api/svc3/xyz", mappers[0].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", mappers[0].Dst)
 
 	assert.Equal(t, 1, len(p1.EventsCalls()))
 	assert.Equal(t, 1, len(p2.EventsCalls()))
@@ -157,6 +157,59 @@ func TestService_Match(t *testing.T) {
 		{"xyx.example.com", "/path/something", Matches{MTStatic, []MatchedRoute{{Destination: "/path:/var/web/path/:norm", Alive: true}}}},
 		{"m1.example.com", "/www2", Matches{MTStatic, []MatchedRoute{{Destination: "/www2:/var/web2/:spa", Alive: true}}}},
 		{"m22.example.com", "/someplace/index.html", Matches{MTStatic, []MatchedRoute{{Destination: "/:/var/web0/:spa", Alive: true}}}},
+	}
+
+	for i, tt := range tbl {
+		tt := tt
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res := svc.Match(tt.server, tt.src)
+			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			for i := 0; i < len(res.Routes); i++ {
+				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
+				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+			}
+			assert.Equal(t, tt.res.MatchType, res.MatchType)
+		})
+	}
+}
+
+func TestService_MatchConflictRegex(t *testing.T) {
+	p1 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/(.*)"), Dst: "http://127.0.0.1:8080/blah/$1", ProviderID: PIFile},
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/cat"), Dst: "http://127.0.0.2:8080/cat", ProviderID: PIFile},
+				{SrcMatch: *regexp.MustCompile("^/api/svc1/abcd"), Dst: "http://127.0.0.3:8080/abcd", ProviderID: PIFile},
+			}, nil
+		},
+	}
+
+	svc := NewService([]Provider{p1}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := svc.Run(ctx)
+	require.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.Equal(t, 3, len(svc.Mappers()))
+
+	tbl := []struct {
+		server, src string
+		res         Matches
+	}{
+		{"example.com", "/api/svc1/xyz/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.1:8080/blah/xyz/something", Alive: true}}}},
+		{"example.com", "/api/svc1/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.1:8080/blah/something", Alive: true}}}},
+		{"example.com", "/api/svc1/cat", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.2:8080/cat", Alive: true}}}},
+		{"example.com", "/api/svc1/abcd", Matches{MTProxy, []MatchedRoute{
+			{Destination: "http://127.0.0.3:8080/abcd", Alive: true}}}},
 	}
 
 	for i, tt := range tbl {

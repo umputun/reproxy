@@ -74,6 +74,8 @@ const (
 	PIConsulCatalog ProviderID = "consul-catalog"
 )
 
+var reGroup = regexp.MustCompile(`(^.*)/\(.*\)`) // capture regex group lil (anything) from src like /blah/foo/(.*)
+
 // MatchType defines the type of mapper (rule)
 type MatchType int
 
@@ -327,9 +329,13 @@ func (s *Service) mergeLists() (res []URLMapper) {
 
 	// sort rules to make assets last and prioritize longer rules first
 	sort.Slice(res, func(i, j int) bool {
+
+		src1 := reGroup.ReplaceAllString(res[i].SrcMatch.String(), "$1")
+		src2 := reGroup.ReplaceAllString(res[j].SrcMatch.String(), "$1")
+
 		// sort by len first, to make longer matches first
-		if len(res[i].SrcMatch.String()) != len(res[j].SrcMatch.String()) {
-			return len(res[i].SrcMatch.String()) > len(res[j].SrcMatch.String())
+		if len(src1) != len(src2) {
+			return len(src1) > len(src2)
 		}
 		// if len identical sort by SrcMatch string to keep same SrcMatch grouped together
 		return res[i].SrcMatch.String() < res[j].SrcMatch.String()
