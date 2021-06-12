@@ -16,10 +16,12 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - User-defined limits and timeouts
 - Single binary distribution
 - Docker container distribution
-- Built-in static assets server
+- Built-in static assets server with optional "SPA friendly" mode
+- Support for redirect rules  
 - Live health check and fail-over/load-balancing  
 - Management server with routes info and prometheus metrics
-
+- Plugins support via RPC to implement custom functionality
+- Optional logging with both Apache Log Format, and simplified stdout reports.
 ---
 
 [![build](https://github.com/umputun/reproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/reproxy/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/reproxy/badge.svg?branch=master)](https://coveralls.io/github/umputun/reproxy?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/reproxy)](https://goreportcard.com/report/github.com/umputun/reproxy)&nbsp;[![Docker Automated build](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/repository/docker/umputun/reproxy)
