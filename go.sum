@@ -75,6 +75,8 @@ github.com/go-pkgz/rest v1.9.3-0.20210514184429-77a1bddb51db h1:PoIO+kDPc0A6m5xl
 github.com/go-pkgz/rest v1.9.3-0.20210514184429-77a1bddb51db/go.mod h1:wZ/dGipZUaF9to0vIQl7PwDHgWQDB0jsrFg1xnAKLDw=
 github.com/go-pkgz/rest v1.10.0 h1:4tkm8IrI+Gke2uyq/NYRwIZ1nnta17Q2LB1bUHNh7OQ=
 github.com/go-pkgz/rest v1.10.0/go.mod h1:wZ/dGipZUaF9to0vIQl7PwDHgWQDB0jsrFg1xnAKLDw=
+github.com/go-pkgz/rest v1.11.0 h1:Z//qgmM0NhBYfhXYEP/aJtDVLK5XlJGxqcb4sHFNN0E=
+github.com/go-pkgz/rest v1.11.0/go.mod h1:wZ/dGipZUaF9to0vIQl7PwDHgWQDB0jsrFg1xnAKLDw=
 github.com/go-sql-driver/mysql v1.4.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/gogo/googleapis v1.1.0/go.mod h1:gf4bu3Q80BeJ6H1S1vYPm8/ELATdvryBaNFGgqEef3s=
