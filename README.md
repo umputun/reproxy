@@ -265,8 +265,6 @@ This is the list of all options supporting multiple elements:
 
 ## All Application Options
 
-<details><summary>expand</summary>
-
 ```
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
@@ -347,7 +345,7 @@ health-check:
 Help Options:
   -h, --help                        Show this help message
 ```
-</details>
+
 
 ## Status
 
