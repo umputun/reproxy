@@ -4,8 +4,16 @@ github.com/beorn7/perks/quantile
 github.com/cespare/xxhash/v2
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
+# github.com/didip/tollbooth/v6 v6.1.0
+## explicit
+github.com/didip/tollbooth/v6
+github.com/didip/tollbooth/v6/errors
+github.com/didip/tollbooth/v6/libstring
+github.com/didip/tollbooth/v6/limiter
 # github.com/felixge/httpsnoop v1.0.1
 github.com/felixge/httpsnoop
+# github.com/go-pkgz/expirable-cache v0.0.3
+github.com/go-pkgz/expirable-cache
 # github.com/go-pkgz/lgr v0.10.4
 ## explicit
 github.com/go-pkgz/lgr
@@ -28,6 +36,8 @@ github.com/golang/protobuf/ptypes/timestamp
 github.com/gorilla/handlers
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/patrickmn/go-cache v2.1.0+incompatible
+## explicit
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
@@ -69,6 +79,9 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+# golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6
+## explicit
+golang.org/x/time/rate
 # google.golang.org/protobuf v1.23.0
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire

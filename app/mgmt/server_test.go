@@ -43,7 +43,7 @@ func TestServer_controllers(t *testing.T) {
 
 	port := rand.Intn(10000) + 40000
 	srv := Server{Listen: fmt.Sprintf("127.0.0.1:%d", port), Informer: inf,
-		AssetsWebRoot: "/static", AssetsLocation: "/www", Metrics: NewMetrics()}
+		AssetsWebRoot: "/static", AssetsLocation: "/www", Metrics: NewMetrics(false, 503)}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 

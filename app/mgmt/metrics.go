@@ -14,14 +14,20 @@ import (
 
 // Metrics provides registration and middleware for prometheus
 type Metrics struct {
-	totalRequests  *prometheus.CounterVec
-	responseStatus *prometheus.CounterVec
-	httpDuration   *prometheus.HistogramVec
+	totalRequests           *prometheus.CounterVec
+	responseStatus          *prometheus.CounterVec
+	httpDuration            *prometheus.HistogramVec
+	throttledRequests       *prometheus.CounterVec
+	isThrotllingEnabed      bool
+	throtlingHttpStatusCode int
 }
 
 // NewMetrics create metrics object with all counters registered
-func NewMetrics() *Metrics {
-	res := &Metrics{}
+func NewMetrics(isThrottlingEnabled bool, throttlingHttpResponseCode int) *Metrics {
+	res := &Metrics{
+		isThrotllingEnabed:      isThrottlingEnabled,
+		throtlingHttpStatusCode: throttlingHttpResponseCode,
+	}
 
 	res.totalRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -45,6 +51,14 @@ func NewMetrics() *Metrics {
 		Buckets: []float64{0.01, 0.1, 0.5, 1, 2, 3, 5},
 	}, []string{"path"})
 
+	res.throttledRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_throttled",
+			Help: "Number of throttled requests.",
+		},
+		[]string{"server"},
+	)
+
 	prometheus.Unregister(prometheus.NewGoCollector())
 
 	if err := prometheus.Register(res.totalRequests); err != nil {
@@ -55,6 +69,9 @@ func NewMetrics() *Metrics {
 	}
 	if err := prometheus.Register(res.httpDuration); err != nil {
 		log.Printf("[WARN] can't register prometheus httpDuration, %v", err)
+	}
+	if err := prometheus.Register(res.throttledRequests); err != nil {
+		log.Printf("[WARN] can't register prometheus throttledRequests, %v", err)
 	}
 
 	return res
@@ -70,15 +87,21 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 			server = strings.Split(r.Host, ":")[0]
 		}
 
-		timer := prometheus.NewTimer(m.httpDuration.WithLabelValues(path))
 		rw := NewResponseWriter(w)
+		timer := prometheus.NewTimer(m.httpDuration.WithLabelValues(path))
 		next.ServeHTTP(rw, r)
+		timer.ObserveDuration()
 
 		statusCode := rw.statusCode
 		m.responseStatus.WithLabelValues(strconv.Itoa(statusCode)).Inc()
 		m.totalRequests.WithLabelValues(server).Inc()
-
-		timer.ObserveDuration()
+		if m.isThrotllingEnabed && statusCode == m.throtlingHttpStatusCode {
+			m.throttledRequests.WithLabelValues(server).Inc()
+			// prometheus doesn't like high-cardinality labels (caller IP address in this case)
+			// see "caution" note here https://prometheus.io/docs/practices/naming/#labels
+			// so there is no simple way to report ip-addresses that contribute to the throttling the most
+			// (at least using prometheus metrics).
+		}
 	})
 }
 

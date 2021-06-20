@@ -3,6 +3,7 @@ module github.com/umputun/reproxy
 go 1.16
 
 require (
+	github.com/didip/tollbooth/v6 v6.1.0
 	github.com/go-pkgz/lgr v0.10.4
 	github.com/go-pkgz/repeater v1.1.3
 	github.com/go-pkgz/rest v1.11.0
@@ -11,6 +12,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/umputun/go-flags v1.5.1
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
+	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b

@@ -51,7 +51,7 @@ func TestHttp_Do(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
@@ -131,7 +131,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
@@ -218,7 +218,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
@@ -314,7 +314,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
@@ -397,7 +397,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
@@ -460,7 +460,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
@@ -525,7 +525,7 @@ func TestHttp_health(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(false, 503)
 
 	go func() {
 		_ = h.Run(ctx)
