@@ -124,15 +124,13 @@ var opts struct {
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
 
 	Throttling struct {
-		Enabled        bool `long:"enabled" env:"ENABLED" description:"enable per-proxy server throttling of requests"`
-		Rate           int  `long:"rate" env:"RATE" description:"Maximum sustained rate of requests"`
-		Burst          int  `long:"burst" env:"BURST" description:"Burst bucket capacity"`
-		HttpStatusCode int  `long:"http status code" env:"HTTP_STATUS_CODE" default:"503" description:"Http status code returned for throttled requests"`
-		PerServer      map[string]struct {
-			Rate  int `long:"rate" env:"RATE" description:"Maximum sustained rate of requests"`
-			Burst int `long:"burst" env:"BURST" description:"Burst bucket capacity"`
-		}
-	} `group:"throttling" namespace:"throttling" env-namespace:"THROTTLE"`
+		Enabled        bool           `long:"enabled" env:"ENABLED" description:"enable per-proxy server throttling of requests"`
+		Rate           int            `long:"rate" env:"RATE" description:"Maximum sustained rate of requests"`
+		Burst          int            `long:"burst" env:"BURST" description:"Burst bucket capacity"`
+		HttpStatusCode int            `long:"http-status-code" env:"HTTP_STATUS_CODE" default:"503" description:"Http status code returned for throttled requests"`
+		PerServerRate  map[string]int `long:"per-server-rate" env:"PER_SERVER_RATE" description:"Per virtual server maximum sustained rate of requests"`
+		PerServerBurst map[string]int `long:"per-server-burst" env:"PER_SERVER_BURST" description:"Per virtual server burst bucket capacity"`
+	} `group:"throttling" namespace:"throttling" env-namespace:"THROTTLING"`
 }
 
 var revision = "unknown"
@@ -365,11 +363,18 @@ func makeThrottling(throttlingConfig *mgmt.ProxyThrottlingConfig) proxy.Middlewa
 
 func constructThrottlingConfig() *mgmt.ProxyThrottlingConfig {
 	perServerThrottlingConfig := make(map[string]mgmt.ServerThrottlingConfig)
-	for serverName, serverThrottlingConfig := range opts.Throttling.PerServer {
+	for serverName, serverRate := range opts.Throttling.PerServerRate {
 		perServerThrottlingConfig[serverName] = mgmt.ServerThrottlingConfig{
 			Enabled: true,
-			Rate:    serverThrottlingConfig.Rate,
-			Burst:   serverThrottlingConfig.Burst,
+			Rate:    serverRate,
+		}
+	}
+	for serverName, serverBurst := range opts.Throttling.PerServerBurst {
+		if serverThrottlingConfig, exists := perServerThrottlingConfig[serverName]; exists {
+			serverThrottlingConfig.Burst = serverBurst
+		} else {
+			log.Printf("[WARN] throttling burst for the virtual server %v specified without "+
+				"throttling rate, throttling for the virtual server disabled", serverName)
 		}
 	}
 	return &mgmt.ProxyThrottlingConfig{
