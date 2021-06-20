@@ -5,9 +5,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/didip/tollbooth/v6"
+	"github.com/didip/tollbooth/v6/libstring"
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/gorilla/handlers"
+
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 func headersHandler(headers []string) func(next http.Handler) http.Handler {
@@ -109,5 +113,41 @@ func signatureHandler(enabled bool, version string) func(next http.Handler) http
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+func limiterHandler(reqSec int) func(next http.Handler) http.Handler {
+
+	if reqSec <= 0 {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}
+	}
+
+	return func(h http.Handler) http.Handler {
+		lmt := tollbooth.NewLimiter(float64(reqSec), nil)
+
+		fn := func(w http.ResponseWriter, r *http.Request) {
+
+			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
+
+			// add dst proxy if matched
+			if r.Context().Value(ctxMatch) != nil { // route match detected by matchHandler
+				match := r.Context().Value(ctxMatch).(discovery.MatchedRoute)
+				matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
+				if matchType == discovery.MTProxy {
+					keys = append(keys, match.Mapper.Dst)
+				}
+			}
+
+			if httpError := tollbooth.LimitByKeys(lmt, keys); httpError != nil {
+				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+				return
+			}
+			h.ServeHTTP(w, r)
+		}
+		return http.HandlerFunc(fn)
 	}
 }

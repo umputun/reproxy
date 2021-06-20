@@ -43,6 +43,9 @@ type Http struct { // nolint golint
 	PluginConductor MiddlewareProvider
 	Reporter        Reporter
 	LBSelector      func(len int) int
+
+	MaxConcurrent int
+	Limit         int
 }
 
 // Matcher source info (server and route) to the destination url
@@ -107,18 +110,20 @@ func (h *Http) Run(ctx context.Context) error {
 	}()
 
 	handler := R.Wrap(h.proxyHandler(),
-		R.Recoverer(log.Default()),
-		signatureHandler(h.Signature, h.Version),
-		h.pingHandler,
-		h.healthMiddleware,
-		h.matchHandler,
-		h.mgmtHandler(),
-		h.pluginHandler(),
-		headersHandler(h.ProxyHeaders),
-		accessLogHandler(h.AccessLog),
+		R.Recoverer(log.Default()),               // recover on errors
+		signatureHandler(h.Signature, h.Version), // send app signature
+		h.pingHandler,                            // respond to /ping
+		h.healthMiddleware,                       // respond to /health
+		h.matchHandler,                           // set matched routes to context
+		R.Throttle(int64(h.MaxConcurrent)),       // limit total requests in-fly
+		limiterHandler(h.Limit),                  // req/seq per user/route match
+		h.mgmtHandler(),                          // handles /metrics and /routes for prometheus
+		h.pluginHandler(),                        // prc to external plugins
+		headersHandler(h.ProxyHeaders),           // set response headers
+		accessLogHandler(h.AccessLog),            // apache-format log file
 		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
-		maxReqSizeHandler(h.MaxBodySize),
-		gzipHandler(h.GzEnabled),
+		maxReqSizeHandler(h.MaxBodySize), // limit request max size
+		gzipHandler(h.GzEnabled),         // gzip response
 	)
 
 	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
