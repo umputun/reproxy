@@ -122,6 +122,17 @@ var opts struct {
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
+
+	Throttling struct {
+		Enabled        bool `long:"enabled" env:"ENABLED" description:"enable per-proxy server throttling of requests"`
+		Rate           int  `long:"rate" env:"RATE" description:"Maximum sustained rate of requests"`
+		Burst          int  `long:"burst" env:"BURST" description:"Burst bucket capacity"`
+		HttpStatusCode int  `long:"http status code" env:"HTTP_STATUS_CODE" default:"503" description:"Http status code returned for throttled requests"`
+		PerServer      map[string]struct {
+			Rate  int `long:"rate" env:"RATE" description:"Maximum sustained rate of requests"`
+			Burst int `long:"burst" env:"BURST" description:"Burst bucket capacity"`
+		}
+	} `group:"throttling" namespace:"throttling" env-namespace:"THROTTLE"`
 }
 
 var revision = "unknown"
@@ -216,6 +227,8 @@ func run() error {
 		return fmt.Errorf("failed to convert MaxSize: %w", err)
 	}
 
+	throttlingConfig := constructThrottlingConfig()
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -243,9 +256,10 @@ func run() error {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics:         makeMetrics(ctx, svc),
+		Metrics:         makeMetrics(ctx, svc, throttlingConfig),
 		Reporter:        errReporter,
 		PluginConductor: makePluginConductor(ctx),
+		Throttling:      makeThrottling(throttlingConfig),
 	}
 
 	err = px.Run(ctx)
@@ -321,11 +335,11 @@ func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 	return conductor
 }
 
-func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewareProvider {
+func makeMetrics(ctx context.Context, informer mgmt.Informer, throttlingConfig *mgmt.ProxyThrottlingConfig) proxy.MiddlewareProvider {
 	if !opts.Management.Enabled {
 		return nil
 	}
-	metrics := mgmt.NewMetrics()
+	metrics := mgmt.NewMetrics(throttlingConfig)
 	go func() {
 		mgSrv := mgmt.Server{
 			Listen:         opts.Management.Listen,
@@ -339,6 +353,34 @@ func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewarePr
 		}
 	}()
 	return metrics
+}
+
+func makeThrottling(throttlingConfig *mgmt.ProxyThrottlingConfig) proxy.MiddlewareProvider {
+	if !opts.Throttling.Enabled {
+		return nil
+	}
+	throttler := mgmt.NewThrottler(throttlingConfig)
+	return throttler
+}
+
+func constructThrottlingConfig() *mgmt.ProxyThrottlingConfig {
+	perServerThrottlingConfig := make(map[string]mgmt.ServerThrottlingConfig)
+	for serverName, serverThrottlingConfig := range opts.Throttling.PerServer {
+		perServerThrottlingConfig[serverName] = mgmt.ServerThrottlingConfig{
+			Enabled: true,
+			Rate:    serverThrottlingConfig.Rate,
+			Burst:   serverThrottlingConfig.Burst,
+		}
+	}
+	return &mgmt.ProxyThrottlingConfig{
+		HttpStatusCode: opts.Throttling.HttpStatusCode,
+		ProxyThrottlingConfig: mgmt.ServerThrottlingConfig{
+			Enabled: opts.Throttling.Enabled,
+			Rate:    opts.Throttling.Rate,
+			Burst:   opts.Throttling.Burst,
+		},
+		PerServerThrottlingConfig: perServerThrottlingConfig,
+	}
 }
 
 func makeSSLConfig() (config proxy.SSLConfig, err error) {

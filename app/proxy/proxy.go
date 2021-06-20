@@ -43,6 +43,7 @@ type Http struct { // nolint golint
 	PluginConductor MiddlewareProvider
 	Reporter        Reporter
 	LBSelector      func(len int) int
+	Throttling      MiddlewareProvider
 }
 
 // Matcher source info (server and route) to the destination url
@@ -113,6 +114,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.healthMiddleware,
 		h.matchHandler,
 		h.mgmtHandler(),
+		h.throttlingHandler(),
 		h.pluginHandler(),
 		headersHandler(h.ProxyHeaders),
 		accessLogHandler(h.AccessLog),
@@ -351,11 +353,7 @@ func (h *Http) pluginHandler() func(next http.Handler) http.Handler {
 		log.Printf("[INFO] plugin support enabled")
 		return h.PluginConductor.Middleware
 	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-		})
-	}
+	return passThroughHandler()
 }
 
 func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
@@ -363,11 +361,7 @@ func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {
 		log.Printf("[DEBUG] metrics enabled")
 		return h.Metrics.Middleware
 	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
-		})
-	}
+	return passThroughHandler()
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
@@ -397,4 +391,20 @@ func (h *Http) setXRealIP(r *http.Request) {
 		return
 	}
 	r.Header.Add("X-Real-IP", ip)
+}
+
+func passThroughHandler() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func (h *Http) throttlingHandler() func(next http.Handler) http.Handler {
+	if h.Throttling != nil {
+		log.Printf("[DEBUG] throttling enabled")
+		return h.Throttling.Middleware
+	}
+	return passThroughHandler()
 }
