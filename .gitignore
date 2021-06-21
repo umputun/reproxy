@@ -6,3 +6,4 @@ dist/
 docker-compose-private.yml
 .vscode
 .idea
+*.gpg

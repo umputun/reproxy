@@ -3,7 +3,12 @@ FROM goreleaser/goreleaser as build
 WORKDIR /build
 ADD . /build
 
-RUN goreleaser --snapshot --skip-publish --rm-dist
+RUN apk add -u gnupg
+
+RUN \
+    export GNUPGHOME="$PWD/releaser-gpg" && export GNUPGHOME && mkdir -p "$GNUPGHOME" && chmod 0700 "$GNUPGHOME" && \
+    cat reproxy.signing-key.gpg | gpg --batch --allow-secret-key-import --import && \
+    goreleaser --snapshot --skip-publish --rm-dist
 
 FROM alpine
 COPY --from=build /build/dist/ /dist/
@@ -12,6 +17,7 @@ RUN \
     cp /dist/*.gz /artifacts/ && \
     cp /dist/*.zip /artifacts/ && \
     cp /dist/*.txt /artifacts/ && \
+    cp /dist/*.sig /artifacts/ && \
     cp /dist/*.rpm /artifacts/ && \
     cp /dist/*.deb /artifacts/ && \
     ls -la /artifacts/*
