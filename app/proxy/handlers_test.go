@@ -90,10 +90,10 @@ func Test_signatureHandler(t *testing.T) {
 	}
 }
 
-func Test_limiterHandlerNoMatches(t *testing.T) {
+func Test_limiterSystemHandler(t *testing.T) {
 
 	var passed int32
-	handler := limiterHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiterSystemHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&passed, 1)
 	}))
 
@@ -115,9 +115,34 @@ func Test_limiterHandlerNoMatches(t *testing.T) {
 	assert.Equal(t, int32(10), atomic.LoadInt32(&passed))
 }
 
-func Test_limiterHandlerWithMatches(t *testing.T) {
+func Test_limiterClientHandlerNoMatches(t *testing.T) {
+
 	var passed int32
-	handler := limiterHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiterUserHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&passed, 1)
+	}))
+
+	ts := httptest.NewServer(handler)
+	var wg sync.WaitGroup
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			defer wg.Done()
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			require.NoError(t, err)
+			client := http.Client{}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, int32(10), atomic.LoadInt32(&passed))
+}
+
+func Test_limiterClientHandlerWithMatches(t *testing.T) {
+	var passed int32
+	handler := limiterUserHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&passed, 1)
 	}))
 
