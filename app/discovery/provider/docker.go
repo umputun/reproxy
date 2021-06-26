@@ -193,7 +193,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 }
 
 // matchedPort gets port for route match, default the first exposed port
-// if reproxy.N.label found reruns this port only if it is one of exposed by the container
+// if reproxy.N.port label found, returns this port but only if it is one of exposed by the container
 func (d *Docker) matchedPort(c containerInfo, n int) (port int, err error) {
 	port = c.Ports[0] // by default use the first exposed port
 
