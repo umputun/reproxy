@@ -14,7 +14,7 @@ import (
 	"github.com/umputun/reproxy/app/discovery"
 )
 
-//go:generate moq -out inofrmer_mock.go -fmt goimports . Informer
+//go:generate moq -out informer_mock.go -fmt goimports . Informer
 
 // Server represents management server
 type Server struct {
