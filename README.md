@@ -246,7 +246,7 @@ The core functionality of reproxy can be extended with external plugins. Each pl
 To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
 
 
-_See [examples/plugin]() for more info_
+_See [examples/plugin](https://github.com/umputun/reproxy/tree/master/examples/plugin) for more info_
 
 ## Container security
 
