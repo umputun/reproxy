@@ -115,6 +115,11 @@ var opts struct {
 		Interval time.Duration `long:"interval" env:"INTERVAL" default:"300s" description:"automatic health-check interval"`
 	} `group:"health-check" namespace:"health-check" env-namespace:"HEALTH_CHECK"`
 
+	Throttle struct {
+		System int `long:"system" env:"SYSTEM" default:"0" description:"throttle overall activity'"`
+		User   int `long:"user" env:"USER"  default:"0" description:"limit req/sec per user and per proxy destination"`
+	} `group:"throttle" namespace:"throttle" env-namespace:"THROTTLE"`
+
 	Plugin struct {
 		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
 		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
@@ -246,6 +251,8 @@ func run() error {
 		Metrics:         makeMetrics(ctx, svc),
 		Reporter:        errReporter,
 		PluginConductor: makePluginConductor(ctx),
+		ThrottleSystem:  opts.Throttle.System * 3,
+		ThottleUser:     opts.Throttle.User,
 	}
 
 	err = px.Run(ctx)

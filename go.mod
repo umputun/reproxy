@@ -3,6 +3,7 @@ module github.com/umputun/reproxy
 go 1.16
 
 require (
+	github.com/didip/tollbooth/v6 v6.1.0
 	github.com/go-pkgz/lgr v0.10.4
 	github.com/go-pkgz/repeater v1.1.3
 	github.com/go-pkgz/rest v1.11.0

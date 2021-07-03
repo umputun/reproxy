@@ -236,6 +236,12 @@ _see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/exam
 
 Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any provided routes and assets. In case if some unexpected, internal error happened it returns 500. By default reproxy renders the simplest text version of the error - "Server error". Setting `--error.enabled` turns on the default html error message and with `--error.template` user may set any custom html template file for the error rendering. The template has two vars: `{{.ErrCode}}` and `{{.ErrMessage}}`. For example this template `oh my! {{.ErrCode}} - {{.ErrMessage}}` will be rendered to `oh my! 502 - Bad Gateway`
 
+## Throttling 
+
+Reproxy allows to define system level max req/sec value for the overall system activity as well as per user. 0 values (default) treated as unlimited.
+
+User activity limited for both matched and unmatched routes. All unmatched routes considered as a "single destination group" and get a common limiter which is `rate*3`. It means if 10 (req/sec) defined with `--throttle.user=10` the end user will be able to perform up to 30 request pers second for either static assets or unmatched routes. For matched routes this limiter maintained per destination (route), i.e. request proxied to s1.example.com/api will allow 10 r/s and the request proxied to s2.example.com will allow another 10 r/s.
+
 ## Plugins support
 
 The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
@@ -348,6 +354,10 @@ error:
 health-check:
       --health-check.enabled        enable automatic health-check [$HEALTH_CHECK_ENABLED]
       --health-check.interval=      automatic health-check interval (default: 300s) [$HEALTH_CHECK_INTERVAL]
+
+throttle:
+      --throttle.system=            throttle overall activity' (default: 0) [$THROTTLE_SYSTEM]
+      --throttle.user=              limit req/sec per user and per proxy destination (default: 0) [$THROTTLE_USER]
 
 
 Help Options:
