@@ -33,8 +33,9 @@ var opts struct {
 	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
 	MaxSize      string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders []string `short:"x" long:"header" env:"HEADER" description:"proxy headers" env-delim:","`
-	LBType       string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` //nolint
+	ProxyHeaders []string `short:"x" long:"header" description:"proxy headers"` // env HEADER split in code to allow , inside ""
+
+	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` //nolint
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
@@ -219,6 +220,11 @@ func run() error {
 	maxBodySize, perr := sizeParse(opts.MaxSize)
 	if perr != nil {
 		return fmt.Errorf("failed to convert MaxSize: %w", err)
+	}
+
+	proxyHeaders := opts.ProxyHeaders
+	if len(proxyHeaders) == 0 {
+		proxyHeaders = splitAtCommas(os.Getenv("HEADER")) // env value may have comma inside "", parsed separately
 	}
 
 	px := &proxy.Http{
@@ -477,6 +483,35 @@ func sizeParse(inp string) (uint64, error) {
 		}
 	}
 	return strconv.ParseUint(inp, 10, 64)
+}
+
+// splitAtCommas split s at commas, ignoring commas in strings.
+// based on https://stackoverflow.com/a/59318708
+func splitAtCommas(s string) []string {
+	var res []string
+	var beg int
+	var inString bool
+
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' && !inString {
+			res = append(res, strings.TrimSpace(s[beg:i]))
+			beg = i + 1
+			continue
+		}
+
+		if s[i] == '"' {
+			if !inString {
+				inString = true
+			} else if i > 0 && s[i-1] != '\\' {
+				inString = false
+			}
+		}
+	}
+	res = append(res, strings.TrimSpace(s[beg:]))
+	if len(res) == 1 && res[0] == "" {
+		return []string{}
+	}
+	return res
 }
 
 type nopWriteCloser struct{ io.Writer }
