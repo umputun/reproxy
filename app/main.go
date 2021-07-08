@@ -491,7 +491,7 @@ func sizeParse(inp string) (uint64, error) {
 func splitAtCommas(s string) []string {
 
 	cleanup := func(s string) string {
-		if len(s) == 0 {
+		if s == "" {
 			return s
 		}
 		res := strings.TrimSpace(s)
