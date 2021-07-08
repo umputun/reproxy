@@ -465,7 +465,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
 	client := http.Client{}
 
