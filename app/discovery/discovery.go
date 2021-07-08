@@ -293,7 +293,7 @@ func (s *Service) CheckHealth() (pingResult map[string]error) {
 
 				errMsg, err := m.ping()
 				if err != nil {
-					log.Print(errMsg)
+					log.Printf("[DEBUG] %s", errMsg)
 				}
 				outCh <- pingError{m.PingURL, err}
 			}(m)
@@ -478,11 +478,11 @@ func (m URLMapper) ping() (string, error) {
 	resp, err := client.Get(m.PingURL)
 	if err != nil {
 		errMsg := strings.Replace(err.Error(), "\"", "", -1)
-		errMsg = fmt.Sprintf("[WARN] failed to ping for health %s, %s", m.PingURL, errMsg)
+		errMsg = fmt.Sprintf("failed to ping for health %s, %s", m.PingURL, errMsg)
 		return errMsg, fmt.Errorf("%s %s: %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
 	}
 	if resp.StatusCode != http.StatusOK {
-		errMsg := fmt.Sprintf("[WARN] failed ping status for health %s (%s)", m.PingURL, resp.Status)
+		errMsg := fmt.Sprintf("failed ping status for health %s (%s)", m.PingURL, resp.Status)
 		return errMsg, fmt.Errorf("%s %s: %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)
 	}
 

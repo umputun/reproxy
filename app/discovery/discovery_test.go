@@ -444,8 +444,7 @@ func Test_ping(t *testing.T) {
 }
 
 func TestCheckHealth(t *testing.T) {
-	port := rand.Intn(10000) + 40000
-	failPingULR := fmt.Sprintf("http://127.0.0.1:%d", port)
+	failPingULR := "http://127.0.0.1:4321"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
@@ -493,41 +492,17 @@ func TestCheckHealth(t *testing.T) {
 		},
 	}
 
-	svc := NewService([]Provider{p1, p2, p3}, time.Millisecond*10)
+	svc := NewService([]Provider{p1, p2, p3}, time.Millisecond*50)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
 	_ = svc.Run(ctx)
 	mappers := svc.Mappers()
-	fmt.Println(mappers)
+	t.Logf("mappers: %v", mappers)
 
-	tests := []struct {
-		name string
-		want map[string]error
-	}{
-		{name: "case 1",
-			want: map[string]error{
-				ts.URL:      nil,
-				ts2.URL:     nil,
-				failPingULR: fmt.Errorf("some error"),
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := svc.CheckHealth()
-			for pingURL, err := range got {
-				wantErr, ok := tt.want[pingURL]
-				if !ok {
-					t.Errorf("CheckHealth() = ping URL %s not found in test case", pingURL)
-					continue
-				}
-
-				if (err != nil && wantErr == nil) ||
-					(err == nil && wantErr != nil) {
-					t.Errorf("CheckHealth() error = %v, wantErr %v", err, wantErr)
-				}
-			}
-		})
-	}
+	res := svc.CheckHealth()
+	assert.Equal(t, 3, len(res))
+	assert.Error(t, res[failPingULR])
+	assert.NoError(t, res[ts.URL])
+	assert.NoError(t, res[ts2.URL])
 }
