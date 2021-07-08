@@ -486,15 +486,29 @@ func sizeParse(inp string) (uint64, error) {
 }
 
 // splitAtCommas split s at commas, ignoring commas in strings.
+// Eliminate leading and trailing dbl quotes in each element only if both presented
 // based on https://stackoverflow.com/a/59318708
 func splitAtCommas(s string) []string {
+
+	cleanup := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		res := strings.TrimSpace(s)
+		if s[0] == '"' && s[len(s)-1] == '"' {
+			res = strings.TrimPrefix(res, `"`)
+			res = strings.TrimSuffix(res, `"`)
+		}
+		return res
+	}
+
 	var res []string
 	var beg int
 	var inString bool
 
 	for i := 0; i < len(s); i++ {
 		if s[i] == ',' && !inString {
-			res = append(res, strings.TrimSpace(s[beg:i]))
+			res = append(res, cleanup(s[beg:i]))
 			beg = i + 1
 			continue
 		}
@@ -502,12 +516,12 @@ func splitAtCommas(s string) []string {
 		if s[i] == '"' {
 			if !inString {
 				inString = true
-			} else if i > 0 && s[i-1] != '\\' {
+			} else if i > 0 && s[i-1] != '\\' { // also allow \"
 				inString = false
 			}
 		}
 	}
-	res = append(res, strings.TrimSpace(s[beg:]))
+	res = append(res, cleanup(s[beg:]))
 	if len(res) == 1 && res[0] == "" {
 		return []string{}
 	}
