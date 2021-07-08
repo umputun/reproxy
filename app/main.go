@@ -238,7 +238,7 @@ func run() error {
 		CacheControl:   cacheControl,
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,
-		ProxyHeaders:   opts.ProxyHeaders,
+		ProxyHeaders:   proxyHeaders,
 		AccessLog:      accessLog,
 		StdOutEnabled:  opts.Logger.StdOut,
 		Signature:      opts.Signature,
