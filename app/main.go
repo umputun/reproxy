@@ -495,7 +495,7 @@ func splitAtCommas(s string) []string {
 			return s
 		}
 		res := strings.TrimSpace(s)
-		if s[0] == '"' && s[len(s)-1] == '"' {
+		if res[0] == '"' && res[len(res)-1] == '"' {
 			res = strings.TrimPrefix(res, `"`)
 			res = strings.TrimSuffix(res, `"`)
 		}
