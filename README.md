@@ -13,11 +13,12 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Consul Catalog provider with discovery by service tags
 - Support of multiple (virtual) hosts
 - Optional traffic compression
-- User-defined limits and timeouts
+- User-defined size limits and timeouts
 - Single binary distribution
 - Docker container distribution
 - Built-in static assets server with optional "SPA friendly" mode
-- Support for redirect rules  
+- Support for redirect rules 
+- Optional limiter for the overall activity as well as for user's activity   
 - Live health check and fail-over/load-balancing  
 - Management server with routes info and prometheus metrics
 - Plugins support via RPC to implement custom functionality
@@ -33,8 +34,11 @@ For convenience, requests with the trailing `/` and without regex groups expande
 Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
 Examples:
+
  - with a static provider: `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
  - with an automatic docker discovery: `reproxy --docker.enabled --docker.auto`
+ - as a docker container `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
+ - with automatic SSL `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
 
 ## Install
 
