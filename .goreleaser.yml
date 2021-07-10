@@ -35,6 +35,7 @@ archives:
 
 nfpms:
   -
+    id: reproxy
     package_name: reproxy
     file_name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
     vendor: Umputun
@@ -48,9 +49,14 @@ nfpms:
     bindir: /usr/bin
     epoch: 1
     release: 1
-    files:
-      "reproxy.service": "/etc/systemd/system/reproxy.service"
-      "reproxy-example.yml": "/etc/reproxy-example.yml"
+    contents:
+      - src: reproxy.service
+        dst: /etc/systemd/system/reproxy.service
+
+      - src: reproxy-example.yml
+        dst: /etc/reproxy-example.yml
+        type: config
+
     scripts:
       postinstall: "scripts/postinstall.sh"
       preremove: "scripts/preremove.sh"
