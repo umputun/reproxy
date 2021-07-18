@@ -89,7 +89,7 @@ This is a dynamic provider and file change will be applied automatically.
 
 ### Docker provider
 
-Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration needed.By default it redirects all requests like `http://<container_name>:<container_port>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
+Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration needed. By default it redirects all requests like `http://<container_name>:<container_port>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
 
 This default can be changed with labels:
 
