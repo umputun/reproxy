@@ -1,13 +1,15 @@
-FROM node:14-alpine
+FROM node:16-alpine as build
 
-WORKDIR build
-
+WORKDIR /build
 COPY site/ /build
 COPY README.md /build/src/index.md
 
-RUN yarn --frozen-lockfile && \
-	yarn build && \
-	ls -la /build/public
+RUN yarn --frozen-lockfile
+RUN yarn build
+RUN	ls -la /build/public
 
-CMD ["sleep", "100"]
-
+FROM ghcr.io/umputun/reproxy
+COPY --from=build /build/public /srv/site
+EXPOSE 8080
+USER app
+ENTRYPOINT ["/srv/reproxy", "--assets.location=/srv/site"]
