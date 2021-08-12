@@ -7,10 +7,12 @@ on:
     paths:
       - ".github/workflows/ci-site.yml"
       - "site/**"
+      - "README.md"
   pull_request:
     paths:
       - ".github/workflows/ci-site.yml"
       - "site/**"
+      - "README.md"
 
 jobs:
 

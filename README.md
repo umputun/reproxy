@@ -368,7 +368,6 @@ Help Options:
   -h, --help                        Show this help message
 ```
 
-
 ## Status
 
 The project is under active development and may have breaking changes till `v1` is released. However, we are trying our best not to break things unless there is a good reason. As of version 0.4.x, reproxy is considered good enough for real-life usage, and many setups are running it in production.
