@@ -252,6 +252,9 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 	for _, m := range s.mappers {
 		mappers = append(mappers, m...)
 	}
+	sort.Slice(mappers, func(i, j int) bool {
+		return mappers[i].ProviderID < mappers[j].ProviderID
+	})
 	return mappers
 }
 
