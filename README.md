@@ -182,6 +182,35 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
+## Using reproxy as a base image
+
+Serving purely static content is one of the popular use cases. Usually this used for the separate frontend container providing UI only. With the assets server such a container is almost trivial to make. This is an example from the container serving [reproxy.io](http://reproxy.io)
+
+```docker
+FROM node:16-alpine as build
+
+WORKDIR /build
+COPY site/ /build
+COPY README.md /build/src/index.md
+
+RUN yarn --frozen-lockfile
+RUN yarn build
+RUN	ls -la /build/public
+
+FROM ghcr.io/umputun/reproxy
+COPY --from=build /build/public /srv/site
+EXPOSE 8080
+USER app
+ENTRYPOINT ["/srv/reproxy", "--assets.location=/srv/site"]
+```
+All it needs is to copy stastic assets to some location and passing this location as `"--assets.location` to reproxy entrypoint.
+
+## SPA-friendly mode
+
+Some SPA applications counts on proxy to handle 404 on static asset in a special way, by redirecting it to "/index.html". This is similar to nginx's `try_files $uri $uri/ …` directive and, apparently, this functionality somewhat important for the modern web apps.
+
+This mode is off by default and can be turned on by setting `--assets.spa` or `ASSETS_SPA=true` env.
+
 ## Redirects 
 
 By default reproxy treats destination as a proxy location, i.e. it invokes http call internally and returns response back to the client. However by prefixing destination url with `@code` this behaviour can be changed to a permanent (status code 301) or temporary (status code 302) redirects. I.e. destination set to `@301 https://example.com/something` with cause permanent http redirect to `Location: https://example.com/something`
@@ -290,8 +319,8 @@ This is the list of all options supporting multiple elements:
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
-  -x, --header=                     proxy headers [$HEADER]
-      --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]  
+  -x, --header=                     proxy headers
+      --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
       --dbg                         debug mode [$DEBUG]
 
@@ -307,13 +336,14 @@ ssl:
 assets:
   -a, --assets.location=            assets location [$ASSETS_LOCATION]
       --assets.root=                assets web root (default: /) [$ASSETS_ROOT]
+      --assets.spa                  spa treatment for assets [$ASSETS_SPA]
       --assets.cache=               cache duration for assets [$ASSETS_CACHE]
 
 logger:
       --logger.stdout               enable stdout logging [$LOGGER_STDOUT]
       --logger.enabled              enable access and error rotated logs [$LOGGER_ENABLED]
       --logger.file=                location of access log (default: access.log) [$LOGGER_FILE]
-      --logger.max-size=            maximum size in megabytes before it gets rotated (default: 100M) [$LOGGER_MAX_SIZE]
+      --logger.max-size=            maximum size before it gets rotated (default: 100M) [$LOGGER_MAX_SIZE]
       --logger.max-backups=         maximum number of old log files to retain (default: 10) [$LOGGER_MAX_BACKUPS]
 
 docker:
@@ -366,6 +396,9 @@ throttle:
       --throttle.system=            throttle overall activity' (default: 0) [$THROTTLE_SYSTEM]
       --throttle.user=              limit req/sec per user and per proxy destination (default: 0) [$THROTTLE_USER]
 
+plugin:
+      --plugin.enabled              enable plugin support [$PLUGIN_ENABLED]
+      --plugin.listen=              registration listen on host:port (default: 127.0.0.1:8081) [$PLUGIN_LISTEN]
 
 Help Options:
   -h, --help                        Show this help message
