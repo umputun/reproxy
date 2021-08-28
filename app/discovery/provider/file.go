@@ -35,6 +35,15 @@ func (d *File) Events(ctx context.Context) <-chan discovery.ProviderID {
 		}
 	}
 
+	// check once if config file in place and it is file for real and not a directory
+	fi, err := os.Stat(d.FileName)
+	if err != nil {
+		log.Printf("[WARN] configuration file %s not found", d.FileName)
+	}
+	if err == nil && fi.IsDir() {
+		log.Printf("[WARN] %s is directory but configuration file expected", d.FileName)
+	}
+
 	go func() {
 		tk := time.NewTicker(d.CheckInterval)
 		lastModif := time.Time{}
