@@ -223,6 +223,7 @@ func TestConductor_Middleware(t *testing.T) {
 				reply.(*lib.Response).StatusCode = 200
 				reply.(*lib.Response).HeadersOut = map[string][]string{}
 				reply.(*lib.Response).HeadersOut.Set("k11", "v11")
+				reply.(*lib.Response).OverrideHeadersOut = true
 			}
 			if serviceMethod == "Test1.Mw3" {
 				t.Fatal("shouldn't be called")
@@ -285,9 +286,10 @@ func TestConductor_Middleware(t *testing.T) {
 	}))
 	h.ServeHTTP(w, rr)
 	assert.Equal(t, 200, w.Result().StatusCode)
-	assert.Equal(t, "v1", w.Result().Header.Get("k1"))
+	assert.Equal(t, "", w.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", w.Result().Header.Get("k2"))
 	assert.Equal(t, "v21", rr.Header.Get("k21"))
+	assert.Equal(t, "v11", w.Result().Header.Get("k11"))
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
 }

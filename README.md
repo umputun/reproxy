@@ -285,6 +285,11 @@ The core functionality of reproxy can be extended with external plugins. Each pl
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 
 
+By default headers set by a plugin will be mixed with the original headers. In case if plugin need to control all the headers, for example drop some of them, `OverrideHeaders*` field can be set by a plugin indicating to the core reporxy process the need to overwrite all the headers instead of mixing them in.
+
+- `OverrideHeadersIn` - indicates plugin responsible for all incoming headers.
+- `OverrideHeadersOut` - indicates plugin responsible for all outgoing headers 
+
 To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
 
 

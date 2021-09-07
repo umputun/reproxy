@@ -87,6 +87,20 @@ func (c *Conductor) Run(ctx context.Context) error {
 // Failed plugin calls ignored. Status code from any plugin may stop the chain of calls if not 200. This is needed
 // to allow plugins like auth which has to terminate request in some cases.
 func (c *Conductor) Middleware(next http.Handler) http.Handler {
+
+	setHeaders := func(src, alt http.Header, overrideHeaders bool) {
+		if overrideHeaders {
+			for k := range src {
+				src.Del(k)
+			}
+		}
+		for k, vv := range alt {
+			for _, v := range vv {
+				src.Add(k, v)
+			}
+		}
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		c.lock.RLock()
@@ -101,16 +115,10 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			for k, vv := range reply.HeadersIn {
-				for _, v := range vv {
-					r.Header.Add(k, v)
-				}
-			}
-			for k, vv := range reply.HeadersOut {
-				for _, v := range vv {
-					w.Header().Add(k, v)
-				}
-			}
+
+			setHeaders(r.Header, reply.HeadersIn, reply.OverrideHeadersIn)
+			setHeaders(w.Header(), reply.HeadersOut, reply.OverrideHeadersOut)
+
 			if reply.StatusCode >= 400 {
 				c.lock.RUnlock()
 				http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)
