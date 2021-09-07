@@ -25,7 +25,9 @@ type Request struct {
 
 // Response from plugin's handler call
 type Response struct {
-	StatusCode int
-	HeadersIn  http.Header
-	HeadersOut http.Header
+	StatusCode         int
+	HeadersIn          http.Header
+	HeadersOut         http.Header
+	OverrideHeadersIn  bool // indicates plugin removing all the original incoming headers
+	OverrideHeadersOut bool // indicates plugin removing all the original outgoing headers
 }
