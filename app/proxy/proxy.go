@@ -32,6 +32,7 @@ type Http struct { // nolint golint
 	MaxBodySize     int64
 	GzEnabled       bool
 	ProxyHeaders    []string
+	DropHeader      []string
 	SSLConfig       SSLConfig
 	Version         string
 	AccessLog       io.Writer
@@ -45,7 +46,7 @@ type Http struct { // nolint golint
 	LBSelector      func(len int) int
 
 	ThrottleSystem int
-	ThottleUser    int
+	ThrottleUser   int
 }
 
 // Matcher source info (server and route) to the destination url
@@ -110,17 +111,17 @@ func (h *Http) Run(ctx context.Context) error {
 	}()
 
 	handler := R.Wrap(h.proxyHandler(),
-		R.Recoverer(log.Default()),               // recover on errors
-		signatureHandler(h.Signature, h.Version), // send app signature
-		h.pingHandler,                            // respond to /ping
-		h.healthMiddleware,                       // respond to /health
-		h.matchHandler,                           // set matched routes to context
-		limiterSystemHandler(h.ThrottleSystem),   // limit total requests/sec
-		limiterUserHandler(h.ThottleUser),        // req/seq per user/route match
-		h.mgmtHandler(),                          // handles /metrics and /routes for prometheus
-		h.pluginHandler(),                        // prc to external plugins
-		headersHandler(h.ProxyHeaders),           // set response headers
-		accessLogHandler(h.AccessLog),            // apache-format log file
+		R.Recoverer(log.Default()),                   // recover on errors
+		signatureHandler(h.Signature, h.Version),     // send app signature
+		h.pingHandler,                                // respond to /ping
+		h.healthMiddleware,                           // respond to /health
+		h.matchHandler,                               // set matched routes to context
+		limiterSystemHandler(h.ThrottleSystem),       // limit total requests/sec
+		limiterUserHandler(h.ThrottleUser),           // req/seq per user/route match
+		h.mgmtHandler(),                              // handles /metrics and /routes for prometheus
+		h.pluginHandler(),                            // prc to external plugins
+		headersHandler(h.ProxyHeaders, h.DropHeader), // add response headers and delete some request headers
+		accessLogHandler(h.AccessLog),                // apache-format log file
 		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		maxReqSizeHandler(h.MaxBodySize), // limit request max size
 		gzipHandler(h.GzEnabled),         // gzip response

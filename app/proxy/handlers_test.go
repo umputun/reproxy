@@ -18,11 +18,17 @@ import (
 
 func Test_headersHandler(t *testing.T) {
 	wr := httptest.NewRecorder()
-	handler := headersHandler([]string{"k1:v1", "k2:v2"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := headersHandler([]string{"k1:v1", "k2:v2"}, []string{"r1", "r2"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
+		assert.Equal(t, "", r.Header.Get("r1"), "r1 header dropped")
+		assert.Equal(t, "", r.Header.Get("r2"), "r2 header dropped")
+		assert.Equal(t, "rv3", r.Header.Get("r3"), "r3 kept")
 	}))
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	require.NoError(t, err)
+	req.Header.Set("r1", "rv1")
+	req.Header.Set("r2", "rv2")
+	req.Header.Set("r3", "rv3")
 	handler.ServeHTTP(wr, req)
 	assert.Equal(t, "v1", wr.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", wr.Result().Header.Get("k2"))

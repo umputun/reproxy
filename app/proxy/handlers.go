@@ -14,21 +14,28 @@ import (
 	"github.com/umputun/reproxy/app/discovery"
 )
 
-func headersHandler(headers []string) func(next http.Handler) http.Handler {
+func headersHandler(addHeaders, dropHeaders []string) func(next http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if len(headers) == 0 {
+			if len(addHeaders) == 0 && len(dropHeaders) == 0 {
 				next.ServeHTTP(w, r)
 				return
 			}
-			for _, h := range headers {
+			// add headers to response
+			for _, h := range addHeaders {
 				elems := strings.Split(h, ":")
 				if len(elems) != 2 {
 					continue
 				}
 				w.Header().Set(strings.TrimSpace(elems[0]), strings.TrimSpace(elems[1]))
 			}
+
+			// drop headers from request
+			for _, h := range dropHeaders {
+				r.Header.Del(h)
+			}
+
 			next.ServeHTTP(w, r)
 		})
 	}

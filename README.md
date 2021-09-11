@@ -18,7 +18,7 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Docker container distribution
 - Built-in static assets server with optional "SPA friendly" mode
 - Support for redirect rules 
-- Optional limiter for the overall activity as well as for user's activity   
+- Optional limiter for the overall activity as well as for user's activity
 - Live health check and fail-over/load-balancing  
 - Management server with routes info and prometheus metrics
 - Plugins support via RPC to implement custom functionality
@@ -225,6 +225,7 @@ supported codes:
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--header` sets extra header(s) added to each proxied response. 
+- `--drop-header` drops headers from incoming request. 
   
 For example this is how it can be done with the docker compose:
 
@@ -324,7 +325,8 @@ This is the list of all options supporting multiple elements:
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
-  -x, --header=                     proxy headers
+  -x, --header=                     outgoing proxy headers to add
+      --drop-header=                incoming headers to drop [$DROP_HEADERS]
       --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
       --dbg                         debug mode [$DEBUG]
@@ -407,6 +409,7 @@ plugin:
 
 Help Options:
   -h, --help                        Show this help message
+
 ```
 
 ## Status

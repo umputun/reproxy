@@ -45,7 +45,7 @@ func NewMetrics() *Metrics {
 		Buckets: []float64{0.01, 0.1, 0.5, 1, 2, 3, 5},
 	}, []string{"path"})
 
-	prometheus.Unregister(prometheus.NewGoCollector())
+	prometheus.Unregister(prometheus.NewGoCollector()) //nolint
 
 	if err := prometheus.Register(res.totalRequests); err != nil {
 		log.Printf("[WARN] can't register prometheus totalRequests, %v", err)

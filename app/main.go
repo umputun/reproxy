@@ -33,7 +33,8 @@ var opts struct {
 	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
 	MaxSize      string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
 	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders []string `short:"x" long:"header" description:"proxy headers"` // env HEADER split in code to allow , inside ""
+	ProxyHeaders []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
+	DropHeaders  []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 
 	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` //nolint
 
@@ -239,6 +240,7 @@ func run() error {
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,
 		ProxyHeaders:   proxyHeaders,
+		DropHeader:     opts.DropHeaders,
 		AccessLog:      accessLog,
 		StdOutEnabled:  opts.Logger.StdOut,
 		Signature:      opts.Signature,
@@ -258,7 +260,7 @@ func run() error {
 		Reporter:        errReporter,
 		PluginConductor: makePluginConductor(ctx),
 		ThrottleSystem:  opts.Throttle.System * 3,
-		ThottleUser:     opts.Throttle.User,
+		ThrottleUser:    opts.Throttle.User,
 	}
 
 	err = px.Run(ctx)
