@@ -156,9 +156,9 @@ SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static`
 
 ## Headers 
 
-Reproxy allows to sanitize (remove) incoming headers by passing `--drop-header` parameter (can be repeated). This can be useful to make sure some of headers set internally by the services can't be set by the end user. For example if some of the services, responsible for auth, sets `X-Auth-User` ans `X-Auth-Token` it is likely make sense to drop the header from the incoming requests by passing `--drop-header=X-Auth-User --drop-header=X-Auth-Token` parameter or via environment `DROP_HEADERS=X-Auth-User,X-Auth-Token`
+Reproxy allows to sanitize (remove) incoming headers by passing `--drop-header` parameter (can be repeated). This parameter can be useful to make sure some of the headers, set internally by the services, can't be set/faked by the end user. For example if some of the services, responsible for the auth, sets `X-Auth-User` and `X-Auth-Token` it is likely makes sense to drop those headers from the incoming requests by passing `--drop-header=X-Auth-User --drop-header=X-Auth-Token` parameter or via environment `DROP_HEADERS=X-Auth-User,X-Auth-Token`
 
-The opposite function, setting outgoing header(s) supported as well. It can be useful in many cases, for example enforcing some custom CORS rules, security related headers and so on. This can be done with `--header` parameter (can be repeated) or env `HEADER`. For example this is how it can be done with the docker compose:
+The opposite function, setting outgoing header(s) supported as well. It can be useful in many cases, for example enforcing some custom CORS rules, security related headers and so on. This can be done with `--header` parameter (can be repeated) or env `HEADER`. For example, this is how it can be done with the docker compose:
 
 ```yaml
   environment:
