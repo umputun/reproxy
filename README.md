@@ -154,6 +154,20 @@ In case if rules set as a part of docker compose environment, destination with t
 
 SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s)
 
+## Headers 
+
+Reproxy allows to sanitize (remove) incoming headers by passing `--drop-header` parameter (can be repeated). This can be useful to make sure some of headers set internally by the services can't be set by the end user. For example if some of the services, responsible for auth, sets `X-Auth-User` ans `X-Auth-Token` it is likely make sense to drop the header from the incoming requests by passing `--drop-header=X-Auth-User --drop-header=X-Auth-Token` parameter or via environment `DROP_HEADERS=X-Auth-User,X-Auth-Token`
+
+The opposite function, setting outgoing header(s) supported as well. It can be useful in many cases, for example enforcing some custom CORS rules, security related headers and so on. This can be done with `--header` parameter (can be repeated) or env `HEADER`. For example this is how it can be done with the docker compose:
+
+```yaml
+  environment:
+      - HEADER=
+          X-Frame-Options:SAMEORIGIN,
+          X-XSS-Protection:1; mode=block;,
+          Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
+```
+
 ## Logging
 
 By default no request log generated. This can be turned on by setting `--logger.enabled`. The log (auto-rotated) has [Apache Combined Log Format](http://httpd.apache.org/docs/2.2/logs.html#combined)
@@ -224,19 +238,6 @@ supported codes:
 
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
-- `--header` sets extra header(s) added to each proxied response. 
-- `--drop-header` drops headers from incoming request. 
-  
-For example this is how it can be done with the docker compose:
-
-```yaml
-  environment:
-      - HEADER=
-          X-Frame-Options:SAMEORIGIN,
-          X-XSS-Protection:1; mode=block;,
-          Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline';
-```
-
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
 
 ## Default ports
@@ -318,6 +319,8 @@ This is the list of all options supporting multiple elements:
 - `assets.cache` (`ASSETS_CACHE`)
 - `docker.exclude` (`DOCKER_EXCLUDE`)
 - `static.rule` (`$STATIC_RULES`)
+- `header` (`$HEADER`)
+- `drop-header` (`$DROP_HEADERS`)
 
 ## All Application Options
 
@@ -325,7 +328,7 @@ This is the list of all options supporting multiple elements:
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
-  -x, --header=                     outgoing proxy headers to add
+  -x, --header=                     outgoing proxy headers to add [$HEADER]
       --drop-header=                incoming headers to drop [$DROP_HEADERS]
       --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
