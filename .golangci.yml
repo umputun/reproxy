@@ -4,9 +4,6 @@ run:
     format: tab
   skip-dirs:
     - vendor
-  skip-files:
-    - app/proxy/middleware/compress.go
-    - app/proxy/middleware/compress_test.go
 
 linters-settings:
   govet:
