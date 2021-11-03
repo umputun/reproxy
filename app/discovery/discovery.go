@@ -21,10 +21,11 @@ import (
 
 // Service implements discovery with multiple providers and url matcher
 type Service struct {
-	providers []Provider
-	mappers   map[string][]URLMapper
-	lock      sync.RWMutex
-	interval  time.Duration
+	providers    []Provider
+	mappers      map[string][]URLMapper
+	mappersCache map[string][]URLMapper
+	lock         sync.RWMutex
+	interval     time.Duration
 }
 
 // URLMapper contains all info about source and destination routes
@@ -144,6 +145,7 @@ func (s *Service) Run(ctx context.Context) error {
 			}
 			s.lock.Lock()
 			s.mappers = make(map[string][]URLMapper)
+			s.mappersCache = make(map[string][]URLMapper)
 			for _, m := range lst {
 				s.mappers[m.Server] = append(s.mappers[m.Server], m)
 			}
@@ -161,7 +163,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 
 	lastSrcMatch := ""
 	for _, srvName := range []string{srv, "*", ""} {
-		for _, m := range s.mappers[srvName] {
+		for _, m := range findMatchingMappers(s, srvName) {
 
 			// if the first match found and the next src match is not identical we can stop as src match regexes presorted
 			if len(res.Routes) > 0 && m.SrcMatch.String() != lastSrcMatch {
@@ -196,6 +198,37 @@ func (s *Service) Match(srv, src string) (res Matches) {
 	}
 
 	return res
+}
+
+func findMatchingMappers(s *Service, srvName string) []URLMapper {
+	// strict match - for backward compatibility
+	if mappers, isStrictMatch := s.mappers[srvName]; isStrictMatch {
+		return mappers
+	}
+
+	if cachedMapper, isCached := s.mappersCache[srvName]; isCached {
+		return cachedMapper
+	}
+
+	for mapperServer, mapper := range s.mappers {
+		// * and "" should not be treated as regex and require exact match (above)
+		if mapperServer == "*" || mapperServer == "" {
+			continue
+		}
+
+		re, err := regexp.Compile(mapperServer)
+		if err != nil {
+			log.Printf("[WARN] invalid regexp %s: %s", mapperServer, err)
+			continue
+		}
+
+		if re.MatchString(srvName) {
+			s.mappersCache[srvName] = mapper
+			return mapper
+		}
+	}
+
+	return nil
 }
 
 // ScheduleHealthCheck starts background loop with health-check

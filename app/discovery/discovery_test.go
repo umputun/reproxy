@@ -161,7 +161,7 @@ func TestService_Match(t *testing.T) {
 
 	for i, tt := range tbl {
 		tt := tt
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
@@ -171,6 +171,108 @@ func TestService_Match(t *testing.T) {
 			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
 	}
+}
+
+func TestService_MatchServerRegex(t *testing.T) {
+	mockProvider := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				// invalid regex
+				{Server: "[", SrcMatch: *regexp.MustCompile("^/"),
+					Dst: "http://127.0.0.10:8080/", MatchType: MTProxy, dead: false},
+
+				// regex servers
+				{Server: "test-prefix\\.(.*)", SrcMatch: *regexp.MustCompile("^/"),
+					Dst: "http://127.0.0.1:8080/", MatchType: MTProxy, dead: false},
+				{Server: "(.*)\\.test-domain\\.(com|org)", SrcMatch: *regexp.MustCompile("^/"),
+					Dst: "http://127.0.0.2:8080/", MatchType: MTProxy, dead: false},
+
+				// strict match
+				{Server: "test-prefix.exact.com", SrcMatch: *regexp.MustCompile("/"),
+					Dst: "http://127.0.0.4:8080", MatchType: MTProxy, dead: false},
+			}, nil
+		},
+	}
+	svc := NewService([]Provider{mockProvider}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := svc.Run(ctx)
+	require.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+
+	tbl := []struct {
+		server, src string
+		res         Matches
+	}{
+		// strict match should take priority
+		{"test-prefix.exact.com", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.4:8080/", Alive: true}}}},
+
+		// regex servers
+		{"test-prefix.example.com", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/", Alive: true}}}},
+		{"another-prefix.example.com", "/", Matches{MTProxy, nil}},
+		{"another-prefix.test-domain.org", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.2:8080/", Alive: true}}}},
+		{"another-prefix.test-domain.net", "/", Matches{MTProxy, nil}},
+	}
+
+	for i, tt := range tbl {
+		tt := tt
+		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
+			res := svc.Match(tt.server, tt.src)
+			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			for i := 0; i < len(res.Routes); i++ {
+				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
+				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+			}
+			assert.Equal(t, tt.res.MatchType, res.MatchType)
+		})
+	}
+}
+
+func TestService_MatchServerRegexInvalidateCache(t *testing.T) {
+	res := make(chan ProviderID)
+	serverRegex := "test-(.*)"
+	p1 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: serverRegex, SrcMatch: *regexp.MustCompile("^/"), Dst: "http://127.0.0.1/foo"},
+			}, nil
+		},
+	}
+
+	svc := NewService([]Provider{p1}, time.Millisecond*10)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	go func() {
+		err := svc.Run(ctx)
+		require.Error(t, err)
+	}()
+
+	res <- PIFile
+
+	// wait for update
+	time.Sleep(50 * time.Millisecond)
+
+	match := svc.Match("test-server", "/")
+	assert.Len(t, match.Routes, 1)
+
+	serverRegex = "another-(.*)"
+	res <- PIFile
+
+	// wait for cache invalidation
+	time.Sleep(50 * time.Millisecond)
+
+	match = svc.Match("test-server", "/")
+	assert.Len(t, match.Routes, 0)
 }
 
 func TestService_MatchConflictRegex(t *testing.T) {
