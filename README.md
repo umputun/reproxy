@@ -280,6 +280,22 @@ Reproxy allows to define system level max req/sec value for the overall system a
 
 User activity limited for both matched and unmatched routes. All unmatched routes considered as a "single destination group" and get a common limiter which is `rate*3`. It means if 10 (req/sec) defined with `--throttle.user=10` the end user will be able to perform up to 30 request pers second for either static assets or unmatched routes. For matched routes this limiter maintained per destination (route), i.e. request proxied to s1.example.com/api will allow 10 r/s and the request proxied to s2.example.com will allow another 10 r/s.
 
+## Basic auth
+
+Reproxy supports basic auth for all requests. This is useful for protecting endpoints during the development and testing, before allowing unrestricted access to them. This functionality is disabled by default and not granular enough to allow for per-route auth. I.e. enabled basic auth will affect all requests.
+
+In order to enable basic auth for all requests, user should set the typical htpasswd file with `--auth.basic-htpasswd=<file location>` or `env AUTH_BASIC_HTPASSWD=<file location>`. 
+
+Reproxy expects htpasswd file to be in the following format:
+
+```
+username1:bcrypt(password2)
+username2:bcrypt(password2)
+...
+```
+
+this can be generated with `htpasswd -nbB` command, i.e. `htpasswd -nbB test passwd`
+
 ## Plugins support
 
 The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
@@ -330,6 +346,7 @@ This is the list of all options supporting multiple elements:
   -g, --gzip                        enable gz compression [$GZIP]
   -x, --header=                     outgoing proxy headers to add [$HEADER]
       --drop-header=                incoming headers to drop [$DROP_HEADERS]
+      --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
       --dbg                         debug mode [$DEBUG]

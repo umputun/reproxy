@@ -376,3 +376,21 @@ func Test_splitAtCommas(t *testing.T) {
 	}
 
 }
+
+func Test_makeBasicAuth(t *testing.T) {
+	pf := `test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW
+		test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12
+		bad bad`
+
+	fh, err := os.CreateTemp(os.TempDir(), "reproxy_auth_*")
+	require.NoError(t, err)
+	defer fh.Close()
+
+	n, err := fh.WriteString(pf)
+	require.Equal(t, len(pf), n)
+
+	res, err := makeBasicAuth(fh.Name())
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(res))
+	assert.Equal(t, []string{"test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW", "test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12", "bad bad"}, res)
+}

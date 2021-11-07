@@ -78,6 +78,8 @@ github.com/umputun/go-flags
 ## explicit; go 1.17
 golang.org/x/crypto/acme
 golang.org/x/crypto/acme/autocert
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 # golang.org/x/net v0.0.0-20210908191846-a5e095526f91
 ## explicit; go 1.17
 golang.org/x/net/idna
