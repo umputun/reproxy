@@ -565,6 +565,84 @@ func TestHttp_health(t *testing.T) {
 	}
 }
 
+func TestHttp_withBasicAuth(t *testing.T) {
+	port := rand.Intn(10000) + 40000
+	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
+		Reporter: &ErrorReporter{Nice: true}, BasicAuthEnabled: true, BasicAuthAllowed: []string{
+			"test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW",
+			"test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12",
+		}}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("req: %v", r)
+		w.Header().Add("h1", "v1")
+		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{
+			"localhost,^/api/(.*)," + ds.URL + "/123/$1,",
+			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1,",
+			"*,/web,spa:testdata,",
+		},
+		}}, time.Millisecond*10)
+
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	client := http.Client{}
+
+	{
+		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	}
+
+	{
+		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
+		req.SetBasicAuth("test", "badpasswd")
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	}
+	{
+		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
+		req.SetBasicAuth("test", "passwd")
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+	{
+		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
+		req.SetBasicAuth("test2", "passwd2")
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+}
+
 func TestHttp_toHttp(t *testing.T) {
 
 	tbl := []struct {

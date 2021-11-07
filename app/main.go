@@ -30,11 +30,12 @@ import (
 )
 
 var opts struct {
-	Listen       string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
-	MaxSize      string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
-	GzipEnabled  bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
-	DropHeaders  []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
+	Listen            string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
+	MaxSize           string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
+	GzipEnabled       bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	ProxyHeaders      []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
+	DropHeaders       []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
+	AuthBasicHtpasswd string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
 
 	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` //nolint
 
@@ -228,6 +229,11 @@ func run() error {
 		proxyHeaders = splitAtCommas(os.Getenv("HEADER")) // env value may have comma inside "", parsed separately
 	}
 
+	basicAuthAllowed, baErr := makeBasicAuth(opts.AuthBasicHtpasswd)
+	if baErr != nil {
+		return fmt.Errorf("failed to load basic auth: %w", baErr)
+	}
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -256,19 +262,39 @@ func run() error {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics:         makeMetrics(ctx, svc),
-		Reporter:        errReporter,
-		PluginConductor: makePluginConductor(ctx),
-		ThrottleSystem:  opts.Throttle.System * 3,
-		ThrottleUser:    opts.Throttle.User,
+		Metrics:          makeMetrics(ctx, svc),
+		Reporter:         errReporter,
+		PluginConductor:  makePluginConductor(ctx),
+		ThrottleSystem:   opts.Throttle.System * 3,
+		ThrottleUser:     opts.Throttle.User,
+		BasicAuthEnabled: len(basicAuthAllowed) > 0,
+		BasicAuthAllowed: basicAuthAllowed,
 	}
 
 	err = px.Run(ctx)
 	if err != nil && err == http.ErrServerClosed {
-		log.Printf("[WARN] proxy server closed, %v", err) //nolint gocritic
+		log.Printf("[WARN] proxy server closed, %v", err) // nolint gocritic
 		return nil
 	}
 	return err
+}
+
+// makeBasicAuth returns a list of allowed basic auth users and password hashes.
+// if no htpasswd file is specified, an empty list is returned.
+func makeBasicAuth(htpasswdFile string) ([]string, error) {
+	var basicAuthAllowed []string
+	if htpasswdFile != "" {
+		data, err := ioutil.ReadFile(htpasswdFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read htpasswd file %s: %w", htpasswdFile, err)
+		}
+		basicAuthAllowed = strings.Split(string(data), "\n")
+		for i, v := range basicAuthAllowed {
+			basicAuthAllowed[i] = strings.TrimSpace(v)
+			basicAuthAllowed[i] = strings.Replace(basicAuthAllowed[i], "\t", "", -1)
+		}
+	}
+	return basicAuthAllowed, nil
 }
 
 // make all providers. the order is matter, defines which provider will have priority in case of conflicting rules
