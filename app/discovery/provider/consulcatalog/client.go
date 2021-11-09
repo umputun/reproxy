@@ -57,7 +57,7 @@ func (cl *consulClient) Get() ([]consulService, error) {
 }
 
 func (cl *consulClient) getServiceNames() ([]string, error) {
-	req, err := http.NewRequest(http.MethodGet, cl.address+"/v1/catalog/services", nil)
+	req, err := http.NewRequest(http.MethodGet, cl.address+"/v1/catalog/services", http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("error create a http request, %w", err)
 	}
@@ -98,7 +98,7 @@ func (cl *consulClient) filterServices(src map[string][]string) []string {
 }
 
 func (cl *consulClient) getServices(serviceName string) ([]consulService, error) {
-	req, err := http.NewRequest(http.MethodGet, cl.address+"/v1/catalog/service/"+serviceName, nil)
+	req, err := http.NewRequest(http.MethodGet, cl.address+"/v1/catalog/service/"+serviceName, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("error create a http request, %w", err)
 	}

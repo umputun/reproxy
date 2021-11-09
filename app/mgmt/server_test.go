@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"regexp"
@@ -62,7 +62,7 @@ func TestServer_controllers(t *testing.T) {
 
 	client := http.Client{}
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/ping", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/ping", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestServer_controllers(t *testing.T) {
 	}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/routes", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/routes", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -94,13 +94,13 @@ func TestServer_controllers(t *testing.T) {
 		assert.Contains(t, fmt.Sprintf("%v", data["srv1"][0]), `ping:http://example.com/ping`, data["srv1"][0])
 	}
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/metrics", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/metrics", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		t.Logf("%s", string(body))
 

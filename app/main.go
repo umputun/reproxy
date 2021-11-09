@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -284,7 +283,7 @@ func run() error {
 func makeBasicAuth(htpasswdFile string) ([]string, error) {
 	var basicAuthAllowed []string
 	if htpasswdFile != "" {
-		data, err := ioutil.ReadFile(htpasswdFile)
+		data, err := os.ReadFile(htpasswdFile) //nolint:gosec //read file with opts passed path
 		if err != nil {
 			return nil, fmt.Errorf("failed to read htpasswd file %s: %w", htpasswdFile, err)
 		}
@@ -424,7 +423,7 @@ func makeErrorReporter() (proxy.Reporter, error) {
 		Nice: opts.ErrorReport.Enabled,
 	}
 	if opts.ErrorReport.Template != "" {
-		data, err := ioutil.ReadFile(opts.ErrorReport.Template)
+		data, err := os.ReadFile(opts.ErrorReport.Template)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load error html template from %s, %w", opts.ErrorReport.Template, err)
 		}
@@ -435,7 +434,7 @@ func makeErrorReporter() (proxy.Reporter, error) {
 
 func makeAccessLogWriter() (accessLog io.WriteCloser, err error) {
 	if !opts.Logger.Enabled {
-		return nopWriteCloser{ioutil.Discard}, nil
+		return nopWriteCloser{io.Discard}, nil
 	}
 
 	maxSize, perr := sizeParse(opts.Logger.MaxSize)

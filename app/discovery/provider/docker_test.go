@@ -3,10 +3,10 @@ package provider
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -344,7 +344,7 @@ func TestDockerClient(t *testing.T) {
 		require.Equal(t, `/v1.22/containers/json`, r.URL.Path)
 
 		// obtained using curl --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json
-		resp, err := ioutil.ReadFile("testdata/containers.json")
+		resp, err := os.ReadFile("testdata/containers.json")
 		require.NoError(t, err)
 		w.Write(resp)
 	}))
