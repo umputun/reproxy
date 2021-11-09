@@ -31,18 +31,18 @@ func TestFile_Events(t *testing.T) {
 
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 		time.Sleep(300 * time.Millisecond)
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 		time.Sleep(300 * time.Millisecond)
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 
 		// all those event will be ignored, submitted too fast
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
-		assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
+		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 	}()
 
 	ch := f.Events(ctx)
@@ -77,7 +77,7 @@ func TestFile_Events_BusyListener(t *testing.T) {
 
 		for i := 0; i < 2; i++ {
 			time.Sleep(30 * time.Millisecond)
-			assert.NoError(t, ioutil.WriteFile(tmp.Name(), []byte("something"), 0600))
+			assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 		}
 	}()
 

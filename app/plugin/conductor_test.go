@@ -262,7 +262,7 @@ func TestConductor_Middleware(t *testing.T) {
 	assert.Equal(t, 3, len(c.plugins), "3 plugins registered")
 	c.plugins[2].Alive = false // set 3rd to dead
 
-	rr, err := http.NewRequest("GET", "http://127.0.0.1", nil)
+	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
 	require.NoError(t, err)
 
 	m := discovery.MatchedRoute{
@@ -343,7 +343,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, 1, len(c.plugins), "one plugin registered")
 
-	rr, err := http.NewRequest("GET", "http://127.0.0.1", nil)
+	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
 	require.NoError(t, err)
 
 	m := discovery.MatchedRoute{
@@ -410,7 +410,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, 1, len(c.plugins), "one plugin registered")
 
-	rr, err := http.NewRequest("GET", "http://127.0.0.1", nil)
+	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

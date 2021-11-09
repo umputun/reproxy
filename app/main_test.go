@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -59,7 +59,7 @@ func Test_Main(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, "pong", string(body))
 	}
@@ -69,7 +69,7 @@ func Test_Main(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 	}
@@ -79,7 +79,7 @@ func Test_Main(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), `echo echo 123`)
 	}
@@ -89,7 +89,7 @@ func Test_Main(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, "oh my! 502 - Bad Gateway", string(body))
 	}
@@ -139,7 +139,7 @@ func Test_MainWithSSL(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, "pong", string(body))
 	}
@@ -149,7 +149,7 @@ func Test_MainWithSSL(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 	}
@@ -206,7 +206,7 @@ func Test_MainWithPlugin(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		assert.NoError(t, err)
 		t.Logf("body: %s", string(body))
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
@@ -387,6 +387,7 @@ func Test_makeBasicAuth(t *testing.T) {
 	defer fh.Close()
 
 	n, err := fh.WriteString(pf)
+	require.NoError(t, err)
 	require.Equal(t, len(pf), n)
 
 	res, err := makeBasicAuth(fh.Name())

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -61,7 +60,7 @@ func TestHttp_Do(t *testing.T) {
 	client := http.Client{}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -97,7 +96,7 @@ func TestHttp_Do(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
-		b, err := ioutil.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Contains(t, string(b), "Sorry for the inconvenience")
 		assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
@@ -141,7 +140,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	client := http.Client{}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -228,7 +227,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 	client := http.Client{}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -338,7 +337,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -411,7 +410,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 	}
 
 	{
-		req, err := http.NewRequest("GET", "http://localhost:"+strconv.Itoa(port)+"/api/something", nil)
+		req, err := http.NewRequest("GET", "http://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -422,7 +421,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 	}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -553,7 +552,7 @@ func TestHttp_health(t *testing.T) {
 	}
 
 	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", nil)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -684,7 +683,7 @@ func TestHttp_isAssetRequest(t *testing.T) {
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			h := Http{AssetsLocation: tt.assetsLocation, AssetsWebRoot: tt.assetsWebRoot}
-			r, err := http.NewRequest("GET", tt.req, nil)
+			r, err := http.NewRequest("GET", tt.req, http.NoBody)
 			require.NoError(t, err)
 			assert.Equal(t, tt.res, h.isAssetRequest(r))
 		})
@@ -770,7 +769,7 @@ func TestHttp_matchHandler(t *testing.T) {
 				assert.Equal(t, tt.res, v.(*url.URL).String())
 			}))
 
-			req, err := http.NewRequest("GET", "http://example.com", nil)
+			req, err := http.NewRequest("GET", "http://example.com", http.NoBody)
 			require.NoError(t, err)
 			wr := httptest.NewRecorder()
 			handler.ServeHTTP(wr, req)

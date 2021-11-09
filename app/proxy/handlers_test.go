@@ -24,7 +24,7 @@ func Test_headersHandler(t *testing.T) {
 		assert.Equal(t, "", r.Header.Get("r2"), "r2 header dropped")
 		assert.Equal(t, "rv3", r.Header.Get("r3"), "r3 kept")
 	}))
-	req, err := http.NewRequest("GET", "http://example.com", nil)
+	req, err := http.NewRequest("GET", "http://example.com", http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set("r1", "rv1")
 	req.Header.Set("r2", "rv2")
@@ -109,7 +109,7 @@ func Test_limiterSystemHandler(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		go func() {
 			defer wg.Done()
-			req, err := http.NewRequest("GET", ts.URL, nil)
+			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
 			require.NoError(t, err)
 			client := http.Client{}
 			resp, err := client.Do(req)
@@ -134,7 +134,7 @@ func Test_limiterClientHandlerNoMatches(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		go func() {
 			defer wg.Done()
-			req, err := http.NewRequest("GET", ts.URL, nil)
+			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
 			require.NoError(t, err)
 			client := http.Client{}
 			resp, err := client.Do(req)
@@ -215,7 +215,7 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			req, err := http.NewRequest("GET", ts.URL, nil)
+			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
 			require.NoError(t, err)
 			tt.reqFn(req)
 			resp, err := client.Do(req)
@@ -235,7 +235,7 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 	ts2 := httptest.NewServer(handler)
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			req, err := http.NewRequest("GET", ts2.URL, nil)
+			req, err := http.NewRequest("GET", ts2.URL, http.NoBody)
 			require.NoError(t, err)
 			tt.reqFn(req)
 			resp, err := client.Do(req)
