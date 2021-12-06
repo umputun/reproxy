@@ -301,7 +301,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0] // drop port
 		}
-		matches := h.Match(server, r.URL.Path) // get all matches for the server:path pair
+		matches := h.Match(server, r.URL.EscapedPath()) // get all matches for the server:path pair
 		match, ok := getMatch(matches, h.LBSelector)
 		if ok {
 			ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info

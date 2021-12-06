@@ -101,6 +101,20 @@ func TestHttp_Do(t *testing.T) {
 		assert.Contains(t, string(b), "Sorry for the inconvenience")
 		assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
 	}
+
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/api/test%20%25%20and%20&,%20and%20other%20characters%20@%28%29%5E%21")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /123/test%20%25%20and%20&,%20and%20other%20characters%20@%28%29%5E%21", string(body))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+	}
 }
 
 func TestHttp_DoWithAssets(t *testing.T) {
