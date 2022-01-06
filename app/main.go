@@ -36,10 +36,10 @@ var opts struct {
 	DropHeaders       []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 	AuthBasicHtpasswd string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
 
-	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` //nolint
+	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
 
 	SSL struct {
-		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
+		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint
 		Cert          string   `long:"cert" env:"CERT" description:"path to cert.pem file"`
 		Key           string   `long:"key" env:"KEY" description:"path to key.pem file"`
 		ACMELocation  string   `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
@@ -53,6 +53,7 @@ var opts struct {
 		WebRoot      string   `long:"root" env:"ROOT" default:"/" description:"assets web root"`
 		SPA          bool     `long:"spa" env:"SPA" description:"spa treatment for assets"`
 		CacheControl []string `long:"cache" env:"CACHE" description:"cache duration for assets" env-delim:","`
+		NotFound     string   `long:"not-found" env:"NOT_FOUND" description:"path to file to serve on 404, relative to location"`
 	} `group:"assets" namespace:"assets" env-namespace:"ASSETS"`
 
 	Logger struct {
@@ -240,6 +241,7 @@ func run() error {
 		MaxBodySize:    int64(maxBodySize),
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
+		Assets404:      opts.Assets.NotFound,
 		AssetsSPA:      opts.Assets.SPA,
 		CacheControl:   cacheControl,
 		GzEnabled:      opts.GzipEnabled,

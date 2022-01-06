@@ -189,6 +189,9 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "404 page not found\n", string(body))
 	}
 
 	{
@@ -200,6 +203,85 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(body), "Server error")
 		assert.Equal(t, "text/plain; charset=utf-8", resp.Header.Get("Content-Type"))
+	}
+}
+
+func TestHttp_DoWithAssetsCustom404(t *testing.T) {
+	port := rand.Intn(10000) + 40000
+	cc := NewCacheControl(time.Hour * 12)
+	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", Assets404: "404.html",
+		CacheControl: cc, Reporter: &ErrorReporter{Nice: false}}
+	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	defer cancel()
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("req: %v", r)
+		w.Header().Add("h1", "v1")
+		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{
+			"localhost,^/api/(.*)," + ds.URL + "/123/$1,",
+			"127.0.0.1,^/api/(.*)," + ds.URL + "/567/$1,",
+		},
+		}}, time.Millisecond*10)
+
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+	time.Sleep(50 * time.Millisecond)
+	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	client := http.Client{}
+
+	{
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /567/something", string(body))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+	}
+
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/static/1.html")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "test html", string(body))
+		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
+	}
+
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/static/bad.html")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "not found! blah blah blah\nthere is no spoon", string(body))
 	}
 }
 
