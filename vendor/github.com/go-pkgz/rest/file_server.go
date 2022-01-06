@@ -155,7 +155,9 @@ type respWriter404 struct {
 
 func (w *respWriter404) WriteHeader(status int) {
 	w.status = status
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if status == http.StatusNotFound {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
 	w.ResponseWriter.WriteHeader(status)
 }
 
