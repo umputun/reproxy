@@ -8,7 +8,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-pkgz/lgr v0.10.4
 	github.com/go-pkgz/repeater v1.1.3
-	github.com/go-pkgz/rest v1.12.0
+	github.com/go-pkgz/rest v1.12.1
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/gorilla/handlers v1.5.1
 	github.com/prometheus/client_golang v1.11.0

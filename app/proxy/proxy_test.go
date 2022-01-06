@@ -282,6 +282,20 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "not found! blah blah blah\nthere is no spoon", string(body))
+		t.Logf("%+v", resp.Header)
+		assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+	}
+
+	{
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/static/bad2.html")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "not found! blah blah blah\nthere is no spoon", string(body))
+		t.Logf("%+v", resp.Header)
+		assert.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
 	}
 }
 
