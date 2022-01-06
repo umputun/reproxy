@@ -196,6 +196,8 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
+Custom 404 (not found) page can be set with `--assets.404=<path>` parameter. The path should be relative to the assets root.
+
 ## Using reproxy as a base image
 
 Serving purely static content is one of the popular use cases. Usually this used for the separate frontend container providing UI only. With the assets server such a container is almost trivial to make. This is an example from the container serving [reproxy.io](http://reproxy.io)
@@ -365,6 +367,7 @@ assets:
       --assets.root=                assets web root (default: /) [$ASSETS_ROOT]
       --assets.spa                  spa treatment for assets [$ASSETS_SPA]
       --assets.cache=               cache duration for assets [$ASSETS_CACHE]
+      --assets.not-found=           path to file to serve on 404, relative to location [$ASSETS_NOT_FOUND]
 
 logger:
       --logger.stdout               enable stdout logging [$LOGGER_STDOUT]

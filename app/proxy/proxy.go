@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,6 +31,7 @@ type Http struct { // nolint golint
 	Address         string
 	AssetsLocation  string
 	AssetsWebRoot   string
+	Assets404       string
 	AssetsSPA       bool
 	MaxBodySize     int64
 	GzEnabled       bool
@@ -91,6 +95,9 @@ func (h *Http) Run(ctx context.Context) error {
 
 	if h.AssetsLocation != "" {
 		log.Printf("[DEBUG] assets file server enabled for %s, webroot %s", h.AssetsLocation, h.AssetsWebRoot)
+		if h.Assets404 != "" {
+			log.Printf("[DEBUG] assets 404 file enabled for %s", h.Assets404)
+		}
 	}
 
 	if h.LBSelector == nil {
@@ -260,7 +267,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
-			fs, err := h.fileServer(ae[0], ae[1], ae[2] == "spa")
+			fs, err := h.fileServer(ae[0], ae[1], ae[2] == "spa", nil)
 			if err != nil {
 				log.Printf("[WARN] file server error, %v", err)
 				h.Reporter.Report(w, http.StatusInternalServerError)
@@ -327,8 +334,20 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
 		return func(writer http.ResponseWriter, request *http.Request) {}
 	}
-	log.Printf("[DEBUG] shared assets server enabled for %s %s, spa=%v", h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA)
-	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA)
+
+	var notFound []byte
+	var err error
+	if h.Assets404 != "" {
+		if notFound, err = os.ReadFile(filepath.Join(h.AssetsLocation, h.Assets404)); err != nil {
+			log.Printf("[WARN] can't read  404 file %s, %v", h.Assets404, err)
+			notFound = nil
+		}
+	}
+
+	log.Printf("[DEBUG] shared assets server enabled for %s %s, spa=%v, not-found=%q",
+		h.AssetsLocation, h.AssetsWebRoot, h.AssetsSPA, h.Assets404)
+
+	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA, notFound)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
 		return func(writer http.ResponseWriter, request *http.Request) {}
@@ -336,11 +355,15 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	return h.CacheControl.Middleware(fs).ServeHTTP
 }
 
-func (h *Http) fileServer(assetsWebRoot, assetsLocation string, spa bool) (http.Handler, error) {
-	if spa {
-		return R.FileServerSPA(assetsWebRoot, assetsLocation, nil)
+func (h *Http) fileServer(assetsWebRoot, assetsLocation string, spa bool, notFound []byte) (http.Handler, error) {
+	var notFoundReader io.Reader
+	if notFound != nil {
+		notFoundReader = bytes.NewReader(notFound)
 	}
-	return R.FileServer(assetsWebRoot, assetsLocation, nil)
+	if spa {
+		return R.FileServerSPA(assetsWebRoot, assetsLocation, notFoundReader)
+	}
+	return R.FileServer(assetsWebRoot, assetsLocation, notFoundReader)
 }
 
 func (h *Http) isAssetRequest(r *http.Request) bool {
