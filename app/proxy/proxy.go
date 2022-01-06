@@ -361,9 +361,9 @@ func (h *Http) fileServer(assetsWebRoot, assetsLocation string, spa bool, notFou
 		notFoundReader = bytes.NewReader(notFound)
 	}
 	if spa {
-		return R.FileServerSPA(assetsWebRoot, assetsLocation, notFoundReader)
+		return R.NewFileServer(assetsWebRoot, assetsLocation, R.FsOptCustom404(notFoundReader), R.FsOptSPA)
 	}
-	return R.FileServer(assetsWebRoot, assetsLocation, notFoundReader)
+	return R.NewFileServer(assetsWebRoot, assetsLocation, R.FsOptCustom404(notFoundReader))
 }
 
 func (h *Http) isAssetRequest(r *http.Request) bool {
