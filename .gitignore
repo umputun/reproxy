@@ -7,3 +7,5 @@ docker-compose-private.yml
 .vscode
 .idea
 *.gpg
+.DS_Store
+*.pem

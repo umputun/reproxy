@@ -20,6 +20,7 @@ import (
 	"github.com/umputun/go-flags"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/umputun/reproxy/app/acme"
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
@@ -39,13 +40,19 @@ var opts struct {
 	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
 
 	SSL struct {
-		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint
-		Cert          string   `long:"cert" env:"CERT" description:"path to cert.pem file"`
-		Key           string   `long:"key" env:"KEY" description:"path to key.pem file"`
-		ACMELocation  string   `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
-		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
-		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
-		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
+		Type                 string        `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
+		Cert                 string        `long:"cert" default:"./var/acme/cert.pem" env:"CERT" description:"path to cert.pem file"`
+		Key                  string        `long:"key" default:"./var/acme/key.pem" env:"KEY" description:"path to key.pem file"`
+		ACMELocation         string        `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
+		ACMEEmail            string        `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
+		RedirHTTPPort        int           `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
+		FQDNs                []string      `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
+		DNSChallengeEnabled  bool          `long:"dns-challenge-enabled" env:"ACME_DNS_CHALLENGE_ENABLED" description:"enable dns challenge"`
+		DNSProvider          string        `long:"dns-challenge-provider" env:"ACME_DNS_CHALLENGE_PROVIDER" description:"DNS provider" choice:"cloudns" choice:"cloudflare" choice:"route53" default:"cloudns"` //nolint
+		DNSResolvers         []string      `long:"dns-challenge-resolvers" env-delim:"," env:"ACME_DNS_CHALLENGE_RESOLVERS" description:"DNS resolvers" `
+		DNSChallengeTimeout  time.Duration `long:"dns-challenge-timeout" env:"ACME_DNS_CHALLENGE_TIMEOUT" description:"DNS challenge timeout in seconds" default:"300s"`
+		DNSChallengeInterval time.Duration `long:"dns-challenge-interval" env:"ACME_DNS_CHALLENGE_INTERVAL" description:"DNS challenge polling interval in seconds" default:"10s"`
+		DNSProviderConf      string        `long:"dns-provider-config" env:"SSL_ACME_DNS_PROVIDER_CONFIG" description:"path to DNS provider config file"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
@@ -193,6 +200,35 @@ func run() error {
 	sslConfig, sslErr := makeSSLConfig()
 	if sslErr != nil {
 		return fmt.Errorf("failed to make config of ssl server params: %w", sslErr)
+	}
+
+	if sslConfig.SSLMode == proxy.SSLAuto &&
+		opts.SSL.DNSChallengeEnabled {
+		domains := make([]string, 0, len(opts.SSL.FQDNs))
+		for _, fqdn := range opts.SSL.FQDNs {
+			domains = append(domains, strings.TrimSuffix(fqdn, "."))
+		}
+
+		dcc := acme.DNSChallengeConfig{
+			Provider:        opts.SSL.DNSProvider,
+			Domains:         domains,
+			Nameservers:     opts.SSL.DNSResolvers,
+			ProviderConfig:  opts.SSL.DNSProviderConf,
+			Timeout:         opts.SSL.DNSChallengeTimeout,
+			PollingInterval: opts.SSL.DNSChallengeInterval,
+			CertPath:        opts.SSL.Cert,
+			KeyPath:         opts.SSL.Key,
+		}
+
+		var dc *acme.DNSChallenge
+		dc, err = acme.NewDNSChallege(dcc)
+		if err != nil {
+			log.Printf("[ERROR] failed to create dns challenge: %v", err)
+		}
+
+		if dc != nil {
+			acme.ScheduleCertificateRenewal(context.Background(), dc, opts.SSL.Cert)
+		}
 	}
 
 	accessLog, alErr := makeAccessLogWriter()

@@ -1,3 +1,7 @@
+# github.com/BurntSushi/toml v1.0.0
+## explicit; go 1.16
+github.com/BurntSushi/toml
+github.com/BurntSushi/toml/internal
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -40,6 +44,12 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/gorilla/handlers v1.5.1
 ## explicit; go 1.14
 github.com/gorilla/handlers
+# github.com/ilyakaznacheev/cleanenv v1.2.6
+## explicit; go 1.13
+github.com/ilyakaznacheev/cleanenv
+# github.com/joho/godotenv v1.4.0
+## explicit; go 1.12
+github.com/joho/godotenv
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 ## explicit
 github.com/matttproud/golang_protobuf_extensions/pbutil
@@ -135,3 +145,6 @@ gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 ## explicit
 gopkg.in/yaml.v3
+# olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3
+## explicit; go 1.13
+olympos.io/encoding/edn

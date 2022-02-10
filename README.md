@@ -154,6 +154,13 @@ In case if rules set as a part of docker compose environment, destination with t
 
 SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s)
 
+### DNS Challenge 
+
+Reproxy supports automatic ACME DNS challenge. It checks whether the certificate is expiring or if it exists at all. If necessary reproxy initiate the DNS challenge, obtain or renew the certificates. It adds TXT record to a specified DNS provider and saves the LE certificate with a private key. 
+DNS Challenge can only be enabled for SSL mode `auto` (the flag`--ssl.type`)
+DNS challenge is enabled by passing `--ssl.dns.enabled` flag. DNS provider is to specify with the flag `--ssl.dns-challenge.provider`.  For full list of supported DNS providers: see [DNS Providers](app/acme/dnsprovider/README.md) section. Provider-specific parameters should be passed with environment variables. It is possible to specify DNS nameservers for record propagation check `--dns-challenge-resolvers`.
+
+
 ## Headers 
 
 Reproxy allows to sanitize (remove) incoming headers by passing `--drop-header` parameter (can be repeated). This parameter can be useful to make sure some of the headers, set internally by the services, can't be set/faked by the end user. For example if some of the services, responsible for the auth, sets `X-Auth-User` and `X-Auth-Token` it is likely makes sense to drop those headers from the incoming requests by passing `--drop-header=X-Auth-User --drop-header=X-Auth-Token` parameter or via environment `DROP_HEADERS=X-Auth-User,X-Auth-Token`
@@ -339,6 +346,7 @@ This is the list of all options supporting multiple elements:
 - `static.rule` (`$STATIC_RULES`)
 - `header` (`$HEADER`)
 - `drop-header` (`$DROP_HEADERS`)
+- `ssl.dns-challenge-resolvers` (`SSL_ACME_DNS_CHALLENGE_RESOLVERS`)
 
 ## All Application Options
 
@@ -354,13 +362,19 @@ This is the list of all options supporting multiple elements:
       --dbg                         debug mode [$DEBUG]
 
 ssl:
-      --ssl.type=[none|static|auto] ssl (auto) support (default: none) [$SSL_TYPE]
-      --ssl.cert=                   path to cert.pem file [$SSL_CERT]
-      --ssl.key=                    path to key.pem file [$SSL_KEY]
-      --ssl.acme-location=          dir where certificates will be stored by autocert manager (default: ./var/acme) [$SSL_ACME_LOCATION]
-      --ssl.acme-email=             admin email for certificate notifications [$SSL_ACME_EMAIL]
-      --ssl.http-port=              http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without) [$SSL_HTTP_PORT]
-      --ssl.fqdn=                   FQDN(s) for ACME certificates [$SSL_ACME_FQDN]
+      --ssl.type=[none|static|auto|dns]  ssl (auto) support (default: none) [$SSL_TYPE]
+      --ssl.cert=                    path to cert.pem file [$SSL_CERT] (default: ./var/acme/cert.pem)
+      --ssl.key=                     path to key.pem file [$SSL_KEY] (default: ./var/acme/key.pem)
+      --ssl.acme-location=           dir where certificates will be stored by autocert manager (default: ./var/acme) [$SSL_ACME_LOCATION]
+      --ssl.acme-email=              admin email for certificate notifications [$SSL_ACME_EMAIL]
+      --ssl.http-port=               http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without) [$SSL_HTTP_PORT]
+      --ssl.fqdn=                    FQDN(s) for ACME certificates [$SSL_ACME_FQDN]
+      --ssl.dns-challenge-enabled    enable dns challenge for ACME certificates [$SSL_ACME_DNS_CHALLENGE_ENABLED]
+      --ssl.dns-challenge-provider=  dns challenge provider [$SSL_ACME_DNS_CHALLENGE_PROVIDER]    
+      --ssl.dns-challenge-resolvers= dns resolvers for dns challenge (default: "google-public-dns-a.google.com", "google-public-dns-b.google.com",) [$SSL_ACME_DNS_CHALLENGE_RESOLVERS]
+      --ssl.dns-challenge-timeout=   dns challenge timeout in seconds (default: 180) [$SSL_ACME_DNS_PROVIDER_TIMEOUT]
+      --ssl.dns-challenge-interval=  dns challenge polling interval in seconds (default: 10) [$SSL_ACME_DNS_CHALLENGE_INTERVAL]
+      --ssl.dns-provider-config=     path to dns provider config file [$SSL_ACME_DNS_PROVIDER_CONFIG]
 
 assets:
   -a, --assets.location=            assets location [$ASSETS_LOCATION]
