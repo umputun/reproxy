@@ -404,6 +404,8 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
+	default:
+		return config, errors.New("wrong ssl.type value, use 'none', 'static' or 'auto'")
 	}
 	return config, err
 }
