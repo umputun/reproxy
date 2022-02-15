@@ -405,7 +405,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	default:
-		return config, fmt.Errorf("Invalid value \"%s\" for SSL_TYPE. Allowed values are: none, static or auto", opts.SSL.Type)
+		return config, fmt.Errorf("invalid value %q for SSL_TYPE, allowed values are: none, static or auto", opts.SSL.Type)
 	}
 	return config, err
 }
