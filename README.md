@@ -286,7 +286,7 @@ User activity limited for both matched and unmatched routes. All unmatched route
 
 Reproxy supports basic auth for all requests. This is useful for protecting endpoints during the development and testing, before allowing unrestricted access to them. This functionality is disabled by default and not granular enough to allow for per-route auth. I.e. enabled basic auth will affect all requests.
 
-In order to enable basic auth for all requests, user should set the typical htpasswd file with `--auth.basic-htpasswd=<file location>` or `env AUTH_BASIC_HTPASSWD=<file location>`. 
+In order to enable basic auth for all requests, user should set the typical htpasswd file with `--basic-htpasswd=<file location>` or `env BASIC_HTPASSWD=<file location>`. 
 
 Reproxy expects htpasswd file to be in the following format:
 
