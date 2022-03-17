@@ -28,6 +28,7 @@ jobs:
         env:
           GOFLAGS: "-mod=vendor"
           TZ: "America/Chicago"
+          DNS_CHALLENGE_TEST_ENABLED: "" # if true enables unittest for dns challenge against LE staging env
 
       - name: install golangci-lint and goveralls
         run: |
