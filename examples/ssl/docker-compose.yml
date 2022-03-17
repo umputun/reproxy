@@ -9,11 +9,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./web:/web
+      - ./var/ssl:/srv/var/ssl
     environment:
       - TZ=America/Chicago
       - DOCKER_ENABLED=true
       - SSL_TYPE=auto
       - SSL_ACME_FQDN=example.com <-- replace it
+      - SSL_ACME_LOCATION=/srv/var/ssl
       - HEADER=
           X-Frame-Options:SAMEORIGIN,
           X-XSS-Protection:1; mode=block;,
