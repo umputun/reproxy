@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ type Handler struct {
 	Method  string // full method name for rpc call, i.e. Plugin.Thing
 	Alive   bool
 	client  RPCClient
+	Tail    bool // indicates that this handler calls after main handler and allows to redefine response
 }
 
 // conductorCtxtKey used to retrieve conductor from context
@@ -109,6 +111,42 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 				continue
 			}
 
+			if p.Tail {
+				c.lock.RUnlock()
+
+				ww := httptest.NewRecorder()
+
+				next.ServeHTTP(ww, r)
+
+				req := c.makeRequest(r)
+				req.ResponseCode = ww.Code
+				req.ResponseBody = ww.Body.Bytes()
+				req.ResponseHeaders = ww.Header()
+
+				var reply lib.Response
+				if err := p.client.Call(p.Method, req, &reply); err != nil {
+					log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
+				}
+				if reply.StatusCode != 0 {
+					w.WriteHeader(reply.StatusCode)
+				}
+				for k, vv := range reply.HeadersOut {
+					for _, v := range vv {
+						w.Header().Add(k, v)
+					}
+				}
+				if len(reply.Body) == 0 {
+					return
+				}
+				_, errWrite := w.Write(reply.Body)
+				if errWrite != nil {
+					log.Printf("[WARN] failed to write response body: %v", errWrite)
+				}
+				return
+			}
+
 			var reply lib.Response
 			if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
 				log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
@@ -118,6 +156,26 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 
 			setHeaders(r.Header, reply.HeadersIn, reply.OverrideHeadersIn)
 			setHeaders(w.Header(), reply.HeadersOut, reply.OverrideHeadersOut)
+
+			if reply.Break {
+				c.lock.RUnlock()
+				if reply.StatusCode != 0 {
+					w.WriteHeader(reply.StatusCode)
+				}
+				for k, vv := range reply.HeadersOut {
+					for _, v := range vv {
+						w.Header().Add(k, v)
+					}
+				}
+				if len(reply.Body) == 0 {
+					return
+				}
+				_, errWrite := w.Write(reply.Body)
+				if errWrite != nil {
+					log.Printf("[WARN] failed to write response body: %v", errWrite)
+				}
+				return
+			}
 
 			if reply.StatusCode >= 400 {
 				c.lock.RUnlock()
@@ -214,6 +272,10 @@ func (c *Conductor) register(p lib.Plugin) error {
 
 	for _, l := range p.Methods {
 		handler := Handler{client: client, Alive: true, Address: p.Address, Method: p.Name + "." + l}
+		if strings.HasSuffix(l, ".Tail") {
+			handler.Tail = true
+			handler.Method = strings.TrimSuffix(handler.Method, ".Tail")
+		}
 		pp = append(pp, handler)
 		log.Printf("[INFO] register plugin %s, ip: %s, method: %s", p.Name, p.Address, handler.Method)
 	}

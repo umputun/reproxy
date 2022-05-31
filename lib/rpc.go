@@ -22,6 +22,10 @@ type Request struct {
 		AssetsLocation string
 		AssetsWebRoot  string
 	}
+	// for WrapperMode plugins
+	ResponseCode    int
+	ResponseBody    []byte
+	ResponseHeaders http.Header
 }
 
 // Response from plugin's handler call
@@ -29,6 +33,8 @@ type Response struct {
 	StatusCode         int
 	HeadersIn          http.Header
 	HeadersOut         http.Header
-	OverrideHeadersIn  bool // indicates plugin removing all the original incoming headers
-	OverrideHeadersOut bool // indicates plugin removing all the original outgoing headers
+	OverrideHeadersIn  bool   // indicates plugin removing all the original incoming headers
+	OverrideHeadersOut bool   // indicates plugin removing all the original outgoing headers
+	Break              bool   // indicates plugin should stop processing the request
+	Body               []byte // response body, use if you break the request
 }
