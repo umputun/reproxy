@@ -136,6 +136,7 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
 	res := lib.Request{
+		Method:     r.Method,
 		URL:        r.URL.String(),
 		RemoteAddr: r.RemoteAddr,
 		Host:       r.URL.Hostname(),

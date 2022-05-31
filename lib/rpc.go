@@ -6,6 +6,7 @@ import (
 
 // Request sent to plugins
 type Request struct {
+	Method     string
 	URL        string
 	RemoteAddr string
 	Host       string
