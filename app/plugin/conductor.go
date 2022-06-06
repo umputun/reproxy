@@ -111,6 +111,7 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 
 			var reply lib.Response
 			if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
+				c.lock.RUnlock()
 				log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
