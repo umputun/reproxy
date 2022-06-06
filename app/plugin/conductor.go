@@ -138,6 +138,7 @@ func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
 	res := lib.Request{
 		URL:        r.URL.String(),
+		Method:     r.Method,
 		RemoteAddr: r.RemoteAddr,
 		Host:       r.URL.Hostname(),
 		Header:     r.Header,
