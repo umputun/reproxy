@@ -16,9 +16,10 @@ import (
 
 // Plugin provides cancelable rpc server used to run custom plugins
 type Plugin struct {
-	Name    string   `json:"name"`
-	Address string   `json:"address"`
-	Methods []string `json:"methods"`
+	Name        string   `json:"name"`
+	Address     string   `json:"address"`
+	Methods     []string `json:"methods"`
+	TailMethods []string `json:"tail_methods"`
 }
 
 // Do register the plugin, send info to reproxy conductor and activate RPC listener.

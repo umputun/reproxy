@@ -22,6 +22,11 @@ type Request struct {
 		AssetsLocation string
 		AssetsWebRoot  string
 	}
+
+	// use for tail plugins
+	ResponseCode    int
+	ResponseBody    []byte
+	ResponseHeaders http.Header
 }
 
 // Response from plugin's handler call
@@ -32,6 +37,10 @@ type Response struct {
 	OverrideHeadersIn  bool // indicates plugin removing all the original incoming headers
 	OverrideHeadersOut bool // indicates plugin removing all the original outgoing headers
 
-	Break bool // indicates plugin should stop processing the request and returns StatusCode and Body
-	Body  []byte
+	Break bool   // indicates plugin stop processing the request and returns StatusCode and Body
+	Body  []byte // response body if Break is true
+
+	// use for tail plugins
+	OverrideStatusCode bool
+	OverrideBody       bool
 }
