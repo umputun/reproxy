@@ -120,6 +120,16 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 			setHeaders(r.Header, reply.HeadersIn, reply.OverrideHeadersIn)
 			setHeaders(w.Header(), reply.HeadersOut, reply.OverrideHeadersOut)
 
+			if reply.Break {
+				c.lock.RUnlock()
+				w.WriteHeader(reply.StatusCode)
+				_, errWrite := w.Write(reply.Body)
+				if errWrite != nil {
+					log.Printf("[WARN] failed to write response body: %v", errWrite)
+				}
+				return
+			}
+
 			if reply.StatusCode >= 400 {
 				c.lock.RUnlock()
 				http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)

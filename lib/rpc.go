@@ -31,4 +31,7 @@ type Response struct {
 	HeadersOut         http.Header
 	OverrideHeadersIn  bool // indicates plugin removing all the original incoming headers
 	OverrideHeadersOut bool // indicates plugin removing all the original outgoing headers
+
+	Break bool // indicates plugin should stop processing the request and returns StatusCode and Body
+	Body  []byte
 }
