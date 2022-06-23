@@ -197,7 +197,7 @@ func run() error {
 
 	accessLog, alErr := makeAccessLogWriter()
 	if alErr != nil {
-		return fmt.Errorf("failed to access log: %w", sslErr)
+		return fmt.Errorf("failed to access log: %w", alErr)
 	}
 
 	defer func() {
