@@ -7,6 +7,7 @@ import (
 // Request sent to plugins
 type Request struct {
 	URL        string
+	Method     string
 	RemoteAddr string
 	Host       string
 	Header     http.Header
@@ -21,6 +22,11 @@ type Request struct {
 		AssetsLocation string
 		AssetsWebRoot  string
 	}
+
+	// use for tail plugins
+	ResponseCode    int
+	ResponseBody    []byte
+	ResponseHeaders http.Header
 }
 
 // Response from plugin's handler call
@@ -30,4 +36,11 @@ type Response struct {
 	HeadersOut         http.Header
 	OverrideHeadersIn  bool // indicates plugin removing all the original incoming headers
 	OverrideHeadersOut bool // indicates plugin removing all the original outgoing headers
+
+	Break bool   // indicates plugin stop processing the request and returns StatusCode and Body
+	Body  []byte // response body if Break is true
+
+	// use for tail plugins
+	OverrideStatusCode bool
+	OverrideBody       bool
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"time"
@@ -25,8 +26,9 @@ type Conductor struct {
 	Address   string
 	RPCDialer RPCDialer
 
-	plugins []Handler
-	lock    sync.RWMutex
+	plugins     []Handler
+	tailPlugins []Handler
+	lock        sync.RWMutex
 }
 
 // Handler contains information about a plugin's handler
@@ -111,6 +113,7 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 
 			var reply lib.Response
 			if err := p.client.Call(p.Method, c.makeRequest(r), &reply); err != nil {
+				c.lock.RUnlock()
 				log.Printf("[WARN] failed to invoke plugin handler %s: %v", p.Method, err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
@@ -119,16 +122,89 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 			setHeaders(r.Header, reply.HeadersIn, reply.OverrideHeadersIn)
 			setHeaders(w.Header(), reply.HeadersOut, reply.OverrideHeadersOut)
 
+			if reply.Break {
+				c.lock.RUnlock()
+				sendResponse(w, reply.StatusCode, reply.Body, nil)
+				return
+			}
+
 			if reply.StatusCode >= 400 {
 				c.lock.RUnlock()
 				http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)
 				return
 			}
 		}
-		c.lock.RUnlock()
 
-		next.ServeHTTP(w, r)
+		// fast path with no tail plugins
+		if len(c.tailPlugins) == 0 {
+			c.lock.RUnlock()
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		ww := httptest.NewRecorder()
+		for k, vv := range w.Header() {
+			for _, v := range vv {
+				ww.Header().Add(k, v)
+			}
+		}
+
+		next.ServeHTTP(ww, r)
+
+		responseCode := ww.Code
+		responseBody := ww.Body.Bytes()
+		responseHeaders := ww.Header()
+
+		for _, p := range c.tailPlugins {
+			if !p.Alive {
+				continue
+			}
+
+			req := c.makeRequest(r)
+			req.ResponseCode = responseCode
+			req.ResponseBody = responseBody
+			req.ResponseHeaders = responseHeaders
+
+			var reply lib.Response
+			if err := p.client.Call(p.Method, req, &reply); err != nil {
+				c.lock.RUnlock()
+				log.Printf("[WARN] failed to invoke tail plugin handler %s: %v", p.Method, err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			setHeaders(r.Header, reply.HeadersIn, reply.OverrideHeadersIn)
+			setHeaders(responseHeaders, reply.HeadersOut, reply.OverrideHeadersOut)
+
+			if reply.OverrideStatusCode {
+				responseCode = reply.StatusCode
+			}
+			if reply.OverrideBody {
+				responseBody = reply.Body
+			}
+
+			if reply.Break {
+				c.lock.RUnlock()
+				sendResponse(w, responseCode, responseBody, responseHeaders)
+				return
+			}
+		}
+		c.lock.RUnlock()
+		sendResponse(w, responseCode, responseBody, responseHeaders)
 	})
+}
+
+func sendResponse(w http.ResponseWriter, code int, body []byte, headers http.Header) {
+	for k, vv := range headers {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(code)
+	_, errWrite := w.Write(body)
+	if errWrite != nil {
+		log.Printf("[WARN] failed to write response body: %v", errWrite)
+	}
 }
 
 // makeRequest creates plugin request from http.Request
@@ -137,6 +213,7 @@ func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
 	res := lib.Request{
 		URL:        r.URL.String(),
+		Method:     r.Method,
 		RemoteAddr: r.RemoteAddr,
 		Host:       r.URL.Hostname(),
 		Header:     r.Header,
@@ -206,6 +283,20 @@ func (c *Conductor) register(p lib.Plugin) error {
 		pp = append(pp, h)
 	}
 
+	var tpp []Handler //nolint
+	for _, h := range c.tailPlugins {
+		if strings.HasPrefix(h.Method, p.Name+".") && h.Address == p.Address { // already registered
+			log.Printf("[WARN] tail plugin %+v already registered", p)
+			return nil
+		}
+
+		if strings.HasPrefix(h.Method, p.Name+".") && h.Address != p.Address { // registered, but address changed
+			log.Printf("[WARN] tail plugin %+v already registered, but address changed to %s", h, p.Address)
+			continue // remove from the collected pp
+		}
+		tpp = append(tpp, h)
+	}
+
 	client, err := c.RPCDialer.Dial("tcp", p.Address)
 	if err != nil {
 		return fmt.Errorf("can't reach plugin %+v: %v", p, err)
@@ -217,20 +308,36 @@ func (c *Conductor) register(p lib.Plugin) error {
 		log.Printf("[INFO] register plugin %s, ip: %s, method: %s", p.Name, p.Address, handler.Method)
 	}
 	c.plugins = pp
+
+	for _, l := range p.TailMethods {
+		handler := Handler{client: client, Alive: true, Address: p.Address, Method: p.Name + "." + l}
+		tpp = append(tpp, handler)
+		log.Printf("[INFO] tail register plugin %s, ip: %s, method: %s", p.Name, p.Address, handler.Method)
+	}
+	c.tailPlugins = tpp
 	return nil
 }
 
 // unregister plugin, not thread safe! call should be enclosed with lock
 func (c *Conductor) unregister(p lib.Plugin) {
 	log.Printf("[INFO] unregister plugin %s, ip: %s", p.Name, p.Address)
-	var res []Handler //nolint
+	var pp []Handler //nolint
 	for _, h := range c.plugins {
 		if strings.HasPrefix(h.Method, p.Name+".") {
 			continue
 		}
-		res = append(res, h)
+		pp = append(pp, h)
 	}
-	c.plugins = res
+	c.plugins = pp
+
+	var tpp []Handler //nolint
+	for _, h := range c.tailPlugins {
+		if strings.HasPrefix(h.Method, p.Name+".") {
+			continue
+		}
+		tpp = append(tpp, h)
+	}
+	c.tailPlugins = tpp
 }
 
 func (c *Conductor) locked(fn func()) {
