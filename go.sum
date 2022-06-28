@@ -79,8 +79,6 @@ github.com/go-pkgz/expirable-cache v0.0.3 h1:rTh6qNPp78z0bQE6HDhXBHUwqnV9i09Vm6d
 github.com/go-pkgz/expirable-cache v0.0.3/go.mod h1:+IauqN00R2FqNRLCLA+X5YljQJrwB179PfiAoMPlTlQ=
 github.com/go-pkgz/lgr v0.10.4 h1:l7qyFjqEZgwRgaQQSEp6tve4A3OU80VrfzpvtEX8ngw=
 github.com/go-pkgz/lgr v0.10.4/go.mod h1:CD0s1z6EFpIUplV067gitF77tn25JItzwHNKAPqeCF0=
-github.com/go-pkgz/repeater v1.1.3 h1:q6+JQF14ESSy28Dd7F+wRelY4F+41HJ0LEy/szNnMiE=
-github.com/go-pkgz/repeater v1.1.3/go.mod h1:hVTavuO5x3Gxnu8zW7d6sQBfAneKV8X2FjU48kGfpKw=
 github.com/go-pkgz/rest v1.14.0 h1:brDLCzIGoe0IiUZqRFpsiCVM9m3L88A7z62qS0V9Yfk=
 github.com/go-pkgz/rest v1.14.0/go.mod h1:KUWAqbDteYGS/CiXftomQsKjtEOifXsJ36Ka0skYbmk=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=

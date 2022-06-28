@@ -22,32 +22,30 @@ import (
 	"github.com/go-pkgz/rest/logger"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/plugin"
 )
 
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address         string
-	AssetsLocation  string
-	AssetsWebRoot   string
-	Assets404       string
-	AssetsSPA       bool
-	MaxBodySize     int64
-	GzEnabled       bool
-	ProxyHeaders    []string
-	DropHeader      []string
-	SSLConfig       SSLConfig
-	Version         string
-	AccessLog       io.Writer
-	StdOutEnabled   bool
-	Signature       bool
-	Timeouts        Timeouts
-	CacheControl    MiddlewareProvider
-	Metrics         MiddlewareProvider
-	PluginConductor MiddlewareProvider
-	Reporter        Reporter
-	LBSelector      func(len int) int
+	Address        string
+	AssetsLocation string
+	AssetsWebRoot  string
+	Assets404      string
+	AssetsSPA      bool
+	MaxBodySize    int64
+	GzEnabled      bool
+	ProxyHeaders   []string
+	DropHeader     []string
+	SSLConfig      SSLConfig
+	Version        string
+	AccessLog      io.Writer
+	StdOutEnabled  bool
+	Signature      bool
+	Timeouts       Timeouts
+	CacheControl   MiddlewareProvider
+	Metrics        MiddlewareProvider
+	Reporter       Reporter
+	LBSelector     func(len int) int
 
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
@@ -120,7 +118,7 @@ func (h *Http) Run(ctx context.Context) error {
 		}
 	}()
 
-	handler := R.Wrap(h.proxyHandler(),
+	middlewares := []func(http.Handler) http.Handler{
 		R.Recoverer(log.Default()),                               // recover on errors
 		signatureHandler(h.Signature, h.Version),                 // send app signature
 		h.pingHandler,                                            // respond to /ping
@@ -130,13 +128,16 @@ func (h *Http) Run(ctx context.Context) error {
 		limiterSystemHandler(h.ThrottleSystem),                   // limit total requests/sec
 		limiterUserHandler(h.ThrottleUser),                       // req/seq per user/route match
 		h.mgmtHandler(),                                          // handles /metrics and /routes for prometheus
-		h.pluginHandler(),                                        // prc to external plugins
 		headersHandler(h.ProxyHeaders, h.DropHeader),             // add response headers and delete some request headers
 		accessLogHandler(h.AccessLog),                            // apache-format log file
 		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		maxReqSizeHandler(h.MaxBodySize), // limit request max size
 		gzipHandler(h.GzEnabled),         // gzip response
-	)
+	}
+
+	middlewares = append(middlewares, plugins...)
+
+	handler := R.Wrap(h.proxyHandler(), middlewares...)
 
 	// no FQDNs defined, use the list of discovered servers
 	if len(h.SSLConfig.FQDNs) == 0 && h.SSLConfig.SSLMode == SSLAuto {
@@ -307,7 +308,6 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		if ok {
 			ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info
 			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
-			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set match info for plugin conductor
 
 			if matches.MatchType == discovery.MTProxy {
 				uu, err := url.Parse(match.Destination)
@@ -371,14 +371,6 @@ func (h *Http) isAssetRequest(r *http.Request) bool {
 func (h *Http) toHTTP(address string, httpPort int) string {
 	rx := regexp.MustCompile(`(.*):(\d*)`)
 	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
-}
-
-func (h *Http) pluginHandler() func(next http.Handler) http.Handler {
-	if h.PluginConductor == nil {
-		return passThroughHandler
-	}
-	log.Printf("[INFO] plugin support enabled")
-	return h.PluginConductor.Middleware
 }
 
 func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {

@@ -22,10 +22,6 @@ github.com/go-pkgz/expirable-cache
 # github.com/go-pkgz/lgr v0.10.4
 ## explicit; go 1.15
 github.com/go-pkgz/lgr
-# github.com/go-pkgz/repeater v1.1.3
-## explicit; go 1.12
-github.com/go-pkgz/repeater
-github.com/go-pkgz/repeater/strategy
 # github.com/go-pkgz/rest v1.14.0
 ## explicit; go 1.16
 github.com/go-pkgz/rest

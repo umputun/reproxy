@@ -8,7 +8,6 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
-	"net/rpc"
 	"os"
 	"os/signal"
 	"strconv"
@@ -24,7 +23,6 @@ import (
 	"github.com/umputun/reproxy/app/discovery/provider"
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
 	"github.com/umputun/reproxy/app/mgmt"
-	"github.com/umputun/reproxy/app/plugin"
 	"github.com/umputun/reproxy/app/proxy"
 )
 
@@ -265,11 +263,14 @@ func run() error {
 		},
 		Metrics:          makeMetrics(ctx, svc),
 		Reporter:         errReporter,
-		PluginConductor:  makePluginConductor(ctx),
 		ThrottleSystem:   opts.Throttle.System * 3,
 		ThrottleUser:     opts.Throttle.User,
 		BasicAuthEnabled: len(basicAuthAllowed) > 0,
 		BasicAuthAllowed: basicAuthAllowed,
+	}
+
+	for _, name := range proxy.PluginsNames {
+		log.Printf("[INFO] loading plugin: %s", name)
 	}
 
 	err = px.Run(ctx)
@@ -342,25 +343,6 @@ func makeProviders() ([]discovery.Provider, error) {
 		return nil, errors.New("no providers enabled")
 	}
 	return res, nil
-}
-
-func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
-	if !opts.Plugin.Enabled {
-		return nil
-	}
-
-	conductor := &plugin.Conductor{
-		Address: opts.Plugin.Listen,
-		RPCDialer: plugin.RPCDialerFunc(func(network, address string) (plugin.RPCClient, error) {
-			return rpc.Dial("tcp", address)
-		}),
-	}
-	go func() {
-		if err := conductor.Run(ctx); err != nil {
-			log.Printf("[WARN] plugin conductor error, %v", err)
-		}
-	}()
-	return conductor
 }
 
 func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewareProvider {
