@@ -323,6 +323,14 @@ Sometimes, even with inside-the-docker routing, it makes sense to disable the do
 
 There is nothing except reproxy binary inside the reproxy container, as it builds on top of an empty (scratch) image.
 
+### Plugins list
+
+|Name|Link|Author|Description|
+|----|----|------|-----------|
+|ip2location|[github](https://github.com/negasus/reproxy-ip2location-plugin)|[negasus](https://github.com/negasus)|The plugin adds [ip2location](https://www.ip2location.com/) information to request headers. Country, region and more. See the readme file in the plugin repo for more details|
+
+Feel free to add your plugins to this table
+
 ## Options
 
 Each option can be provided in two forms: command line or environment key:value pair. Some command line options have a short form, like `-l localhost:8080` and all of them have the long form, i.e `--listen=localhost:8080`. The environment key (name) [listed](#all-application-options) for each option as a suffix, i.e. `[$LISTEN]`.
