@@ -3,8 +3,11 @@
 package proxy
 
 import (
-	"net/http"
+	p0 "github.com/umputun/reproxy/plugins/demo1"
+	p1 "github.com/umputun/reproxy/plugins/demo2"
 )
 
-var plugins []func(http.Handler) http.Handler
-var PluginsNames []string
+func init() {
+	p0.InitPlugin()
+	p1.InitPlugin()
+}

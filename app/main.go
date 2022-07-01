@@ -24,6 +24,7 @@ import (
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
 	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/proxy"
+	"github.com/umputun/reproxy/lib"
 )
 
 var opts struct {
@@ -269,8 +270,8 @@ func run() error {
 		BasicAuthAllowed: basicAuthAllowed,
 	}
 
-	for _, name := range proxy.PluginsNames {
-		log.Printf("[INFO] loading plugin: %s", name)
+	for _, p := range lib.Plugins() {
+		log.Printf("[INFO] loading plugin: %s", p.Name)
 	}
 
 	err = px.Run(ctx)

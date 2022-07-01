@@ -42,6 +42,8 @@ type URLMapper struct {
 	AssetsWebRoot  string // web root location
 	AssetsSPA      bool   // spa mode, redirect to webroot/index.html on not found
 
+	Plugins map[string]struct{}
+
 	dead bool
 }
 
