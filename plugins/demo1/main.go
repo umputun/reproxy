@@ -30,8 +30,8 @@ func InitPlugin() func(http.Handler) http.Handler {
 func (d *Demo) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		// Если требуется, можем получить MatchedRoute из контекста
-		//v, ok := r.Context().Value(discovery.CtxMatch).(discovery.MatchedRoute)
+		// Если требуется, можем получить MatchedRoute из контекста (import "github.com/reproxy/app/plugins"):
+		//v, ok := r.Context().Value(plugins.CtxMatch).(discovery.MatchedRoute)
 
 		w.Header().Add(d.RespHeaderKey, d.RespHeaderValue)
 
