@@ -7,7 +7,6 @@ require (
 	github.com/didip/tollbooth/v6 v6.1.2
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-pkgz/lgr v0.10.4
-	github.com/go-pkgz/repeater v1.1.3
 	github.com/go-pkgz/rest v1.14.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/gorilla/handlers v1.5.1
