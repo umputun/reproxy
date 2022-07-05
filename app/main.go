@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/umputun/reproxy/app/plugins"
 	"io"
 	"math"
 	"math/rand"
@@ -24,7 +25,6 @@ import (
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
 	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/proxy"
-	"github.com/umputun/reproxy/lib"
 )
 
 var opts struct {
@@ -121,11 +121,6 @@ var opts struct {
 		System int `long:"system" env:"SYSTEM" default:"0" description:"throttle overall activity'"`
 		User   int `long:"user" env:"USER"  default:"0" description:"limit req/sec per user and per proxy destination"`
 	} `group:"throttle" namespace:"throttle" env-namespace:"THROTTLE"`
-
-	Plugin struct {
-		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
-		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
-	} `group:"plugin" namespace:"plugin" env-namespace:"PLUGIN"`
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
@@ -270,7 +265,7 @@ func run() error {
 		BasicAuthAllowed: basicAuthAllowed,
 	}
 
-	for _, p := range lib.Plugins() {
+	for _, p := range plugins.Plugins() {
 		log.Printf("[INFO] loading plugin: %s", p.Name)
 	}
 

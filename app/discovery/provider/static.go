@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/lib"
+	"github.com/umputun/reproxy/app/plugins"
 )
 
 // Static provider, rules are server,from,to
@@ -57,7 +57,7 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 
 		for _, p := range allowedPlugins {
-			if !lib.HasPlugin(p) {
+			if !plugins.HasPlugin(p) {
 				return discovery.URLMapper{}, fmt.Errorf("plugin %q not found", p)
 			}
 		}

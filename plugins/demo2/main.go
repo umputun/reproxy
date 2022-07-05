@@ -3,12 +3,10 @@ package demo
 import (
 	"net/http"
 	"sync/atomic"
-
-	"github.com/umputun/reproxy/lib"
 )
 
-func InitPlugin() {
-	lib.Register(Handler)
+func InitPlugin() func(http.Handler) http.Handler {
+	return Handler
 }
 
 var counter int64

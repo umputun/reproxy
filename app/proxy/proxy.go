@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/umputun/reproxy/lib"
+	"github.com/umputun/reproxy/app/plugins"
 	"io"
 	"math/rand"
 	"net"
@@ -308,7 +308,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		if ok {
 			ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info
 			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
-			ctx = context.WithValue(ctx, lib.CtxMatch, match)             // set match info for plugins
+			ctx = context.WithValue(ctx, plugins.CtxMatch, match)         // for plugins
 
 			if matches.MatchType == discovery.MTProxy {
 				uu, err := url.Parse(match.Destination)
@@ -436,19 +436,18 @@ func (h *Http) discoveredServers(ctx context.Context, interval time.Duration) (s
 
 func (h *Http) plugins(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var plugins []func(handler http.Handler) http.Handler
+		var result []func(http.Handler) http.Handler
 
-		v, hasMatch := r.Context().Value(lib.CtxMatch).(discovery.MatchedRoute)
+		v, hasMatch := r.Context().Value(plugins.CtxMatch).(discovery.MatchedRoute)
 
-		for _, plugin := range lib.Plugins() {
+		for _, plugin := range plugins.Plugins() {
 			if hasMatch && v.Mapper.Plugins != nil {
-				_, ok := v.Mapper.Plugins[plugin.Name]
-				if ok {
-					plugins = append(plugins, plugin.Handler)
+				if _, ok := v.Mapper.Plugins[plugin.Name]; ok {
+					result = append(result, plugin.Handler)
 				}
 			}
 		}
 
-		R.Wrap(next, plugins...).ServeHTTP(w, r)
+		R.Wrap(next, result...).ServeHTTP(w, r)
 	})
 }
