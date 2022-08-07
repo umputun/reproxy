@@ -1,5 +1,5 @@
 <div align="center">
-  <img class="logo" src="https://raw.githubusercontent.com/umputun/reproxy/master/site/src/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
+  <img class="logo" src="https://raw.githubusercontent.com/umputun/reproxy/master/site/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
 </div>
 
 Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file, consul catalog). One or more providers supply information about the requested server, requested URL, destination URL, and health check URL. It is distributed as a single binary or as a docker container.

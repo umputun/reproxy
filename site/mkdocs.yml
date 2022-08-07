@@ -1,0 +1,75 @@
+site_name: Reproxy
+site_url: https://reproxy.io/
+site_author: Umputun
+site_description: >-
+  Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file, consul catalog).
+
+repo_name: umputun/reproxy
+repo_url: https://github.com/umputun/reproxy
+copyright: Some rights reserved &copy; 2021 - 2022 Umputun
+
+theme:
+  name: material
+  favicon: favicon.svg
+  language: en
+  palette:
+    - scheme: slate
+      media: "(prefers-color-scheme: dark)"
+      primary: orange
+  features:
+    - navigation.instant
+    - toc.follow
+    - toc.integrate
+    - content.code.annotate
+    - navigation.sections
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+extra:
+  generator: true
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/umputun
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/umputun/reproxy/
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/umputun
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:materialx.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
