@@ -23,6 +23,9 @@ theme:
     - content.code.annotate
     - navigation.sections
 
+extra_css:
+  - stylesheets/extra.css
+
 plugins:
   - search
   - minify:
@@ -73,3 +76,4 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+
