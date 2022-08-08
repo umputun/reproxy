@@ -30,9 +30,6 @@ plugins:
   - search
   - minify:
       minify_html: true
-  - redirects:
-      redirect_maps:
-        https://raw.githubusercontent.com/umputun/reproxy/master/site/logo-bg.svg: logo.svg
 
 extra:
   generator: true
