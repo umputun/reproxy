@@ -1,15 +1,11 @@
 FROM  --platform=$BUILDPLATFORM squidfunk/mkdocs-material as build
 
 WORKDIR /build
-COPY README.md /build/docs/index.md
-COPY site/styles.css /build/docs/stylesheets/extra.css
 COPY site/ /build/
+COPY README.md /build/docs/index.md
 
 RUN sed -i 's|^.*/workflows/ci.yml.*$||' /build/docs/index.md
 RUN mkdocs build
-
-COPY site/favicon.svg /build/site/
-COPY site/logo.png /build/site/
 
 
 FROM ghcr.io/umputun/reproxy
