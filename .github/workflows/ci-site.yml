@@ -8,12 +8,13 @@ on:
       - ".github/workflows/ci-site.yml"
       - "site/**"
       - "README.md"
+      - "Dockerfile.site"
   pull_request:
     paths:
       - ".github/workflows/ci-site.yml"
       - "site/**"
       - "README.md"
-
+      - "Dockerfile.site"
 jobs:
 
   build:
