@@ -189,6 +189,8 @@ In addition to the common assets server, multiple custom assets servers are supp
 2. file provider - setting optional fields `assets: true` or `spa: true`
 3. docker provider - `reproxy.assets=web-root:location`, i.e. `reproxy.assets=/web:/var/www`. Switching to spa mode done by setting `reproxy.spa` to `yes` or `true` 
 
+### Caching
+
 Assets server supports caching control with the `--assets.cache=<duration>` parameter. `0s` duration (default) turns caching control off. A duration is a sequence of decimal numbers, each with optional fraction and a unit suffix, such as "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h" and "d".
 
 There are two ways to set cache duration:
@@ -252,7 +254,7 @@ In order to eliminate the need to pass custom params/environment, the default `-
 
 Another default set in the similar dynamic way is `--ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
 
-## Ping, health checks and failover
+## Ping, health checks and fail-over
 
 reproxy provides 2 endpoints for this purpose:
 
