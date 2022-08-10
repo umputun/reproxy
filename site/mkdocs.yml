@@ -22,6 +22,7 @@ theme:
     - toc.integrate
     - content.code.annotate
     - navigation.sections
+  logo: icon.png
 
 extra_css:
   - stylesheets/extra.css
