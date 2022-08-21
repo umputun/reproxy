@@ -160,17 +160,20 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		if x := recover(); x != nil {
-			log.Printf("[WARN] run time panic:\n%v", x)
-			panic(x)
-		}
-
 		// catch signal and invoke graceful termination
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 		<-stop
 		log.Printf("[WARN] interrupt signal")
 		cancel()
+	}()
+
+	defer func() {
+		// handle panic
+		if x := recover(); x != nil {
+			log.Printf("[WARN] run time panic:\n%v", x)
+			panic(x)
+		}
 	}()
 
 	providers, err := makeProviders()
