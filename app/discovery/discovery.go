@@ -392,7 +392,7 @@ func (s *Service) mergeLists() (res []URLMapper) {
 func (s *Service) extendMapper(m URLMapper) URLMapper {
 
 	src := m.SrcMatch.String()
-	m.Dst = strings.Replace(m.Dst, "@", "$", -1) // allow group defined as @n instead of $n (yaml friendly)
+	m.Dst = strings.ReplaceAll(m.Dst, "@", "$") // allow group defined as @n instead of $n (yaml friendly)
 
 	// static match with assets uses AssetsWebRoot and AssetsLocation
 	if m.MatchType == MTStatic && m.AssetsWebRoot != "" && m.AssetsLocation != "" {
@@ -421,24 +421,15 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		return m
 	}
 
-	res := URLMapper{
-		Server:         m.Server,
-		Dst:            strings.TrimSuffix(m.Dst, "/") + "/$1",
-		ProviderID:     m.ProviderID,
-		PingURL:        m.PingURL,
-		MatchType:      m.MatchType,
-		AssetsWebRoot:  m.AssetsWebRoot,
-		AssetsLocation: m.AssetsLocation,
-		AssetsSPA:      m.AssetsSPA,
-	}
+	m.Dst = strings.TrimSuffix(m.Dst, "/") + "/$1"
 
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
 	if err != nil {
 		log.Printf("[WARN] can't extend %s, %v", m.SrcMatch.String(), err)
 		return m
 	}
-	res.SrcMatch = *rx
-	return res
+	m.SrcMatch = *rx
+	return m
 }
 
 // redirects process @code prefix and sets redirect type, i.e. "@302 /something"
