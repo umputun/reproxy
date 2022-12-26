@@ -10,6 +10,7 @@ copyright: Some rights reserved &copy; 2021 - 2022 Umputun
 
 theme:
   name: material
+  custom_dir: overrides
   favicon: favicon.svg
   language: en
   palette:
@@ -43,7 +44,7 @@ extra:
       link: https://twitter.com/umputun
   analytics:
     provider: custom
-    data-website-id: 9db03a56-ef6f-4c36-b73e-c058b8a29c11
+    analytic_id: 9db03a56-ef6f-4c36-b73e-c058b8a29c11
 
 markdown_extensions:
   - smarty
