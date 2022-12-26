@@ -41,6 +41,9 @@ extra:
       link: https://hub.docker.com/r/umputun/reproxy/
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/umputun
+  analytics:
+    provider: custom
+    data-website-id: 9db03a56-ef6f-4c36-b73e-c058b8a29c11
 
 markdown_extensions:
   - smarty
