@@ -40,8 +40,8 @@ Examples:
 
  - with a static provider: `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
  - with an automatic docker discovery: `reproxy --docker.enabled --docker.auto`
- - as a docker container `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
- - with automatic SSL `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
+ - as a docker container: `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
+ - with automatic SSL: `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
 
 ## Install
 
