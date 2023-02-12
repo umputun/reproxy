@@ -37,7 +37,7 @@ var opts struct {
 	AuthBasicHtpasswd string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
 
 	LBType   string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
-	KeepHost bool   `long:"keep-host" env:"KEEP_HOST" description:"keep host header instead of overwriting it with the target host"`
+	KeepHost bool   `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint
