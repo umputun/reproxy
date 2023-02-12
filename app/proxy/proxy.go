@@ -54,6 +54,8 @@ type Http struct { // nolint golint
 
 	ThrottleSystem int
 	ThrottleUser   int
+
+	KeepHost bool
 }
 
 // Matcher source info (server and route) to the destination url
@@ -192,6 +194,7 @@ const (
 	ctxURL       = contextKey("url")
 	ctxMatchType = contextKey("type")
 	ctxMatch     = contextKey("match")
+	ctxKeepHost  = contextKey("keepHost")
 )
 
 func (h *Http) proxyHandler() http.HandlerFunc {
@@ -200,11 +203,15 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		Director: func(r *http.Request) {
 			ctx := r.Context()
 			uu := ctx.Value(ctxURL).(*url.URL)
+			keepHost := ctx.Value(ctxKeepHost).(bool)
 			r.Header.Add("X-Forwarded-Host", r.Host)
 			r.URL.Path = uu.Path
 			r.URL.Host = uu.Host
 			r.URL.Scheme = uu.Scheme
-			r.Host = uu.Host
+			log.Printf("[DEBUG] keep host is %t", keepHost)
+			if !keepHost {
+				r.Host = uu.Host
+			}
 			h.setXRealIP(r)
 		},
 		Transport: &http.Transport{
@@ -317,6 +324,13 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 					return
 				}
 				ctx = context.WithValue(ctx, ctxURL, uu) // set destination url in request's context
+				var keepHost bool
+				if match.Mapper.KeepHost == nil {
+					keepHost = h.KeepHost
+				} else {
+					keepHost = *match.Mapper.KeepHost
+				}
+				ctx = context.WithValue(ctx, ctxKeepHost, keepHost) // set keep host in request's context
 			}
 			r = r.WithContext(ctx)
 		}

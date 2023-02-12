@@ -37,6 +37,7 @@ type URLMapper struct {
 	PingURL      string
 	MatchType    MatchType
 	RedirectType RedirectType
+	KeepHost     *bool
 
 	AssetsLocation string // local FS root location
 	AssetsWebRoot  string // web root location

@@ -36,7 +36,8 @@ var opts struct {
 	DropHeaders       []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 	AuthBasicHtpasswd string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
 
-	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
+	LBType   string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
+	KeepHost bool   `long:"keep-host" env:"KEEP_HOST" description:"keep host header instead of overwriting it with the target host"`
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint
@@ -273,6 +274,7 @@ func run() error {
 		ThrottleUser:     opts.Throttle.User,
 		BasicAuthEnabled: len(basicAuthAllowed) > 0,
 		BasicAuthAllowed: basicAuthAllowed,
+		KeepHost:         opts.KeepHost,
 	}
 
 	err = px.Run(ctx)

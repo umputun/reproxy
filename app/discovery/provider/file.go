@@ -84,6 +84,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		Ping          string `yaml:"ping"`
 		AssetsEnabled bool   `yaml:"assets"`
 		AssetsSPA     bool   `yaml:"spa"`
+		KeepHost      *bool  `yaml:"keep-host,omitempty"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -110,6 +111,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 				SrcMatch:   *rx,
 				Dst:        f.Dest,
 				PingURL:    f.Ping,
+				KeepHost:   f.KeepHost,
 				ProviderID: discovery.PIFile,
 				MatchType:  discovery.MTProxy,
 			}
