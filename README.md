@@ -102,6 +102,7 @@ This default can be changed with labels:
 - `reproxy.port` - destination port for the discovered container
 - `reproxy.ping` - ping path for the destination container.
 - `reproxy.assets` - set assets mapping as `web-root:location`, for example `reproxy.assets=/web:/var/www`
+- `reproxy.keep-host` - keep host header as is (`yes`, `true`, `1`) or replace with destination host (`no`, `false`, `0`)
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
 
 Pls note: without `--docker.auto` the destination container has to have at least one of `reproxy.*` labels to be considered as a potential destination.
@@ -353,6 +354,7 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
+      --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
       --dbg                         debug mode [$DEBUG]
 
 ssl:
