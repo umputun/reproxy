@@ -86,7 +86,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 // parseContainerInfo getting URLMappers for up to 10 routes for 0..9 N (reproxy.N.something)
 func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper) {
 
-	for n := 0; n < 9; n++ {
+	for n := 0; n <= 9; n++ {
 		enabled, explicit := false, false
 		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name) // default src is /container-name/(.*)
 		if d.APIPrefix != "" {
