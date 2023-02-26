@@ -421,14 +421,15 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	go func() {
 		_ = svc.Run(context.Background())
 	}()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
+
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics()
 
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	client := http.Client{}
 	{
