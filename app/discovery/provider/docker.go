@@ -119,8 +119,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 
 		if v, ok := d.labelN(c.Labels, n, "dest"); ok {
 			enabled, explicit = true, true
-			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
-				destURL = v // proxy to http:// and https:// destinations as-is
+			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "@") {
+				destURL = v // proxy to http:// and https://, or redirect - destinations as-is, don't add host and port
 			} else {
 				destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 			}
