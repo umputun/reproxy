@@ -372,7 +372,7 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 		return nil, fmt.Errorf("failed connection to docker socket: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		e := struct {
