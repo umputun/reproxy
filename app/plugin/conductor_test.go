@@ -318,7 +318,6 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 		},
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	port := rand.Intn(30000)
 	c := Conductor{RPCDialer: dialer, Address: "127.0.0.1:" + strconv.Itoa(30000+port)}
 

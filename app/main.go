@@ -416,7 +416,6 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 func makeLBSelector() func(len int) int {
 	switch opts.LBType {
 	case "random":
-		rand.Seed(time.Now().UnixNano())
 		return rand.Intn
 	case "failover":
 		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
