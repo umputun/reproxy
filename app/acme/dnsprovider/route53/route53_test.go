@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/umputun/reproxy/app/dns"
 )
 
@@ -48,7 +49,7 @@ func setupRoute53Mock() {
 
 		w.Header().Set("Content-Type", "application/xml")
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, fmt.Sprintf(`
+		fmt.Fprintf(w, `
 			<?xml version="1.0" encoding="UTF-8"?>
 			<GetChangeResponse xmlns="https://route53.amazonaws.com/doc/2013-04-01/">
 				<ChangeInfo>
@@ -57,7 +58,7 @@ func setupRoute53Mock() {
 					<SubmittedAt>%s</SubmittedAt>
 				</ChangeInfo>
 			</GetChangeResponse>
-		`, ID, Status, SubmittedAt))
+		`, ID, Status, SubmittedAt)
 	}
 
 	addFn := func(w http.ResponseWriter, r *http.Request) {
@@ -75,11 +76,11 @@ func setupRoute53Mock() {
 		switch hostedZoneID {
 		case "valid,not_propagated":
 			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, fmt.Sprintf(xml, "valid,not_propagated", "PENDING"))
+			fmt.Fprintf(w, xml, "valid,not_propagated", "PENDING")
 			return
 		case "valid,propagated":
 			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, fmt.Sprintf(xml, "valid,propagated", "INSYNC"))
+			fmt.Fprintf(w, xml, "valid,propagated", "INSYNC")
 			return
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -102,11 +103,11 @@ func setupRoute53Mock() {
 		switch hostedZoneID {
 		case "valid,not_propagated":
 			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, fmt.Sprintf(xml, "valid,not_propagated", "PENDING"))
+			fmt.Fprintf(w, xml, "valid,not_propagated", "PENDING")
 			return
 		case "valid,propagated":
 			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, fmt.Sprintf(xml, "valid,propagated", "INSYNC"))
+			fmt.Fprintf(w, xml, "valid,propagated", "INSYNC")
 			return
 		default:
 			w.WriteHeader(http.StatusNotFound)

@@ -13,9 +13,10 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 
+	"golang.org/x/crypto/acme"
+
 	"github.com/umputun/reproxy/app/acme/dnsprovider"
 	"github.com/umputun/reproxy/app/dns"
-	"golang.org/x/crypto/acme"
 )
 
 var defaultNameservers = []string{
@@ -88,11 +89,7 @@ func (d *DNSChallenge) PreSolve() error {
 	if err := d.register(); err != nil {
 		return err
 	}
-	if err := d.prepareOrder(ctx, d.domains); err != nil {
-		return err
-	}
-
-	return nil
+	return d.prepareOrder(ctx, d.domains)
 }
 
 // waitPropagation blocks until the DNS record is propagated or timeout is reached.

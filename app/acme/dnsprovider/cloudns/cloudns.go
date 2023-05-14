@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
+
 	"github.com/umputun/reproxy/app/dns"
 )
 
@@ -241,7 +242,7 @@ func (p *cloudnsProvider) doRequest(method, endpoint string, params map[string]s
 		return nil, fmt.Errorf("invalid status code %v", resp.Status)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
