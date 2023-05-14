@@ -1,15 +1,17 @@
-FROM node:16-alpine as build
+FROM  --platform=$BUILDPLATFORM squidfunk/mkdocs-material as build
 
 WORKDIR /build
-COPY site/ /build
-COPY README.md /build/src/index.md
+COPY site/ /build/
+COPY README.md /build/docs/index.md
 
-RUN yarn --frozen-lockfile
-RUN yarn build
-RUN	ls -la /build/public
+RUN \
+    sed -i 's|https://raw.githubusercontent.com/umputun/reproxy/master/site/logo-bg.svg|logo.png|' /build/docs/index.md && \
+    sed -i 's|^.*/workflows/ci.yml.*$||' /build/docs/index.md
+RUN mkdocs build
+
 
 FROM ghcr.io/umputun/reproxy
-COPY --from=build /build/public /srv/site
+COPY --from=build /build/site /srv/site
 EXPOSE 8080
 USER app
-ENTRYPOINT ["/srv/reproxy", "--assets.location=/srv/site"]
+ENTRYPOINT ["/srv/reproxy", "--assets.location=/srv/site", "--assets.cache=30d", "--assets.cache=text/html:30s"]

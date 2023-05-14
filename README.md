@@ -1,5 +1,5 @@
 <div align="center">
-  <img class="logo" src="https://raw.githubusercontent.com/umputun/reproxy/master/site/src/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
+  <img class="logo" src="https://raw.githubusercontent.com/umputun/reproxy/master/site/logo-bg.svg" width="355px" height="142px" alt="Reproxy | Simple Reverse Proxy"/>
 </div>
 
 Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file, consul catalog). One or more providers supply information about the requested server, requested URL, destination URL, and health check URL. It is distributed as a single binary or as a docker container.
@@ -40,8 +40,8 @@ Examples:
 
  - with a static provider: `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
  - with an automatic docker discovery: `reproxy --docker.enabled --docker.auto`
- - as a docker container `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
- - with automatic SSL `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
+ - as a docker container: `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
+ - with automatic SSL: `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
 
 ## Install
 
@@ -63,7 +63,7 @@ _See examples of various providers in [examples](https://github.com/umputun/repr
 This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported. Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination[,ping-url]`. For example:
 
 - `*,^/api/(.*),https://api.example.com/$1` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
-- `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` and it sses `https://api.example.com/ping` for the health check.
+- `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` and it sees `https://api.example.com/ping` for the health check.
 
 The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](#ping-and-health-checks) section for more details.
 
@@ -92,7 +92,7 @@ This is a dynamic provider and file change will be applied automatically.
 
 ### Docker provider
 
-Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration needed. By default it redirects all requests like `http://<container_name>:<container_port>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
+Docker provider supports a fully automatic discovery (with `--docker.auto`) with no extra configuration needed. By default, it redirects all requests like `http://<url>/<container name>/(.*)` to the internal IP of the given container and the exposed port. Only active (running) containers will be detected.
 
 This default can be changed with labels:
 
@@ -112,7 +112,7 @@ With `--docker.auto`, all containers with exposed port will be considered as rou
 - Allow only a particular docker network with `--docker.network`
 - Set the label `reproxy.enabled=false` or `reproxy.enabled=no` or `reproxy.enabled=0`
 
-If no `reproxy.route` defined, the default is `http://<container_name>:<container_port>/(.*)`. In case if all proxied source have the same pattern, for example `/api/(.*)` user can define the common prefix (in this case `/api`) for all container-based routes. This can be done with `--docker.prefix` parameter.
+If no `reproxy.route` defined, the default route is `^/<container_name>/(.*)`. In case if all proxied source should have the same prefix pattern, for example `/api/(.*)` user can define the common prefix (in this case `/api`) for all container-based routes. This can be done with `--docker.prefix` parameter.
 
 Docker provider also allows to define multiple set of `reproxy.N.something` labels to match multiple distinct routes on the same container. This is useful as in some cases a single container may expose multiple endpoints, for example, public API and some admin API. All the labels above can be used with "N-index", i.e. `reproxy.1.server`, `reproxy.1.port` and so on. N should be in 0 to 9 range.
 
@@ -196,6 +196,8 @@ In addition to the common assets server, multiple custom assets servers are supp
 2. file provider - setting optional fields `assets: true` or `spa: true`
 3. docker provider - `reproxy.assets=web-root:location`, i.e. `reproxy.assets=/web:/var/www`. Switching to spa mode done by setting `reproxy.spa` to `yes` or `true` 
 
+### Caching
+
 Assets server supports caching control with the `--assets.cache=<duration>` parameter. `0s` duration (default) turns caching control off. A duration is a sequence of decimal numbers, each with optional fraction and a unit suffix, such as "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h" and "d".
 
 There are two ways to set cache duration:
@@ -247,7 +249,7 @@ supported codes:
 
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
-- `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options)
+- `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options). A zero or negative value means there will be no timeout.
 
 ## Default ports
 
@@ -259,7 +261,7 @@ In order to eliminate the need to pass custom params/environment, the default `-
 
 Another default set in the similar dynamic way is `--ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
 
-## Ping, health checks and failover
+## Ping, health checks and fail-over
 
 reproxy provides 2 endpoints for this purpose:
 
@@ -293,7 +295,7 @@ User activity limited for both matched and unmatched routes. All unmatched route
 
 Reproxy supports basic auth for all requests. This is useful for protecting endpoints during the development and testing, before allowing unrestricted access to them. This functionality is disabled by default and not granular enough to allow for per-route auth. I.e. enabled basic auth will affect all requests.
 
-In order to enable basic auth for all requests, user should set the typical htpasswd file with `--auth.basic-htpasswd=<file location>` or `env AUTH_BASIC_HTPASSWD=<file location>`. 
+In order to enable basic auth for all requests, user should set the typical htpasswd file with `--basic-htpasswd=<file location>` or `env BASIC_HTPASSWD=<file location>`. 
 
 Reproxy expects htpasswd file to be in the following format:
 

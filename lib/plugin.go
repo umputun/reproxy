@@ -103,7 +103,7 @@ func (p *Plugin) send(client *http.Client, conductor, method string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid status %s", resp.Status)

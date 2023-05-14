@@ -421,14 +421,15 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	go func() {
 		_ = svc.Run(context.Background())
 	}()
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
+
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics()
 
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 
 	client := http.Client{}
 	{
@@ -889,4 +890,28 @@ func TestHttp_matchHandler(t *testing.T) {
 			atomic.AddInt32(&count, 1)
 		})
 	}
+}
+
+func TestHttp_discoveredServers(t *testing.T) {
+
+	calls := 0
+	m := &MatcherMock{ServersFunc: func() []string {
+		defer func() { calls++ }()
+		switch calls {
+		case 0, 1, 2, 3, 4:
+			return []string{}
+		case 5:
+			return []string{"s1", "s2"}
+		case 6, 7:
+			return []string{"s1", "s2", "s3"}
+		default:
+			t.Fatalf("shoudn't be called %d times", calls)
+			return nil
+		}
+	}}
+
+	h := Http{Matcher: m}
+
+	res := h.discoveredServers(context.Background(), time.Millisecond)
+	assert.Equal(t, []string{"s1", "s2", "s3"}, res)
 }

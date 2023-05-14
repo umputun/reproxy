@@ -392,9 +392,9 @@ func TestService_extendRule(t *testing.T) {
 		},
 		{
 			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
-				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
+				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx", RedirectType: RTPerm},
 			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
-				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
+				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx", RedirectType: RTPerm},
 		},
 	}
 

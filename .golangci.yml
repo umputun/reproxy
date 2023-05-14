@@ -38,17 +38,14 @@ linters:
     - govet
     - unconvert
     - megacheck
-    - structcheck
+    - unused
     - gas
     - gocyclo
     - dupl
     - misspell
     - unparam
-    - varcheck
-    - deadcode
     - typecheck
     - ineffassign
-    - varcheck
     - stylecheck
     - gochecknoinits
     - exportloopref
@@ -64,9 +61,9 @@ issues:
     - text: "at least one file in a package should have a package comment"
       linters:
         - stylecheck
-    - text: "should have a package comment, unless it's in another file for this package"
+    - text: "should have a package comment"
       linters:
-        - golint
+        - revive
     - path: _test\.go
       linters:
         - gosec

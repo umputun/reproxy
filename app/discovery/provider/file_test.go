@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
@@ -18,7 +17,7 @@ func TestFile_Events(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	tmp, err := ioutil.TempFile(os.TempDir(), "reproxy-events")
+	tmp, err := os.CreateTemp(os.TempDir(), "reproxy-events")
 	require.NoError(t, err)
 	_ = tmp.Close()
 	defer os.Remove(tmp.Name())
@@ -59,7 +58,7 @@ func TestFile_Events_BusyListener(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	tmp, err := ioutil.TempFile(os.TempDir(), "reproxy-events-busy")
+	tmp, err := os.CreateTemp(os.TempDir(), "reproxy-events-busy")
 	require.NoError(t, err)
 	_ = tmp.Close()
 	defer os.Remove(tmp.Name())

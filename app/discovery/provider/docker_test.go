@@ -187,6 +187,10 @@ func TestDocker_ListMultiFallBack(t *testing.T) {
 
 						"reproxy.2.server": "m2.example.com", "reproxy.2.route": "^/a/2/(.*)",
 						"reproxy.2.dest": "/a/2/$1", "reproxy.2.assets": "/web2:/var/www2",
+
+						"reproxy.3.server": "feedmaster.umputun.com",
+						"reproxy.3.route":  "^/feed/echo-msk/source/(.*)",
+						"reproxy.3.dest":   "https://master.feed-master.com/feed/echo-msk/source/@1",
 					},
 				},
 			}, nil
@@ -196,24 +200,29 @@ func TestDocker_ListMultiFallBack(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 5, len(res), "3 proxy, 2 assets")
+	require.Equal(t, 6, len(res), "4 proxy, 2 assets")
 
-	assert.Equal(t, "^/a/1/(.*)", res[0].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.2:12348/a/1/$1", res[0].Dst)
-	assert.Equal(t, "example.com", res[0].Server)
+	assert.Equal(t, "^/feed/echo-msk/source/(.*)", res[0].SrcMatch.String())
+	assert.Equal(t, "https://master.feed-master.com/feed/echo-msk/source/@1", res[0].Dst)
+	assert.Equal(t, "feedmaster.umputun.com", res[0].Server)
 	assert.Equal(t, "http://127.0.0.2:12348/ping", res[0].PingURL)
 
-	assert.Equal(t, "^/a/2/(.*)", res[1].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.2:12348/a/2/$1", res[1].Dst)
+	assert.Equal(t, "^/a/1/(.*)", res[1].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/1/$1", res[1].Dst)
+	assert.Equal(t, "example.com", res[1].Server)
 	assert.Equal(t, "http://127.0.0.2:12348/ping", res[1].PingURL)
-	assert.Equal(t, "m2.example.com", res[1].Server)
 
 	assert.Equal(t, "^/a/2/(.*)", res[2].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12348/a/2/$1", res[2].Dst)
 	assert.Equal(t, "http://127.0.0.2:12348/ping", res[2].PingURL)
 	assert.Equal(t, "m2.example.com", res[2].Server)
-	assert.Equal(t, "/web2", res[2].AssetsWebRoot)
-	assert.Equal(t, "/var/www2", res[2].AssetsLocation)
+
+	assert.Equal(t, "^/a/2/(.*)", res[3].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/2/$1", res[3].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[3].PingURL)
+	assert.Equal(t, "m2.example.com", res[3].Server)
+	assert.Equal(t, "/web2", res[3].AssetsWebRoot)
+	assert.Equal(t, "/var/www2", res[3].AssetsLocation)
 }
 
 func TestDocker_ListWithAutoAPI(t *testing.T) {
@@ -398,6 +407,8 @@ func TestDocker_labelN(t *testing.T) {
 		{map[string]string{"a": "123", "reproxy.1.port": "9999"}, 1, "port", "9999", true},
 		{map[string]string{"a": "123", "reproxy.1.port": "9999", "reproxy.0.port": "7777"}, 1, "port", "9999", true},
 		{map[string]string{"a": "123", "reproxy.1.port": "9999", "reproxy.0.port": "7777"}, 0, "port", "7777", true},
+		{map[string]string{"reproxy.2.dest": "@302 https://master.feed-master.com/feed/echo-msk/source/@1"}, 2, "dest",
+			"@302 https://master.feed-master.com/feed/echo-msk/source/@1", true},
 	}
 
 	d := Docker{}

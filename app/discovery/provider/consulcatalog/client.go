@@ -66,7 +66,7 @@ func (cl *consulClient) getServiceNames() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error send request to consul, %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected response status code %d", resp.StatusCode)
@@ -107,7 +107,7 @@ func (cl *consulClient) getServices(serviceName string) ([]consulService, error)
 	if err != nil {
 		return nil, fmt.Errorf("error send request to consul, %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected response status code %d", resp.StatusCode)

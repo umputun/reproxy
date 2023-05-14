@@ -1,0 +1,8 @@
+.md-typeset h1,
+.md-content__button {
+    display: none;
+}
+.md-nav__title {
+    display: none;
+}
+

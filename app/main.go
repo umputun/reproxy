@@ -167,17 +167,20 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		if x := recover(); x != nil {
-			log.Printf("[WARN] run time panic:\n%v", x)
-			panic(x)
-		}
-
 		// catch signal and invoke graceful termination
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 		<-stop
 		log.Printf("[WARN] interrupt signal")
 		cancel()
+	}()
+
+	defer func() {
+		// handle panic
+		if x := recover(); x != nil {
+			log.Printf("[WARN] run time panic:\n%v", x)
+			panic(x)
+		}
 	}()
 
 	providers, err := makeProviders()
@@ -233,7 +236,7 @@ func run() error {
 
 	accessLog, alErr := makeAccessLogWriter()
 	if alErr != nil {
-		return fmt.Errorf("failed to access log: %w", sslErr)
+		return fmt.Errorf("failed to access log: %w", alErr)
 	}
 
 	defer func() {
@@ -440,6 +443,8 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
+	default:
+		return config, fmt.Errorf("invalid value %q for SSL_TYPE, allowed values are: none, static or auto", opts.SSL.Type)
 	}
 	return config, err
 }
@@ -447,7 +452,6 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 func makeLBSelector() func(len int) int {
 	switch opts.LBType {
 	case "random":
-		rand.Seed(time.Now().UnixNano())
 		return rand.Intn
 	case "failover":
 		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one

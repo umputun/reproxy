@@ -11,14 +11,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: set up go 1.17
-        uses: actions/setup-go@v2
+      - name: set up go 1.20
+        uses: actions/setup-go@v3
         with:
-          go-version: 1.17
+          go-version: "1.20"
         id: go
 
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: build and test
         run: |
@@ -30,16 +30,17 @@ jobs:
           TZ: "America/Chicago"
           DNS_CHALLENGE_TEST_ENABLED: "" # if true enables unittest for dns challenge against LE staging env
 
-      - name: install golangci-lint and goveralls
-        run: |
-          curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $GITHUB_WORKSPACE v1.43.0
-          GO111MODULE=off go get -u github.com/mattn/goveralls
 
-      - name: run linters
-        run: $GITHUB_WORKSPACE/golangci-lint run
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
         env:
-          GOFLAGS: "-mod=vendor"
           TZ: "America/Chicago"
+
+      - name: install goveralls
+        run: |
+          GO111MODULE=off go get -u github.com/mattn/goveralls
 
       - name: submit coverage
         run: $(go env GOPATH)/bin/goveralls -service="github" -coverprofile=$GITHUB_WORKSPACE/profile.cov
@@ -47,11 +48,11 @@ jobs:
           COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
 
       - name: set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       - name: available platforms
         run: echo ${{ steps.buildx.outputs.platforms }}
