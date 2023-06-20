@@ -18,11 +18,14 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
+	lua "github.com/yuin/gopher-lua"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
+	luaPlugin "github.com/umputun/reproxy/app/lua"
+	luaKVMemory "github.com/umputun/reproxy/app/lua/kv/memory"
 	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/plugin"
 	"github.com/umputun/reproxy/app/proxy"
@@ -127,6 +130,11 @@ var opts struct {
 		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
 		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
 	} `group:"plugin" namespace:"plugin" env-namespace:"PLUGIN"`
+
+	Lua struct {
+		Enabled bool     `long:"enabled" env:"ENABLED" description:"enable lua plugin support"`
+		File    []string `long:"file" env:"FILE" description:"lua file"`
+	} `group:"lua" namespace:"lua" env-namespace:"LUA"`
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
 	Dbg       bool `long:"dbg" env:"DEBUG" description:"debug mode"`
@@ -266,13 +274,14 @@ func run() error {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics:          makeMetrics(ctx, svc),
-		Reporter:         errReporter,
-		PluginConductor:  makePluginConductor(ctx),
-		ThrottleSystem:   opts.Throttle.System * 3,
-		ThrottleUser:     opts.Throttle.User,
-		BasicAuthEnabled: len(basicAuthAllowed) > 0,
-		BasicAuthAllowed: basicAuthAllowed,
+		Metrics:            makeMetrics(ctx, svc),
+		Reporter:           errReporter,
+		PluginConductor:    makePluginConductor(ctx),
+		LuaPluginConductor: makeLuaPluginConductor(ctx),
+		ThrottleSystem:     opts.Throttle.System * 3,
+		ThrottleUser:       opts.Throttle.User,
+		BasicAuthEnabled:   len(basicAuthAllowed) > 0,
+		BasicAuthAllowed:   basicAuthAllowed,
 	}
 
 	err = px.Run(ctx)
@@ -363,6 +372,31 @@ func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 			log.Printf("[WARN] plugin conductor error, %v", err)
 		}
 	}()
+	return conductor
+}
+
+func makeLuaPluginConductor(ctx context.Context) proxy.MiddlewareProvider {
+	if !opts.Lua.Enabled {
+		return nil
+	}
+
+	lua.LuaPathDefault += ";./?.lua"
+
+	// for future support another KV engines, for example Redis
+	luaKVEngine := luaKVMemory.New()
+	luaKVEngine.Start(ctx)
+
+	conductor := luaPlugin.New(luaKVEngine)
+
+	for _, filename := range opts.Lua.File {
+		err := conductor.Add(filename)
+		if err != nil {
+			log.Printf("[ERROR] error add lua plugin %q, %v", filename, err)
+			continue
+		}
+		log.Printf("[INFO] lua plugin enabled %q", filename)
+	}
+
 	return conductor
 }
 

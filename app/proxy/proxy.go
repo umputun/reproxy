@@ -22,32 +22,34 @@ import (
 	"github.com/go-pkgz/rest/logger"
 
 	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/lua"
 	"github.com/umputun/reproxy/app/plugin"
 )
 
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address         string
-	AssetsLocation  string
-	AssetsWebRoot   string
-	Assets404       string
-	AssetsSPA       bool
-	MaxBodySize     int64
-	GzEnabled       bool
-	ProxyHeaders    []string
-	DropHeader      []string
-	SSLConfig       SSLConfig
-	Version         string
-	AccessLog       io.Writer
-	StdOutEnabled   bool
-	Signature       bool
-	Timeouts        Timeouts
-	CacheControl    MiddlewareProvider
-	Metrics         MiddlewareProvider
-	PluginConductor MiddlewareProvider
-	Reporter        Reporter
-	LBSelector      func(len int) int
+	Address            string
+	AssetsLocation     string
+	AssetsWebRoot      string
+	Assets404          string
+	AssetsSPA          bool
+	MaxBodySize        int64
+	GzEnabled          bool
+	ProxyHeaders       []string
+	DropHeader         []string
+	SSLConfig          SSLConfig
+	Version            string
+	AccessLog          io.Writer
+	StdOutEnabled      bool
+	Signature          bool
+	Timeouts           Timeouts
+	CacheControl       MiddlewareProvider
+	Metrics            MiddlewareProvider
+	PluginConductor    MiddlewareProvider
+	LuaPluginConductor MiddlewareProvider
+	Reporter           Reporter
+	LBSelector         func(len int) int
 
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
@@ -130,6 +132,7 @@ func (h *Http) Run(ctx context.Context) error {
 		limiterSystemHandler(h.ThrottleSystem),                   // limit total requests/sec
 		limiterUserHandler(h.ThrottleUser),                       // req/seq per user/route match
 		h.mgmtHandler(),                                          // handles /metrics and /routes for prometheus
+		h.luaPluginHandler(),                                     // lua plugins
 		h.pluginHandler(),                                        // prc to external plugins
 		headersHandler(h.ProxyHeaders, h.DropHeader),             // add response headers and delete some request headers
 		accessLogHandler(h.AccessLog),                            // apache-format log file
@@ -308,6 +311,9 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info
 			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
 			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set match info for plugin conductor
+			if h.LuaPluginConductor != nil {
+				ctx = context.WithValue(ctx, lua.CtxMatch, match) // set match info for lua plugin conductor
+			}
 
 			if matches.MatchType == discovery.MTProxy {
 				uu, err := url.Parse(match.Destination)
@@ -371,6 +377,14 @@ func (h *Http) isAssetRequest(r *http.Request) bool {
 func (h *Http) toHTTP(address string, httpPort int) string {
 	rx := regexp.MustCompile(`(.*):(\d*)`)
 	return rx.ReplaceAllString(address, "$1:") + strconv.Itoa(httpPort)
+}
+
+func (h *Http) luaPluginHandler() func(next http.Handler) http.Handler {
+	if h.LuaPluginConductor == nil {
+		return passThroughHandler
+	}
+	log.Printf("[INFO] lua plugin support enabled")
+	return h.LuaPluginConductor.Middleware
 }
 
 func (h *Http) pluginHandler() func(next http.Handler) http.Handler {

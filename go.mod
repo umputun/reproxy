@@ -24,6 +24,7 @@ require (
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
+	github.com/yuin/gopher-lua v1.1.0
 )
 
 require (
