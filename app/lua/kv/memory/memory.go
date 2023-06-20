@@ -10,6 +10,7 @@ import (
 const defaultCleanupInterval = time.Minute * 15
 
 var (
+	// ErrNotExists is returned when key not exists
 	ErrNotExists = fmt.Errorf("not exists")
 )
 
@@ -18,11 +19,13 @@ type item struct {
 	timeout time.Time
 }
 
+// Memory is a simple in-memory key-value storage
 type Memory struct {
 	mx    *sync.Mutex
 	store map[string]*item
 }
 
+// New creates new Memory
 func New() *Memory {
 	m := &Memory{
 		mx:    &sync.Mutex{},
@@ -32,6 +35,7 @@ func New() *Memory {
 	return m
 }
 
+// Start starts cleanup goroutine
 func (m *Memory) Start(ctx context.Context) {
 	go m.cleanup(ctx)
 }
@@ -57,6 +61,7 @@ func (m *Memory) cleanup(ctx context.Context) {
 	}
 }
 
+// Set sets key-value pair with timeout
 func (m *Memory) Set(key, value string, timeout time.Duration) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -73,6 +78,7 @@ func (m *Memory) Set(key, value string, timeout time.Duration) error {
 	return nil
 }
 
+// Update updates value for key
 func (m *Memory) Update(key, value string) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -92,6 +98,7 @@ func (m *Memory) Update(key, value string) error {
 	return nil
 }
 
+// Delete deletes key
 func (m *Memory) Delete(key string) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -101,6 +108,7 @@ func (m *Memory) Delete(key string) error {
 	return nil
 }
 
+// Get gets value for key
 func (m *Memory) Get(key string) (string, error) {
 	m.mx.Lock()
 	defer m.mx.Unlock()

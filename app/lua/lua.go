@@ -24,9 +24,11 @@ type kv interface {
 type contextKey string
 
 const (
+	// CtxMatch is a context key for match
 	CtxMatch = contextKey("match")
 )
 
+// New creates new conductor
 func New(kv kv) *Conductor {
 	c := &Conductor{
 		kv: kv,
@@ -35,17 +37,20 @@ func New(kv kv) *Conductor {
 	return c
 }
 
+// Conductor is a lua plugin conductor
 type Conductor struct {
 	kv       kv
 	handlers []func(handler http.Handler) http.Handler
 }
 
+// Middleware returns middleware for lua plugins
 func (c *Conductor) Middleware(next http.Handler) http.Handler {
 	return R.Wrap(next, c.handlers...)
 }
 
+// Add adds lua plugin
 func (c *Conductor) Add(filename string) error {
-	data, errRead := os.ReadFile(filename)
+	data, errRead := os.ReadFile(filename) // nolint
 	if errRead != nil {
 		return fmt.Errorf("error read file, %w", errRead)
 	}
@@ -140,9 +145,9 @@ func (c *Conductor) handler(filename string, f lua.LValue) func(handler http.Han
 	}
 }
 
-func (ctx *luaContext) getResponseStatusAndBody() (int, string, error) {
-	statusCode := 200
-	body := ""
+func (ctx *luaContext) getResponseStatusAndBody() (statusCode int, body string, err error) {
+	statusCode = 200
+	body = ""
 
 	statusCodeV := ctx.resp.RawGetString("statusCode")
 	if statusCodeV.Type() != lua.LTNil {
