@@ -101,34 +101,59 @@ func (ctx *luaContext) makeHeader(state *lua.LState, h http.Header) lua.LValue {
 
 func headerGet(h http.Header) lua.LGFunction {
 	return func(state *lua.LState) int {
-		name := state.CheckString(1)
-		state.Push(lua.LString(h.Get(name)))
+		name := state.Get(1)
+		if name.Type() != lua.LTString {
+			state.RaiseError("header name must be string")
+			return 0
+		}
+
+		state.Push(lua.LString(h.Get(name.String())))
 		return 1
 	}
 }
 
 func headerDelete(h http.Header) lua.LGFunction {
 	return func(state *lua.LState) int {
-		name := state.CheckString(1)
-		h.Del(name)
+		name := state.Get(1)
+		if name.Type() != lua.LTString {
+			state.RaiseError("header name must be string")
+			return 0
+		}
+		h.Del(name.String())
 		return 0
 	}
 }
 
 func headerSet(h http.Header) lua.LGFunction {
 	return func(state *lua.LState) int {
-		name := state.CheckString(1)
-		value := state.CheckString(2)
-		h.Set(name, value)
+		name := state.Get(1)
+		if name.Type() != lua.LTString {
+			state.RaiseError("header name must be string")
+			return 0
+		}
+		value := state.Get(2)
+		if value.Type() != lua.LTString {
+			state.RaiseError("header value must be string")
+			return 0
+		}
+		h.Set(name.String(), value.String())
 		return 0
 	}
 }
 
 func headerAdd(h http.Header) lua.LGFunction {
 	return func(state *lua.LState) int {
-		name := state.CheckString(1)
-		value := state.CheckString(2)
-		h.Add(name, value)
+		name := state.Get(1)
+		if name.Type() != lua.LTString {
+			state.RaiseError("header name must be string")
+			return 0
+		}
+		value := state.Get(2)
+		if value.Type() != lua.LTString {
+			state.RaiseError("header value must be string")
+			return 0
+		}
+		h.Add(name.String(), value.String())
 		return 0
 	}
 }
