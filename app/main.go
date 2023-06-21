@@ -24,11 +24,11 @@ import (
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
 	"github.com/umputun/reproxy/app/discovery/provider/consulcatalog"
-	luaPlugin "github.com/umputun/reproxy/app/lua"
-	luaKVMemory "github.com/umputun/reproxy/app/lua/kv/memory"
 	"github.com/umputun/reproxy/app/mgmt"
 	"github.com/umputun/reproxy/app/plugin"
 	"github.com/umputun/reproxy/app/proxy"
+	luaPlugin "github.com/umputun/reproxy/plugins/lua"
+	luaKVMemory "github.com/umputun/reproxy/plugins/lua/kv/memory"
 )
 
 var opts struct {

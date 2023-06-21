@@ -22,8 +22,8 @@ import (
 	"github.com/go-pkgz/rest/logger"
 
 	"github.com/umputun/reproxy/app/discovery"
-	"github.com/umputun/reproxy/app/lua"
 	"github.com/umputun/reproxy/app/plugin"
+	"github.com/umputun/reproxy/plugins/lua"
 )
 
 // Http is a proxy server for both http and https
