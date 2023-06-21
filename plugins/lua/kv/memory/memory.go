@@ -21,14 +21,13 @@ type item struct {
 
 // Memory is a simple in-memory key-value storage
 type Memory struct {
-	mx    *sync.Mutex
+	mx    sync.Mutex
 	store map[string]*item
 }
 
 // New creates new Memory
 func New() *Memory {
 	m := &Memory{
-		mx:    &sync.Mutex{},
 		store: map[string]*item{},
 	}
 
