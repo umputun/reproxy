@@ -386,7 +386,7 @@ func makeLuaPluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 	luaKVEngine := luaKVMemory.New()
 	luaKVEngine.Start(ctx)
 
-	conductor := luaPlugin.New(luaKVEngine)
+	conductor := luaPlugin.New(luaKVEngine, http.DefaultClient)
 
 	for _, filename := range opts.Lua.File {
 		err := conductor.Add(filename)

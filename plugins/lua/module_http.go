@@ -174,7 +174,7 @@ func (c *Conductor) httpRawRequest(method, requestURL string, requestBody io.Rea
 	}
 	req.Header = headers
 
-	resp, errDo := http.DefaultClient.Do(req)
+	resp, errDo := c.httpClient.Do(req)
 	if errDo != nil {
 		return nil, fmt.Errorf("error do request, %w", errDo)
 	}

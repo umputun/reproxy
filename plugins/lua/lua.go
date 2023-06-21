@@ -21,6 +21,10 @@ type kv interface {
 	Get(key string) (string, error)
 }
 
+type httpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type contextKey string
 
 const (
@@ -29,9 +33,10 @@ const (
 )
 
 // New creates new conductor
-func New(kv kv) *Conductor {
+func New(kv kv, httpClient httpClient) *Conductor {
 	c := &Conductor{
-		kv: kv,
+		kv:         kv,
+		httpClient: httpClient,
 	}
 
 	return c
@@ -39,8 +44,9 @@ func New(kv kv) *Conductor {
 
 // Conductor is a lua plugin conductor
 type Conductor struct {
-	kv       kv
-	handlers []func(handler http.Handler) http.Handler
+	kv         kv
+	handlers   []func(handler http.Handler) http.Handler
+	httpClient httpClient
 }
 
 // Middleware returns middleware for lua plugins
