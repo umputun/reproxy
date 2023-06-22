@@ -152,7 +152,7 @@ func (c *Conductor) handler(filename string, f lua.LValue) func(handler http.Han
 }
 
 func (ctx *luaContext) getResponseStatusAndBody() (statusCode int, body string, err error) {
-	statusCode = 200
+	statusCode = http.StatusOK
 	body = ""
 
 	statusCodeV := ctx.resp.RawGetString("statusCode")
