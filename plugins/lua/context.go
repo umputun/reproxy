@@ -44,6 +44,7 @@ func makeLuaContext(filename string, state *lua.LState, w http.ResponseWriter, r
 	ctx.loader.RawSetString("next", state.NewFunction(ctx.next(w)))
 
 	// request
+	ctx.req.RawSetString("proto", lua.LString(ctx.r.Proto))
 	ctx.req.RawSetString("method", lua.LString(ctx.r.Method))
 	ctx.req.RawSetString("remoteAddr", lua.LString(ctx.r.RemoteAddr))
 	ctx.req.RawSetString("requestURI", lua.LString(ctx.r.RequestURI))
