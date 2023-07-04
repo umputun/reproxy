@@ -8,7 +8,7 @@ return function(context)
         return
     end
 
-    log.debug('original request body', body)
+    log.debug('original request body', context.request.body)
 
     context.request.body = 'modified body'
 
