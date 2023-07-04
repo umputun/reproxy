@@ -152,8 +152,8 @@ Available options for methods `request`. All fields are not required
 ```
 {
     timeout = '30s',                        go duration string, default 30s
-    body = '',                              string
-    headers = {                             string/string table
+    body = '',                              string, default empty
+    headers = {                             string/string table, default empty
         ['Content-Type'] = 'application/json',
         Authorization = 'foobar'            
     }
