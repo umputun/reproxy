@@ -1,6 +1,6 @@
 module github.com/umputun/reproxy
 
-go 1.20
+go 1.21
 
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -11,17 +11,17 @@ require (
 	github.com/go-pkgz/rest v1.17.0
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/gorilla/handlers v1.5.1
-	github.com/prometheus/client_golang v1.15.1
-	github.com/prometheus/common v0.43.0 // indirect
-	github.com/prometheus/procfs v0.9.0 // indirect
+	github.com/prometheus/client_golang v1.16.0
+	github.com/prometheus/common v0.44.0 // indirect
+	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/stretchr/testify v1.8.1
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.9.0
-	golang.org/x/net v0.10.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/crypto v0.13.0
+	golang.org/x/net v0.15.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )
