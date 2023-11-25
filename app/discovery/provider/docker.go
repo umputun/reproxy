@@ -103,6 +103,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// defaults
 		destURL, pingURL, server := fmt.Sprintf("http://%s:%d/$1", c.IP, port), fmt.Sprintf("http://%s:%d/ping", c.IP, port), "*"
 		assetsWebRoot, assetsLocation, assetsSPA := "", "", false
+		onlyFrom := []string{}
 
 		if d.AutoAPI && n == 0 {
 			enabled = true
@@ -131,6 +132,10 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			server = v
 		} else if v, ok = c.Labels["reproxy.server"]; ok { // fallback if no reproxy.N.server
 			server = v
+		}
+
+		if v, ok := d.labelN(c.Labels, n, "remote"); ok {
+			onlyFrom = discovery.ParseOnlyFrom(v)
 		}
 
 		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
@@ -171,7 +176,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// docker server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
+				PingURL: pingURL, OnlyFromIPs: onlyFrom, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {
