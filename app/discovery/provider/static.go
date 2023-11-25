@@ -9,7 +9,7 @@ import (
 	"github.com/umputun/reproxy/app/discovery"
 )
 
-// Static provider, rules are server,from,to
+// Static provider, rules are server,source_url,destination[,ping]
 type Static struct {
 	Rules []string // each rule is 4 elements comma separated - server,source_url,destination,ping
 }

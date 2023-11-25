@@ -37,6 +37,7 @@ type URLMapper struct {
 	PingURL      string
 	MatchType    MatchType
 	RedirectType RedirectType
+	OnlyFromIPs  []string
 
 	AssetsLocation string // local FS root location
 	AssetsWebRoot  string // web root location
@@ -484,16 +485,6 @@ func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-c
 	return out
 }
 
-// Contains checks if the input string (e) in the given slice
-func Contains(e string, s []string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 // IsAlive indicates whether mapper destination is alive
 func (m URLMapper) IsAlive() bool {
 	return !m.dead
@@ -514,4 +505,25 @@ func (m URLMapper) ping() (string, error) {
 	}
 
 	return "", err
+}
+
+// Contains checks if the input string (e) in the given slice
+func Contains(e string, s []string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseOnlyFrom parses comma separated list of IPs
+func ParseOnlyFrom(s string) (res []string) {
+	if s == "" {
+		return []string{}
+	}
+	for _, v := range strings.Split(s, ",") {
+		res = append(res, strings.TrimSpace(v))
+	}
+	return res
 }
