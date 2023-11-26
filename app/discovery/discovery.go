@@ -137,11 +137,16 @@ func (s *Service) Run(ctx context.Context) error {
 			evRecv = false
 			lst := s.mergeLists()
 			for _, m := range lst {
+				onlyFrom := ""
+				if len(m.OnlyFromIPs) > 0 {
+					onlyFrom = fmt.Sprintf(" +[%v]", strings.Join(m.OnlyFromIPs, ",")) // show onlyFrom if set
+				}
 				if m.MatchType == MTProxy {
-					log.Printf("[INFO] proxy  %s: %s %s -> %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+					log.Printf("[INFO] proxy  %s: %s %s -> %s%s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst, onlyFrom)
 				}
 				if m.MatchType == MTStatic {
-					log.Printf("[INFO] assets %s: %s %s -> %s", m.ProviderID, m.Server, m.AssetsWebRoot, m.AssetsLocation)
+					log.Printf("[INFO] assets %s: %s %s -> %s%s", m.ProviderID, m.Server, m.AssetsWebRoot,
+						m.AssetsLocation, onlyFrom)
 				}
 			}
 			s.lock.Lock()
