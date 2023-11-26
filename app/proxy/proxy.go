@@ -121,19 +121,19 @@ func (h *Http) Run(ctx context.Context) error {
 	}()
 
 	handler := R.Wrap(h.proxyHandler(),
-		R.Recoverer(log.Default()),               // recover on errors
-		signatureHandler(h.Signature, h.Version), // send app signature
-		h.OnlyFrom.Handler,                       // limit source (remote) IPs if defined
-		h.pingHandler,                            // respond to /ping
+		R.Recoverer(log.Default()),                               // recover on errors
+		signatureHandler(h.Signature, h.Version),                 // send app signature
+		h.pingHandler,                                            // respond to /ping
 		basicAuthHandler(h.BasicAuthEnabled, h.BasicAuthAllowed), // basic auth
-		h.healthMiddleware,                           // respond to /health
-		h.matchHandler,                               // set matched routes to context
-		limiterSystemHandler(h.ThrottleSystem),       // limit total requests/sec
-		limiterUserHandler(h.ThrottleUser),           // req/seq per user/route match
-		h.mgmtHandler(),                              // handles /metrics and /routes for prometheus
-		h.pluginHandler(),                            // prc to external plugins
-		headersHandler(h.ProxyHeaders, h.DropHeader), // add response headers and delete some request headers
-		accessLogHandler(h.AccessLog),                // apache-format log file
+		h.healthMiddleware,                                       // respond to /health
+		h.matchHandler,                                           // set matched routes to context
+		h.OnlyFrom.Handler,                                       // limit source (remote) IPs if defined
+		limiterSystemHandler(h.ThrottleSystem),                   // limit total requests/sec
+		limiterUserHandler(h.ThrottleUser),                       // req/seq per user/route match
+		h.mgmtHandler(),                                          // handles /metrics and /routes for prometheus
+		h.pluginHandler(),                                        // prc to external plugins
+		headersHandler(h.ProxyHeaders, h.DropHeader),             // add response headers and delete some request headers
+		accessLogHandler(h.AccessLog),                            // apache-format log file
 		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		maxReqSizeHandler(h.MaxBodySize), // limit request max size
 		gzipHandler(h.GzEnabled),         // gzip response
