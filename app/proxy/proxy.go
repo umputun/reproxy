@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -47,7 +46,7 @@ type Http struct { // nolint golint
 	Metrics          MiddlewareProvider
 	PluginConductor  MiddlewareProvider
 	Reporter         Reporter
-	LBSelector       func(len int) int
+	LBSelector       LBSelector
 	OnlyFrom         *OnlyFrom
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
@@ -73,6 +72,11 @@ type MiddlewareProvider interface {
 // Reporter defines error reporting service
 type Reporter interface {
 	Report(w http.ResponseWriter, code int)
+}
+
+// LBSelector defines load balancer strategy
+type LBSelector interface {
+	Select(len int) int // return index of picked server
 }
 
 // Timeouts consolidate timeouts for both server and transport
@@ -101,7 +105,7 @@ func (h *Http) Run(ctx context.Context) error {
 	}
 
 	if h.LBSelector == nil {
-		h.LBSelector = rand.Intn
+		h.LBSelector = &RandomSelector{}
 	}
 
 	var httpServer, httpsServer *http.Server
@@ -277,7 +281,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 // and if match found sets it to the request context. Context used by proxy handler as well as by plugin conductor
 func (h *Http) matchHandler(next http.Handler) http.Handler {
 
-	getMatch := func(mm discovery.Matches, picker func(len int) int) (m discovery.MatchedRoute, ok bool) {
+	getMatch := func(mm discovery.Matches, picker LBSelector) (m discovery.MatchedRoute, ok bool) {
 		if len(mm.Routes) == 0 {
 			return m, false
 		}
@@ -294,7 +298,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		case 1:
 			return matches[0], true
 		default:
-			return matches[picker(len(matches))], true
+			return matches[picker.Select(len(matches))], true
 		}
 	}
 
