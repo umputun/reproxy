@@ -2,10 +2,11 @@ package proxy
 
 import (
 	"bytes"
-	"log"
 	"net"
 	"net/http"
 	"strings"
+
+	log "github.com/go-pkgz/lgr"
 
 	"github.com/umputun/reproxy/app/discovery"
 )
