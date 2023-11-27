@@ -364,7 +364,7 @@ This is the list of all options supporting multiple elements:
   -x, --header=                     outgoing proxy headers to add [$HEADER]
       --drop-header=                incoming headers to drop [$DROP_HEADERS]
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
-      --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
+      --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
       --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
       --dbg                         debug mode [$DEBUG]
