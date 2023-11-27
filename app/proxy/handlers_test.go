@@ -244,5 +244,4 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
-
 }

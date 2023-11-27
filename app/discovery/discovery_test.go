@@ -39,7 +39,7 @@ func TestService_Run(t *testing.T) {
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
 				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"),
-					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
+					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker, OnlyFromIPs: []string{"127.0.0.1"}},
 			}, nil
 		},
 	}
@@ -66,6 +66,7 @@ func TestService_Run(t *testing.T) {
 	assert.Equal(t, "localhost", mappers[0].Server)
 	assert.Equal(t, "/api/svc3/xyz", mappers[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", mappers[0].Dst)
+	assert.Equal(t, []string{"127.0.0.1"}, mappers[0].OnlyFromIPs)
 
 	assert.Equal(t, 1, len(p1.EventsCalls()))
 	assert.Equal(t, 1, len(p2.EventsCalls()))
@@ -104,7 +105,8 @@ func TestService_Match(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
+				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz",
+					OnlyFromIPs: []string{"127.0.0.1", "192.168.1.0/24"}, ProviderID: PIDocker},
 				{SrcMatch: *regexp.MustCompile("/web"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
 					AssetsWebRoot: "/web", AssetsLocation: "/var/web"},
 				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
@@ -131,9 +133,11 @@ func TestService_Match(t *testing.T) {
 		res         Matches
 	}{
 		{"example.com", "/api/svc3/xyz/something", Matches{MTProxy, []MatchedRoute{
-			{Destination: "http://127.0.0.3:8080/blah3/xyz/something", Alive: true}}}},
+			{Destination: "http://127.0.0.3:8080/blah3/xyz/something", Alive: true,
+				Mapper: URLMapper{OnlyFromIPs: []string{"127.0.0.1", "192.168.1.0/24"}}}}}},
 		{"example.com", "/api/svc3/xyz", Matches{MTProxy, []MatchedRoute{{
-			Destination: "http://127.0.0.3:8080/blah3/xyz", Alive: true}}}},
+			Destination: "http://127.0.0.3:8080/blah3/xyz", Alive: true,
+			Mapper: URLMapper{OnlyFromIPs: []string{"127.0.0.1", "192.168.1.0/24"}}}}}},
 		{"abc.example.com", "/api/svc1/1234", Matches{MTProxy, []MatchedRoute{
 			{Destination: "http://127.0.0.1:8080/blah1/1234", Alive: true}}}},
 		{"zzz.example.com", "/aaa/api/svc1/1234", Matches{MTProxy, nil}},
@@ -167,6 +171,7 @@ func TestService_Match(t *testing.T) {
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+				assert.Equal(t, tt.res.Routes[i].Mapper.OnlyFromIPs, res.Routes[i].Mapper.OnlyFromIPs)
 			}
 			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
@@ -392,9 +397,9 @@ func TestService_extendRule(t *testing.T) {
 		},
 		{
 			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
-				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
+				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx", RedirectType: RTPerm},
 			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
-				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx"},
+				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx", RedirectType: RTPerm},
 		},
 	}
 
@@ -607,4 +612,40 @@ func TestCheckHealth(t *testing.T) {
 	assert.Error(t, res[failPingULR])
 	assert.NoError(t, res[ts.URL])
 	assert.NoError(t, res[ts2.URL])
+}
+
+func TestParseOnlyFrom(t *testing.T) {
+	tbl := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name:     "single IP",
+			input:    "192.168.1.1",
+			expected: []string{"192.168.1.1"},
+		},
+		{
+			name:     "multiple IPs",
+			input:    "192.168.1.1, 192.168.1.2, 192.168.1.3, 10.0.0.0/16",
+			expected: []string{"192.168.1.1", "192.168.1.2", "192.168.1.3", "10.0.0.0/16"},
+		},
+		{
+			name:     "multiple IPs with extra spaces",
+			input:    " 192.168.1.1 , 192.168.1.2 , 192.168.1.3 ",
+			expected: []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"},
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParseOnlyFrom(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

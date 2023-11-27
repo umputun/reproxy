@@ -3,12 +3,13 @@ package consulcatalog
 import (
 	"context"
 	"fmt"
-	"github.com/umputun/reproxy/app/discovery"
 	"log"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 //go:generate moq -out consul_client_mock.go -skip-ensure -fmt goimports . ConsulClient
@@ -140,6 +141,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		pingURL := fmt.Sprintf("http://%s:%d/ping", c.ServiceAddress, c.ServicePort)
 		server := "*"
 		var keepHost *bool
+		onlyFrom := []string{}
 
 		if v, ok := c.Labels["reproxy.enabled"]; ok && (v == "true" || v == "yes" || v == "1") {
 			enabled = true
@@ -158,6 +160,10 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		if v, ok := c.Labels["reproxy.server"]; ok {
 			enabled = true
 			server = v
+		}
+
+		if v, ok := c.Labels["reproxy.remote"]; ok {
+			onlyFrom = discovery.ParseOnlyFrom(v)
 		}
 
 		if v, ok := c.Labels["reproxy.ping"]; ok {
@@ -191,7 +197,8 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		// server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost})
+				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost,
+				OnlyFromIPs: onlyFrom, PingURL: pingURL, ProviderID: discovery.PIConsulCatalog})
 		}
 	}
 

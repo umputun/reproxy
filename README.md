@@ -11,8 +11,9 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Dynamic, file-based proxy rules provider
 - Docker provider with an automatic discovery
 - Consul Catalog provider with discovery by service tags
-- Support of multiple (virtual) hosts
+- Support for multiple (virtual) hosts
 - Optional traffic compression
+- Optional IP-based access control
 - User-defined size limits and timeouts
 - Single binary distribution
 - Docker container distribution
@@ -82,6 +83,7 @@ default: # the same as * (catch-all) server
       route: "/api/svc3/xyz",
       dest: "http://127.0.0.3:8080/blah3/xyz",
       ping: "http://127.0.0.3:8080/ping",
+      remote: "192.168.1.0/24, 127.0.0.1" # optional, restrict access to the route 
     }
 srv.example.com:
   - { route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc" }
@@ -101,6 +103,7 @@ This default can be changed with labels:
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port
 - `reproxy.port` - destination port for the discovered container
 - `reproxy.ping` - ping path for the destination container.
+- `reproxy.remote` - restrict access to the route with a list of comma-separated subnets or ips
 - `reproxy.assets` - set assets mapping as `web-root:location`, for example `reproxy.assets=/web:/var/www`
 - `reproxy.keep-host` - keep host header as is (`yes`, `true`, `1`) or replace with destination host (`no`, `false`, `0`)
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
@@ -143,6 +146,7 @@ This default can be changed with tags:
 - `reproxy.route` - source route (location)
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to service's ip:port
 - `reproxy.port` - destination port for the discovered service
+- `reproxy.remote` - restrict access to the route with a list of comma-separated subnets or ips
 - `reproxy.ping` - ping path for the destination service.
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`any different value`) service from reproxy destinations.
 
@@ -250,14 +254,14 @@ supported codes:
 In order to eliminate the need to pass custom params/environment, the default `--listen` is dynamic and trying to be reasonable and helpful for the typical cases:
 
 - If anything set by users to `--listen` all the logic below ignored and host:port passed in and used directly.
-- If nothing set by users to `--listen` and reproxy runs outside of the docker container, the default is `127.0.0.1:80` for http mode (`ssl.type=none`) and `127.0.0.1:443` for ssl mode (`ssl.type=auto` or `ssl.type=static`).
+- If nothing set by users to `--listen` and reproxy runs outside the docker container, the default is `127.0.0.1:80` for http mode (`ssl.type=none`) and `127.0.0.1:443` for ssl mode (`ssl.type=auto` or `ssl.type=static`).
 -  If nothing set by users to `--listen` and reproxy runs inside the docker, the default is `0.0.0.0:8080` for http mode, and `0.0.0.0:8443` for ssl mode.
 
 Another default set in the similar dynamic way is `--ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
 
 ## Ping, health checks and fail-over
 
-reproxy provides 2 endpoints for this purpose:
+reproxy provides two endpoints for this purpose:
 
 - `/ping` responds with `pong` and indicates what reproxy up and running
 - `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
@@ -298,8 +302,18 @@ username1:bcrypt(password2)
 username2:bcrypt(password2)
 ...
 ```
-
 this can be generated with `htpasswd -nbB` command, i.e. `htpasswd -nbB test passwd`
+
+## IP-based access control
+
+Reproxy allows restricting access to the routes with a list of comma-separated subnets or ips. This is useful for the development and testing, before allowing unrestricted access to them. It also can be used to restrict access to the internal services. By default, all the routes are open for all the clients.
+
+To restrict access to the routes, user should set appropriate keys for the routes, i.e. `reproxy.remote` for docker and consul, and `remote` for file provider. The value should be a list of comma-separated subnets or ips or subnets. For example `127.0.0.1, 192.168.1.0/24`. For more details see [docker provider](#docker-provider) and [consul catalog provider](#consul-catalog-provider) sections.
+
+By default, reproxy will check the remote address from the client's request. However, in some cases, it won't work as expected, for example behind of other proxy, or with docker bridge network. This can be altered with `--remote-lookup-headers` parameter allowing check the value of the header `X-Real-IP` or `X-Forwarded-For` (in this order) and use it for the check. If the header is not set, the check will be performed against the remote address of the client.
+
+Checking headers should be used with caution, as it is possible to fake them. However, in some cases, it is the only way to get the real remote address of the client. Generally, it is recommended to use this option only if user is completely controlling all the headers and can guarantee the headers are not faked.
+
 
 ## Plugins support
 
@@ -354,6 +368,7 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
+      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
       --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
       --dbg                         debug mode [$DEBUG]
 

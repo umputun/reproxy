@@ -156,7 +156,6 @@ func Test_MainWithSSL(t *testing.T) {
 }
 
 func Test_MainWithPlugin(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	proxyPort := rand.Intn(10000) + 40000
 	conductorPort := rand.Intn(10000) + 40000
 	os.Args = []string{"test", "--static.enabled",
@@ -329,7 +328,7 @@ func waitForHTTPServerStart(port int) {
 
 type TestPlugin struct{}
 
-//nolint
+// nolint
 func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	res.HeadersIn = http.Header{}
@@ -340,7 +339,7 @@ func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error
 	return nil
 }
 
-//nolint
+// nolint
 func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) {
 	log.Printf("req: %+v", req)
 	if req.URL == "/fail" {

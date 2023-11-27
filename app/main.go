@@ -29,6 +29,14 @@ import (
 )
 
 var opts struct {
+	Listen              string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
+	MaxSize             string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
+	GzipEnabled         bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	ProxyHeaders        []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
+	DropHeaders         []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
+	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
+	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers"`
+	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
 	Listen            string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
 	MaxSize           string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
 	GzipEnabled       bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
@@ -275,10 +283,11 @@ func run() error {
 		BasicAuthEnabled: len(basicAuthAllowed) > 0,
 		BasicAuthAllowed: basicAuthAllowed,
 		KeepHost:         opts.KeepHost,
+		OnlyFrom:         makeOnlyFromMiddleware(),
 	}
 
 	err = px.Run(ctx)
-	if err != nil && err == http.ErrServerClosed {
+	if err != nil && errors.Is(err, http.ErrServerClosed) {
 		log.Printf("[WARN] proxy server closed, %v", err) // nolint gocritic
 		return nil
 	}
@@ -418,13 +427,19 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 func makeLBSelector() func(len int) int {
 	switch opts.LBType {
 	case "random":
-		rand.Seed(time.Now().UnixNano())
 		return rand.Intn
 	case "failover":
 		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
 	default:
 		return func(int) int { return 0 }
 	}
+}
+
+func makeOnlyFromMiddleware() *proxy.OnlyFrom {
+	if opts.RemoteLookupHeaders {
+		return proxy.NewOnlyFrom(proxy.OFRealIP, proxy.OFForwarded, proxy.OFRemoteAddr)
+	}
+	return proxy.NewOnlyFrom(proxy.OFRemoteAddr)
 }
 
 func makeErrorReporter() (proxy.Reporter, error) {

@@ -86,7 +86,7 @@ func (d *Docker) List() ([]discovery.URLMapper, error) {
 // parseContainerInfo getting URLMappers for up to 10 routes for 0..9 N (reproxy.N.something)
 func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper) {
 
-	for n := 0; n < 9; n++ {
+	for n := 0; n <= 9; n++ {
 		enabled, explicit := false, false
 		srcURL := fmt.Sprintf("^/%s/(.*)", c.Name) // default src is /container-name/(.*)
 		if d.APIPrefix != "" {
@@ -103,6 +103,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// defaults
 		destURL, pingURL, server := fmt.Sprintf("http://%s:%d/$1", c.IP, port), fmt.Sprintf("http://%s:%d/ping", c.IP, port), "*"
 		assetsWebRoot, assetsLocation, assetsSPA := "", "", false
+		onlyFrom := []string{}
 
 		if d.AutoAPI && n == 0 {
 			enabled = true
@@ -119,8 +120,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 
 		if v, ok := d.labelN(c.Labels, n, "dest"); ok {
 			enabled, explicit = true, true
-			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
-				destURL = v // proxy to http:// and https:// destinations as-is
+			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "@") {
+				destURL = v // proxy to http:// and https://, or redirect - destinations as-is, don't add host and port
 			} else {
 				destURL = fmt.Sprintf("http://%s:%d%s", c.IP, port, v)
 			}
@@ -131,6 +132,10 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			server = v
 		} else if v, ok = c.Labels["reproxy.server"]; ok { // fallback if no reproxy.N.server
 			server = v
+		}
+
+		if v, ok := d.labelN(c.Labels, n, "remote"); ok {
+			onlyFrom = discovery.ParseOnlyFrom(v)
 		}
 
 		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
@@ -174,6 +179,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		for _, srv := range strings.Split(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy, KeepHost: keepHost}
+				PingURL: pingURL, OnlyFromIPs: onlyFrom, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {
@@ -374,7 +380,7 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 		return nil, fmt.Errorf("failed connection to docker socket: %w", err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		e := struct {

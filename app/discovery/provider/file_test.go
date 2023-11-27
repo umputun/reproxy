@@ -114,6 +114,7 @@ func TestFile_List(t *testing.T) {
 	assert.Equal(t, "srv.example.com", res[0].Server)
 	assert.Equal(t, discovery.MTProxy, res[0].MatchType)
 	assert.Nil(t, res[0].KeepHost)
+	assert.Equal(t, []string{}, res[0].OnlyFromIPs)
 
 	assert.Equal(t, "^/api/svc1/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.1:8080/blah1/$1", res[1].Dst)
@@ -121,6 +122,7 @@ func TestFile_List(t *testing.T) {
 	assert.Equal(t, "*", res[1].Server)
 	assert.Equal(t, discovery.MTProxy, res[1].MatchType)
 	assert.Nil(t, res[1].KeepHost)
+	assert.Equal(t, []string{}, res[1].OnlyFromIPs)
 
 	assert.Equal(t, "/api/svc3/xyz", res[2].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", res[2].Dst)
@@ -128,6 +130,7 @@ func TestFile_List(t *testing.T) {
 	assert.Equal(t, "*", res[2].Server)
 	assert.Equal(t, discovery.MTProxy, res[2].MatchType)
 	assert.Nil(t, res[2].KeepHost)
+	assert.Equal(t, []string{}, res[2].OnlyFromIPs)
 
 	assert.Equal(t, "/web/", res[3].SrcMatch.String())
 	assert.Equal(t, "/var/web", res[3].Dst)
@@ -135,6 +138,7 @@ func TestFile_List(t *testing.T) {
 	assert.Equal(t, "*", res[3].Server)
 	assert.Equal(t, discovery.MTStatic, res[3].MatchType)
 	assert.Equal(t, false, res[3].AssetsSPA)
+	assert.Equal(t, []string{"192.168.1.0/24", "124.0.0.1"}, res[3].OnlyFromIPs)
 	assert.Equal(t, true, *res[3].KeepHost)
 
 	assert.Equal(t, "/web2/", res[4].SrcMatch.String())
@@ -143,5 +147,6 @@ func TestFile_List(t *testing.T) {
 	assert.Equal(t, "*", res[4].Server)
 	assert.Equal(t, discovery.MTStatic, res[4].MatchType)
 	assert.Equal(t, true, res[4].AssetsSPA)
+	assert.Equal(t, []string{}, res[4].OnlyFromIPs)
 	assert.Equal(t, false, *res[4].KeepHost)
 }

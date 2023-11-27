@@ -3,12 +3,14 @@ package consulcatalog
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/umputun/reproxy/app/discovery"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 func TestNew(t *testing.T) {
@@ -62,7 +64,8 @@ func TestConsulCatalog_List(t *testing.T) {
 				ServiceAddress: "addr3",
 				ServicePort:    3000,
 				Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
-					"reproxy.server": "example.com,domain.com", "reproxy.ping": "/ping", "reproxy.enabled": "yes"},
+					"reproxy.server": "example.com,domain.com", "reproxy.ping": "/ping",
+					"reproxy.enabled": "yes", "reproxy.remote": "127.0.0.1,  192.168.1.0/24"},
 			},
 			{
 				ServiceID:      "id4",
@@ -104,25 +107,29 @@ func TestConsulCatalog_List(t *testing.T) {
 	assert.Equal(t, "http://addr3:3000/blah/$1", res[0].Dst)
 	assert.Equal(t, "example.com", res[0].Server)
 	assert.Equal(t, "http://addr3:3000/ping", res[0].PingURL)
-	assert.Equal(t, (*bool)(nil), res[3].KeepHost)
+	assert.Equal(t, (*bool)(nil), res[0].KeepHost)
+	assert.Equal(t, []string{"127.0.0.1", "192.168.1.0/24"}, res[0].OnlyFromIPs)
 
 	assert.Equal(t, "^/api/123/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://addr3:3000/blah/$1", res[1].Dst)
 	assert.Equal(t, "domain.com", res[1].Server)
 	assert.Equal(t, "http://addr3:3000/ping", res[1].PingURL)
-	assert.Equal(t, (*bool)(nil), res[3].KeepHost)
+	assert.Equal(t, (*bool)(nil), res[1].KeepHost)
+	assert.Equal(t, []string{"127.0.0.1", "192.168.1.0/24"}, res[1].OnlyFromIPs)
 
 	assert.Equal(t, "^/(.*)", res[2].SrcMatch.String())
 	assert.Equal(t, "http://addr44:4000/$1", res[2].Dst)
 	assert.Equal(t, "http://addr44:4000/ping", res[2].PingURL)
 	assert.Equal(t, "*", res[2].Server)
-	assert.Equal(t, (*bool)(nil), res[3].KeepHost)
+	assert.Equal(t, (*bool)(nil), res[2].KeepHost)
+	assert.Equal(t, []string{}, res[2].OnlyFromIPs)
 
 	assert.Equal(t, "^/(.*)", res[3].SrcMatch.String())
 	assert.Equal(t, "http://addr2:2000/$1", res[3].Dst)
 	assert.Equal(t, "http://addr2:2000/ping", res[3].PingURL)
 	assert.Equal(t, "*", res[3].Server)
 	assert.Equal(t, (*bool)(nil), res[3].KeepHost)
+	assert.Equal(t, []string{}, res[3].OnlyFromIPs)
 
 	tr := true
 	assert.Equal(t, "^/(.*)", res[4].SrcMatch.String())

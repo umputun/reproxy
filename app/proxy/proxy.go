@@ -28,27 +28,27 @@ import (
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address         string
-	AssetsLocation  string
-	AssetsWebRoot   string
-	Assets404       string
-	AssetsSPA       bool
-	MaxBodySize     int64
-	GzEnabled       bool
-	ProxyHeaders    []string
-	DropHeader      []string
-	SSLConfig       SSLConfig
-	Version         string
-	AccessLog       io.Writer
-	StdOutEnabled   bool
-	Signature       bool
-	Timeouts        Timeouts
-	CacheControl    MiddlewareProvider
-	Metrics         MiddlewareProvider
-	PluginConductor MiddlewareProvider
-	Reporter        Reporter
-	LBSelector      func(len int) int
-
+	Address          string
+	AssetsLocation   string
+	AssetsWebRoot    string
+	Assets404        string
+	AssetsSPA        bool
+	MaxBodySize      int64
+	GzEnabled        bool
+	ProxyHeaders     []string
+	DropHeader       []string
+	SSLConfig        SSLConfig
+	Version          string
+	AccessLog        io.Writer
+	StdOutEnabled    bool
+	Signature        bool
+	Timeouts         Timeouts
+	CacheControl     MiddlewareProvider
+	Metrics          MiddlewareProvider
+	PluginConductor  MiddlewareProvider
+	Reporter         Reporter
+	LBSelector       func(len int) int
+	OnlyFrom         *OnlyFrom
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
 
@@ -129,6 +129,7 @@ func (h *Http) Run(ctx context.Context) error {
 		basicAuthHandler(h.BasicAuthEnabled, h.BasicAuthAllowed), // basic auth
 		h.healthMiddleware,                                       // respond to /health
 		h.matchHandler,                                           // set matched routes to context
+		h.OnlyFrom.Handler,                                       // limit source (remote) IPs if defined
 		limiterSystemHandler(h.ThrottleSystem),                   // limit total requests/sec
 		limiterUserHandler(h.ThrottleUser),                       // req/seq per user/route match
 		h.mgmtHandler(),                                          // handles /metrics and /routes for prometheus
@@ -414,22 +415,22 @@ func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 }
 
 func (h *Http) setXRealIP(r *http.Request) {
-
-	remoteIP := r.Header.Get("X-Forwarded-For")
-	if remoteIP == "" {
-		remoteIP = r.RemoteAddr
-	}
-
-	ip, _, err := net.SplitHostPort(remoteIP)
-	if err != nil {
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		// use the left-most non-private client IP address
+		// if there is no any non-private IP address, use the left-most address
+		r.Header.Set("X-Real-IP", preferPublicIP(strings.Split(forwarded, ",")))
 		return
 	}
 
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return
+	}
 	userIP := net.ParseIP(ip)
 	if userIP == nil {
 		return
 	}
-	r.Header.Add("X-Real-IP", ip)
+	r.Header.Set("X-Real-IP", ip)
 }
 
 // discoveredServers gets the list of servers discovered by providers.

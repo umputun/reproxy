@@ -36,6 +36,45 @@ Org: Umputun
 pong
 ```
 
+### Health middleware
+
+Responds with the status 200 if all health checks passed, 503 if any failed. Both health path and check functions passed by consumer.
+For production usage this middleware should be used with throttler/limiter and, optionally, with some auth middlewares
+
+Example of usage:
+
+```go
+    check1 := func(ctx context.Context) (name string, err error) {
+        // do some check, for example check DB connection		
+		return "check1", nil // all good, passed
+    }
+    check2 := func(ctx context.Context) (name string, err error) {
+        // do some other check, for example ping an external service		
+		return "check2", errors.New("some error") // check failed
+    }
+
+    router := chi.NewRouter()
+	router.Use(rest.Health("/health", check1, check2))
+```
+
+example of the actual call and response:
+
+```
+> http GET https://example.com/health
+
+HTTP/1.1 503 Service Unavailable
+Date: Sun, 15 Jul 2018 19:40:31 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 36
+
+[
+    {"name":"check1","status":"ok"},
+    {"name":"check2","status":"failed","error":"some error"}
+]
+```
+
+_this middleware is pretty basic, but can be used for simple health checks. For more complex cases, like async/cached health checks see [alexliesenfeld/health](https://github.com/alexliesenfeld/health)_
+
 ### Logger middleware
 
 Logs request, request handling time and response. Log record fields in order of occurrence:
@@ -58,16 +97,22 @@ example: `019/03/05 17:26:12.976 [INFO] GET - /api/v1/find?site=remark - 8e228e9
 ### Recoverer middleware
 
 Recoverer is a middleware that recovers from panics, logs the panic (and a backtrace), 
-and returns an HTTP 500 (Internal Server Error) status if possible.
+and returns an HTTP 500 (Internal Server Error) status if possible. 
+It prevents server crashes in case of panic in one of the controllers.
 
 ### OnlyFrom middleware
 
-OnlyFrom middleware allows access for limited list of source IPs.
-Such IPs can be defined as complete ip (like 192.168.1.12), prefix (129.168.) or CIDR (192.168.0.0/16)
+OnlyFrom middleware allows access from a limited list of source IPs.
+Such IPs can be defined as complete ip (like 192.168.1.12), prefix (129.168.) or CIDR (192.168.0.0/16).
+The middleware will respond with `StatusForbidden` (403) if the request comes from a different IP. 
+It supports both IPv4 and IPv6 and checks the usual headers like `X-Forwarded-For` and `X-Real-IP` and the remote address.
+
+_Note: headers should be trusted and set by a proxy, otherwise it is possible to spoof them._
 
 ### Metrics middleware
 
-Metrics middleware responds to GET /metrics with list of [expvar](https://golang.org/pkg/expvar/). Optionally allows restricting list of source ips.
+Metrics middleware responds to GET /metrics with list of [expvar](https://golang.org/pkg/expvar/). 
+Optionally allows a restricted list of source ips.
 
 ### BlackWords middleware
 
@@ -79,9 +124,9 @@ SizeLimit middleware checks if body size is above the limit and returns `StatusR
 
 ### Trace middleware
 
-It looks for `X-Request-ID` header and makes it as a random id
- (if not found), then populates it to the result's header
-    and to the request's context.
+The `Trace` middleware is designed to add request tracing functionality. It looks for the `X-Request-ID` header in 
+the incoming HTTP request. If not found, a random ID is generated. This trace ID is then set in the response headers
+and added to the request's context.
 
 ### Deprecation middleware
 
@@ -95,7 +140,9 @@ BasicAuth middleware requires basic auth and matches user & passwd with client-p
 
 ### Rewrite middleware
 
-Rewrites requests with from->to rule. Supports regex (like nginx) and prevents multiple rewrites. For example `Rewrite("^/sites/(.*)/settings/$", "/sites/settings/$1")` will change request's URL from `/sites/id1/settings/` to `/sites/settings/id1`
+The `Rewrite` middleware is designed to rewrite the URL path based on a given rule, similar to how URL rewriting is done in nginx. It supports regular expressions for pattern matching and prevents multiple rewrites.
+
+For example, `Rewrite("^/sites/(.*)/settings/$", "/sites/settings/$1")` will change request's URL from `/sites/id1/settings/` to `/sites/settings/id1`
 
 ### NoCache middleware
 
@@ -115,15 +162,35 @@ RealIP is a middleware that sets a http.Request's RemoteAddr to the results of p
 
 ### Maybe middleware
 
-Maybe middleware will allow you to change the flow of the middleware stack execution depending on return
-value of maybeFn(request). This is useful for example if you'd like to skip a middleware handler if
-a request does not satisfy the maybeFn logic.
+Maybe middleware allows changing the flow of the middleware stack execution depending on the return
+value of maybeFn(request). This is useful, for example, to skip a middleware handler if a request does not satisfy the maybeFn logic.
+
+### Reject middleware
+
+Reject is a middleware that rejects requests with a given status code and message based on a user-defined function.
+This is useful, for example, to reject requests to a particular resource based on a request header, 
+or to implement a conditional request handler based on service parameters.
+
+example with chi router:
+
+```go
+    router := chi.NewRouter()
+	
+	rejectFn := func(r *http.Request) (bool) {
+        return r.Header.Get("X-Request-Id") == "" // reject if no X-Request-Id header
+    }
+	
+	router.Use(rest.Reject(http.StatusBadRequest, "X-Request-Id header is required", rejectFn))
+```
 
 ### Benchmarks middleware
 
-Benchmarks middleware allows to measure the time of request handling, number of request per second and report aggregated metrics. This middleware keeps track of the request in the memory and keep up to 900 points (15 minutes, data-point per second).
+Benchmarks middleware allows measuring the time of request handling, number of requests per second and report aggregated metrics. 
+This middleware keeps track of the request in the memory and keep up to 900 points (15 minutes, data-point per second).
 
-In order to retrieve the data user should call `Stats(d duration)` method. duration is the time window for which the benchmark data should be returned. It can be any duration from 1s to 15m. Note: all the time data is in microseconds.
+To retrieve the data user should call `Stats(d duration)` method. 
+The `duration` is the time window for which the benchmark data should be returned. 
+It can be any duration from 1s to 15m. Note: all the time data is in microseconds.
 
 example with chi router:
 
@@ -161,7 +228,7 @@ example with chi router:
 
 ## Profiler
 
-Profiler is a convenient subrouter used for mounting net/http/pprof, i.e.
+Profiler is a convenient sub-router used for mounting net/http/pprof, i.e.
 
 ```go
  func MyService() http.Handler {
