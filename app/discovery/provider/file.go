@@ -108,17 +108,11 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 				srv = "*"
 			}
 			mapper := discovery.URLMapper{
-				Server:     srv,
-				SrcMatch:   *rx,
-				Dst:        f.Dest,
-				PingURL:    f.Ping,
-				KeepHost:   f.KeepHost,
-				ProviderID: discovery.PIFile,
-				MatchType:  discovery.MTProxy,
 				Server:      srv,
 				SrcMatch:    *rx,
 				Dst:         f.Dest,
 				PingURL:     f.Ping,
+				KeepHost:    f.KeepHost,
 				ProviderID:  discovery.PIFile,
 				MatchType:   discovery.MTProxy,
 				OnlyFromIPs: discovery.ParseOnlyFrom(f.OnlyFrom),

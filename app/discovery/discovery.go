@@ -443,8 +443,8 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		log.Printf("[WARN] can't extend %s, %v", m.SrcMatch.String(), err)
 		return m
 	}
-	m.SrcMatch = *rx
-	return m
+	res.SrcMatch = *rx
+	return res
 }
 
 // redirects process @code prefix and sets redirect type, i.e. "@302 /something"

@@ -197,8 +197,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		// server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost,
-				OnlyFromIPs: onlyFrom, PingURL: pingURL, ProviderID: discovery.PIConsulCatalog})
+				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost, OnlyFromIPs: onlyFrom})
 		}
 	}
 

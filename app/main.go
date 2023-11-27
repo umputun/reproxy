@@ -37,15 +37,7 @@ var opts struct {
 	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
 	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers"`
 	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
-	Listen            string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
-	MaxSize           string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
-	GzipEnabled       bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders      []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
-	DropHeaders       []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
-	AuthBasicHtpasswd string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
-
-	LBType   string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
-	KeepHost bool   `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
+	KeepHost            bool     `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint

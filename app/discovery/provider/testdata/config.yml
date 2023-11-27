@@ -3,7 +3,5 @@ default:
   - {route: "/api/svc3/xyz", dest: "http://127.0.0.3:8080/blah3/xyz", "ping": "http://127.0.0.3:8080/ping"}
   - {route: "/web/", dest: "/var/web", "assets": yes, "keep-host": yes,  "remote": "192.168.1.0/24, 124.0.0.1"}
   - {route: "/web2/", dest: "/var/web2", "spa": yes, "keep-host": no}
-  - {route: "/web/", dest: "/var/web", "assets": yes, "remote": "192.168.1.0/24, 124.0.0.1"}
-  - {route: "/web2/", dest: "/var/web2", "spa": yes}
 srv.example.com:
   - {route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc"}

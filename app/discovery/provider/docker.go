@@ -178,8 +178,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// docker server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy, KeepHost: keepHost}
-				PingURL: pingURL, OnlyFromIPs: onlyFrom, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
+				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
+				KeepHost: keepHost, OnlyFromIPs: onlyFrom}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {
