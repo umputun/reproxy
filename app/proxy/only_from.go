@@ -51,7 +51,7 @@ func (o *OnlyFrom) Handler(next http.Handler) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusForbidden)
-		log.Printf("[INFO] ip %q rejected", realIP)
+		log.Printf("[INFO] ip %q rejected for %s", realIP, r.URL.String())
 	}
 	return http.HandlerFunc(fn)
 }
