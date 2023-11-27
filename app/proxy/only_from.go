@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -50,6 +51,7 @@ func (o *OnlyFrom) Handler(next http.Handler) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusForbidden)
+		log.Printf("[INFO] ip %q rejected", realIP)
 	}
 	return http.HandlerFunc(fn)
 }
