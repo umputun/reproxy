@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -37,6 +38,7 @@ type Http struct { // nolint golint
 	ProxyHeaders     []string
 	DropHeader       []string
 	SSLConfig        SSLConfig
+	Insecure         bool
 	Version          string
 	AccessLog        io.Writer
 	StdOutEnabled    bool
@@ -223,6 +225,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			IdleConnTimeout:       h.Timeouts.IdleConn,
 			TLSHandshakeTimeout:   h.Timeouts.TLSHandshake,
 			ExpectContinueTimeout: h.Timeouts.ExpectContinue,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: h.Insecure},
 		},
 		ErrorLog: log.ToStdLogger(log.Default(), "WARN"),
 	}

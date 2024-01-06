@@ -366,7 +366,8 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
-      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
+      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]
+      --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
 
 ssl:
