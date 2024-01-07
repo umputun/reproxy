@@ -247,6 +247,7 @@ supported codes:
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options). A zero or negative value means there will be no timeout.
+- `--insecure` disables SSL verification on the destination host. This is useful for the self-signed certificates.
 
 ## Default ports
 
