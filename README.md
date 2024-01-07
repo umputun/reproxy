@@ -247,6 +247,7 @@ supported codes:
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options). A zero or negative value means there will be no timeout.
+- `--insecure` disables SSL verification on the destination host. This is useful for the self-signed certificates.
 
 ## Default ports
 
@@ -366,7 +367,8 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
-      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
+      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]
+      --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
 
 ssl:
