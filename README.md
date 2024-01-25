@@ -105,6 +105,7 @@ This default can be changed with labels:
 - `reproxy.ping` - ping path for the destination container.
 - `reproxy.remote` - restrict access to the route with a list of comma-separated subnets or ips
 - `reproxy.assets` - set assets mapping as `web-root:location`, for example `reproxy.assets=/web:/var/www`
+- `reproxy.keep-host` - keep host header as is (`yes`, `true`, `1`) or replace with destination host (`no`, `false`, `0`)
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
 
 Pls note: without `--docker.auto` the destination container has to have at least one of `reproxy.*` labels to be considered as a potential destination.
@@ -302,6 +303,7 @@ username1:bcrypt(password2)
 username2:bcrypt(password2)
 ...
 ```
+this can be generated with `htpasswd -nbB` command, i.e. `htpasswd -nbB test passwd`
 
 ## IP-based access control
 
@@ -367,7 +369,8 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
-      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]
+      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
+      --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
       --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
 

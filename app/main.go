@@ -37,6 +37,7 @@ var opts struct {
 	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers"`
 	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" choice:"roundrobin" default:"random"` // nolint
 	Insecure            bool     `long:"insecure" env:"INSECURE" description:"skip SSL certificate verification for the destination host"`
+	KeepHost            bool     `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
 
 	SSL struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint
@@ -274,6 +275,7 @@ func run() error {
 		ThrottleUser:     opts.Throttle.User,
 		BasicAuthEnabled: len(basicAuthAllowed) > 0,
 		BasicAuthAllowed: basicAuthAllowed,
+		KeepHost:         opts.KeepHost,
 		OnlyFrom:         makeOnlyFromMiddleware(),
 	}
 

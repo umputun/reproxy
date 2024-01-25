@@ -163,6 +163,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			enabled = true
 		}
 
+		keepHost := d.getKeepHostValue(c.Labels, n)
+
 		if !enabled {
 			continue
 		}
@@ -176,7 +178,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// docker server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, OnlyFromIPs: onlyFrom, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
+				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
+				KeepHost: keepHost, OnlyFromIPs: onlyFrom}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {
@@ -436,4 +439,24 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 	}
 
 	return containers, nil
+}
+
+func (d *Docker) getKeepHostValue(labels map[string]string, n int) *bool {
+	v, ok := d.labelN(labels, n, "keep-host")
+	if !ok {
+		return nil
+	}
+
+	if v == "true" || v == "yes" || v == "y" || v == "1" {
+		k := true
+		return &k
+	}
+
+	if v == "false" || v == "no" || v == "n" || v == "0" {
+		k := false
+		return &k
+	}
+
+	log.Printf("[WARN] keep-host label value %s is not valid, ignoring", v)
+	return nil
 }

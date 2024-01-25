@@ -140,6 +140,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		destURL := fmt.Sprintf("http://%s:%d/$1", c.ServiceAddress, c.ServicePort)
 		pingURL := fmt.Sprintf("http://%s:%d/ping", c.ServiceAddress, c.ServicePort)
 		server := "*"
+		var keepHost *bool
 		onlyFrom := []string{}
 
 		if v, ok := c.Labels["reproxy.enabled"]; ok && (v == "true" || v == "yes" || v == "1") {
@@ -170,6 +171,19 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			pingURL = fmt.Sprintf("http://%s:%d%s", c.ServiceAddress, c.ServicePort, v)
 		}
 
+		if v, ok := c.Labels["reproxy.keep-host"]; ok {
+			enabled = true
+			if v == "true" || v == "yes" || v == "1" {
+				t := true
+				keepHost = &t
+			} else if v == "false" || v == "no" || v == "0" {
+				f := false
+				keepHost = &f
+			} else {
+				log.Printf("[WARN] invalid value for reproxy.keep-host: %s", v)
+			}
+		}
+
 		if !enabled {
 			log.Printf("[DEBUG] service %s disabled", c.ServiceID)
 			continue
@@ -183,7 +197,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		// server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				OnlyFromIPs: onlyFrom, PingURL: pingURL, ProviderID: discovery.PIConsulCatalog})
+				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost, OnlyFromIPs: onlyFrom})
 		}
 	}
 

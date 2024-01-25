@@ -37,6 +37,7 @@ type URLMapper struct {
 	PingURL      string
 	MatchType    MatchType
 	RedirectType RedirectType
+	KeepHost     *bool
 	OnlyFromIPs  []string
 
 	AssetsLocation string // local FS root location
@@ -427,15 +428,23 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		return m
 	}
 
-	m.Dst = strings.TrimSuffix(m.Dst, "/") + "/$1"
-
+	res := URLMapper{
+		Server:         m.Server,
+		Dst:            strings.TrimSuffix(m.Dst, "/") + "/$1",
+		ProviderID:     m.ProviderID,
+		PingURL:        m.PingURL,
+		MatchType:      m.MatchType,
+		AssetsWebRoot:  m.AssetsWebRoot,
+		AssetsLocation: m.AssetsLocation,
+		AssetsSPA:      m.AssetsSPA,
+	}
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
 	if err != nil {
 		log.Printf("[WARN] can't extend %s, %v", m.SrcMatch.String(), err)
 		return m
 	}
-	m.SrcMatch = *rx
-	return m
+	res.SrcMatch = *rx
+	return res
 }
 
 // redirects process @code prefix and sets redirect type, i.e. "@302 /something"
