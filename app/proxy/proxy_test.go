@@ -874,7 +874,7 @@ func TestHttp_matchHandler(t *testing.T) {
 	client := http.Client{}
 	for _, tt := range tbl {
 		t.Run(tt.name, func(t *testing.T) {
-			h := Http{Matcher: matcherMock, LBSelector: func(len int) int { return 0 }}
+			h := Http{Matcher: matcherMock, LBSelector: &FailoverSelector{}}
 			handler := h.matchHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				t.Logf("req: %+v", r)
 				t.Logf("dst: %v", r.Context().Value(ctxURL))

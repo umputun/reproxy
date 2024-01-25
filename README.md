@@ -39,7 +39,7 @@ Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well
 
 Examples:
 
- - with a static provider: `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
+ - with a static provider: `reproxy --static.enabled --static.rule="*,example.com/api/(.*),https://api.example.com/$1"`
  - with an automatic docker discovery: `reproxy --docker.enabled --docker.auto`
  - as a docker container: `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
  - with automatic SSL: `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
@@ -248,6 +248,7 @@ supported codes:
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options). A zero or negative value means there will be no timeout.
+- `--insecure` disables SSL verification on the destination host. This is useful for the self-signed certificates.
 
 ## Default ports
 
@@ -366,10 +367,11 @@ This is the list of all options supporting multiple elements:
   -x, --header=                     outgoing proxy headers to add [$HEADER]
       --drop-header=                incoming headers to drop [$DROP_HEADERS]
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
-      --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
+      --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
       --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
       --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
+      --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
 
 ssl:

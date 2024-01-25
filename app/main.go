@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net/http"
 	"net/rpc"
 	"os"
@@ -36,7 +35,8 @@ var opts struct {
 	DropHeaders         []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
 	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers"`
-	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
+	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" choice:"roundrobin" default:"random"` // nolint
+	Insecure            bool     `long:"insecure" env:"INSECURE" description:"skip SSL certificate verification for the destination host"`
 	KeepHost            bool     `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
 
 	SSL struct {
@@ -250,6 +250,7 @@ func run() error {
 		CacheControl:   cacheControl,
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,
+		Insecure:       opts.Insecure,
 		ProxyHeaders:   proxyHeaders,
 		DropHeader:     opts.DropHeaders,
 		AccessLog:      accessLog,
@@ -416,14 +417,16 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 	return config, err
 }
 
-func makeLBSelector() func(len int) int {
+func makeLBSelector() proxy.LBSelector {
 	switch opts.LBType {
 	case "random":
-		return rand.Intn
+		return &proxy.RandomSelector{}
 	case "failover":
-		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
+		return &proxy.FailoverSelector{}
+	case "roundrobin":
+		return &proxy.RoundRobinSelector{}
 	default:
-		return func(int) int { return 0 }
+		return &proxy.FailoverSelector{}
 	}
 }
 
