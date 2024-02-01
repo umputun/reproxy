@@ -157,7 +157,7 @@ In case if rules set as a part of docker compose environment, destination with t
 
 ## SSL support
 
-SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s)
+SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s). In `auto` SSL mode, Reproxy will automatically add the `X-Forwarded-Proto` and `X-Forwarded-Port` headers. These headers are useful for services behind the proxy to know the original protocol (http or https) and port number used by the client.
 
 ## Headers 
 

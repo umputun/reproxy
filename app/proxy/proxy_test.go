@@ -35,6 +35,8 @@ func TestHttp_Do(t *testing.T) {
 		w.Header().Add("h1", "v1")
 		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		require.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
+		require.Empty(t, r.Header.Get("X-Forwarded-Proto")) // ssl auto only
+		require.Empty(t, r.Header.Get("X-Forwarded-Port"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
