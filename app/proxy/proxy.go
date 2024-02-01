@@ -212,7 +212,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			uu := ctx.Value(ctxURL).(*url.URL)
 			keepHost := ctx.Value(ctxKeepHost).(bool)
 			r.Header.Add("X-Forwarded-Host", r.Host)
-			if h.SSLConfig.SSLMode == SSLAuto {
+			if h.SSLConfig.SSLMode == SSLAuto || h.SSLConfig.SSLMode == SSLStatic {
 				r.Header.Add("X-Forwarded-Proto", "https")
 				r.Header.Add("X-Forwarded-Port", "443")
 			}
