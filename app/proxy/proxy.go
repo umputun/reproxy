@@ -212,6 +212,10 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			uu := ctx.Value(ctxURL).(*url.URL)
 			keepHost := ctx.Value(ctxKeepHost).(bool)
 			r.Header.Add("X-Forwarded-Host", r.Host)
+			if h.SSLConfig.SSLMode == SSLAuto {
+				r.Header.Add("X-Forwarded-Proto", "https")
+				r.Header.Add("X-Forwarded-Port", "443")
+			}
 			r.URL.Path = uu.Path
 			r.URL.Host = uu.Host
 			r.URL.Scheme = uu.Scheme
