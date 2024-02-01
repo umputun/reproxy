@@ -373,7 +373,7 @@ func NewDockerClient(host, network string) DockerClient {
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 	// Minimum API version that returns attached networks
 	// docs.docker.com/engine/api/version-history/#v122-api-changes
-	const APIVersion = "v1.22"
+	const APIVersion = "v1.24"
 
 	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", APIVersion))
 	if err != nil {
