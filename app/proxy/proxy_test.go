@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -117,6 +119,111 @@ func TestHttp_Do(t *testing.T) {
 		assert.Equal(t, "response /123/test%20%25%20and%20&,%20and%20other%20characters%20@%28%29%5E%21", string(body))
 		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
+	})
+}
+
+func TestHttp_DoWithSSL(t *testing.T) {
+	port := rand.Intn(10000) + 40000
+	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("localhost:%d", port),
+		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
+		Reporter:  &ErrorReporter{Nice: true},
+		SSLConfig: SSLConfig{SSLMode: SSLStatic, Cert: "testdata/localhost.crt", Key: "testdata/localhost.key"}, Insecure: true,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	ds := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("req: %v", r)
+		w.Header().Add("h1", "v1")
+		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		require.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
+		require.Equal(t, "https", r.Header.Get("X-Forwarded-Proto")) // ssl auto only
+		require.Equal(t, "443", r.Header.Get("X-Forwarded-Port"))
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{
+			"localhost,^/api/(.*)," + strings.Replace(ds.URL, "127.0.0.1", "localhost", 1) + "/123/$1,",
+			"127.0.0.1,^/api/(.*)," + strings.Replace(ds.URL, "127.0.0.1", "localhost", 1) + "/567/$1,",
+		},
+		}}, time.Millisecond*10)
+
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics()
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	t.Run("to localhost, good", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "https://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /123/something", string(body))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
+		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
+	})
+
+	t.Run("to localhost, request with X-Forwarded-Proto and X-Forwarded-Port", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "https://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Forwarded-Port", "443")
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /123/something", string(body))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
+		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
+	})
+
+	t.Run("to 127.0.0.1", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "https://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Forwarded-Port", "443")
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		t.Logf("%+v", resp.Header)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /567/something", string(body))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "v1", resp.Header.Get("h1"))
+		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
+		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
 	})
 }
 
