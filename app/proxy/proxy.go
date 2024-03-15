@@ -212,10 +212,13 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			uu := ctx.Value(ctxURL).(*url.URL)
 			keepHost := ctx.Value(ctxKeepHost).(bool)
 			r.Header.Add("X-Forwarded-Host", r.Host)
+			scheme := "http"
 			if h.SSLConfig.SSLMode == SSLAuto || h.SSLConfig.SSLMode == SSLStatic {
 				h.setHeaderIfNotExists(r, "X-Forwarded-Proto", "https")
 				h.setHeaderIfNotExists(r, "X-Forwarded-Port", "443")
+				scheme = "https"
 			}
+			r.Header.Set("X-Forwarded-URL", fmt.Sprintf("%s://%s%s", scheme, r.Host, r.URL.String()))
 			r.URL.Path = uu.Path
 			r.URL.Host = uu.Host
 			r.URL.Scheme = uu.Scheme
@@ -223,7 +226,6 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			if !keepHost {
 				r.Host = uu.Host
 			}
-			r.Header.Set("X-Forwarded-URL", r.URL.String())
 			h.setXRealIP(r)
 		},
 		Transport: &http.Transport{
