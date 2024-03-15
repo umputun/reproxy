@@ -39,6 +39,7 @@ func TestHttp_Do(t *testing.T) {
 		require.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
 		require.Empty(t, r.Header.Get("X-Forwarded-Proto")) // ssl auto only
 		require.Empty(t, r.Header.Get("X-Forwarded-Port"))
+		require.NotEmpty(t, r.Header.Get("X-Forwarded-URL"), "X-Forwarded-URL header must be set")
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -65,7 +66,7 @@ func TestHttp_Do(t *testing.T) {
 	client := http.Client{}
 
 	t.Run("to 127.0.0.1, good", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something?xxx=yyy", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -75,7 +76,7 @@ func TestHttp_Do(t *testing.T) {
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		assert.Equal(t, "response /567/something", string(body))
+		assert.Equal(t, "response /567/something?xxx=yyy", string(body))
 		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
