@@ -353,7 +353,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 
 func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
-		return func(writer http.ResponseWriter, request *http.Request) {}
+		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
 
 	var notFound []byte
@@ -371,7 +371,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA, notFound)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
-		return func(writer http.ResponseWriter, request *http.Request) {}
+		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
 	return h.CacheControl.Middleware(fs).ServeHTTP
 }

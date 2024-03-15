@@ -68,6 +68,12 @@ issues:
       linters:
         - gosec
         - dupl
+    - linters:
+        - unparam
+        - unused
+        - revive
+      path: _test\.go$
+      text: "unused-parameter"
   exclude-use-default: false
 
 service:
