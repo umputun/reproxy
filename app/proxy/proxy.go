@@ -212,6 +212,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			uu := ctx.Value(ctxURL).(*url.URL)
 			keepHost := ctx.Value(ctxKeepHost).(bool)
 			r.Header.Add("X-Forwarded-Host", r.Host)
+			r.Header.Set("X-Forwarded-URL", r.URL.String())
 			if h.SSLConfig.SSLMode == SSLAuto || h.SSLConfig.SSLMode == SSLStatic {
 				h.setHeaderIfNotExists(r, "X-Forwarded-Proto", "https")
 				h.setHeaderIfNotExists(r, "X-Forwarded-Port", "443")
@@ -352,7 +353,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 
 func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
-		return func(writer http.ResponseWriter, request *http.Request) {}
+		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
 
 	var notFound []byte
@@ -370,7 +371,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA, notFound)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
-		return func(writer http.ResponseWriter, request *http.Request) {}
+		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
 	return h.CacheControl.Middleware(fs).ServeHTTP
 }

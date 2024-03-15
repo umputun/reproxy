@@ -358,7 +358,7 @@ func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 
 	conductor := &plugin.Conductor{
 		Address: opts.Plugin.Listen,
-		RPCDialer: plugin.RPCDialerFunc(func(network, address string) (plugin.RPCClient, error) {
+		RPCDialer: plugin.RPCDialerFunc(func(_, address string) (plugin.RPCClient, error) {
 			return rpc.Dial("tcp", address)
 		}),
 	}
