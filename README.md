@@ -323,7 +323,7 @@ The core functionality of reproxy can be extended with external plugins. Each pl
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 
 
-By default headers set by a plugin will be mixed with the original headers. In case if plugin need to control all the headers, for example drop some of them, `OverrideHeaders*` field can be set by a plugin indicating to the core reporxy process the need to overwrite all the headers instead of mixing them in.
+By default headers set by a plugin will be mixed with the original headers. In case if plugin need to control all the headers, for example drop some of them, `OverrideHeaders*` field can be set by a plugin indicating to the core reproxy process the need to overwrite all the headers instead of mixing them in.
 
 - `OverrideHeadersIn` - indicates plugin responsible for all incoming headers.
 - `OverrideHeadersOut` - indicates plugin responsible for all outgoing headers 
