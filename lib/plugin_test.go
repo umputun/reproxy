@@ -15,9 +15,7 @@ import (
 )
 
 func TestPlugin_Do(t *testing.T) {
-
-	var postCalls int32
-	var deleteCalls int32
+	var postCalls, deleteCalls int32
 	tsConductor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "POST":
