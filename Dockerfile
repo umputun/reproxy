@@ -19,7 +19,7 @@ RUN \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
 
-FROM ghcr.io/umputun/baseimage/app:v1.12.0 as base
+FROM ghcr.io/umputun/baseimage/app:v1.13.0 as base
 
 FROM scratch
 # enables automatic changelog generation by tools like Dependabot
