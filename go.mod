@@ -8,10 +8,10 @@ require (
 	github.com/go-pkgz/repeater v1.1.3
 	github.com/go-pkgz/rest v1.19.0
 	github.com/gorilla/handlers v1.5.2
-	github.com/prometheus/client_golang v1.19.0
-	github.com/stretchr/testify v1.8.4
+	github.com/prometheus/client_golang v1.19.1
+	github.com/stretchr/testify v1.9.0
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.21.0
+	golang.org/x/crypto v0.23.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -28,7 +28,7 @@ require (
 	github.com/prometheus/common v0.50.0 // indirect
 	github.com/prometheus/procfs v0.13.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )
