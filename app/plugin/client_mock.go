@@ -13,19 +13,19 @@ var _ RPCClient = &RPCClientMock{}
 
 // RPCClientMock is a mock implementation of RPCClient.
 //
-// 	func TestSomethingThatUsesRPCClient(t *testing.T) {
+//	func TestSomethingThatUsesRPCClient(t *testing.T) {
 //
-// 		// make and configure a mocked RPCClient
-// 		mockedRPCClient := &RPCClientMock{
-// 			CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
-// 				panic("mock out the Call method")
-// 			},
-// 		}
+//		// make and configure a mocked RPCClient
+//		mockedRPCClient := &RPCClientMock{
+//			CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
+//				panic("mock out the Call method")
+//			},
+//		}
 //
-// 		// use mockedRPCClient in code that requires RPCClient
-// 		// and then make assertions.
+//		// use mockedRPCClient in code that requires RPCClient
+//		// and then make assertions.
 //
-// 	}
+//	}
 type RPCClientMock struct {
 	// CallFunc mocks the Call method.
 	CallFunc func(serviceMethod string, args interface{}, reply interface{}) error
@@ -67,7 +67,8 @@ func (mock *RPCClientMock) Call(serviceMethod string, args interface{}, reply in
 
 // CallCalls gets all the calls that were made to Call.
 // Check the length with:
-//     len(mockedRPCClient.CallCalls())
+//
+//	len(mockedRPCClient.CallCalls())
 func (mock *RPCClientMock) CallCalls() []struct {
 	ServiceMethod string
 	Args          interface{}

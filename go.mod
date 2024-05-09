@@ -3,7 +3,7 @@ module github.com/umputun/reproxy
 go 1.22
 
 require (
-	github.com/didip/tollbooth/v6 v6.1.2
+	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/go-pkgz/lgr v0.11.1
 	github.com/go-pkgz/repeater v1.1.3
 	github.com/go-pkgz/rest v1.19.0
@@ -22,6 +22,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-pkgz/expirable-cache v1.0.0 // indirect
+	github.com/kr/text v0.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.0 // indirect
 	github.com/prometheus/common v0.50.0 // indirect
@@ -29,6 +30,5 @@ require (
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )

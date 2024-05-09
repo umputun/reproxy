@@ -9,19 +9,19 @@ import (
 
 // ConsulClientMock is a mock implementation of ConsulClient.
 //
-// 	func TestSomethingThatUsesConsulClient(t *testing.T) {
+//	func TestSomethingThatUsesConsulClient(t *testing.T) {
 //
-// 		// make and configure a mocked ConsulClient
-// 		mockedConsulClient := &ConsulClientMock{
-// 			GetFunc: func() ([]consulService, error) {
-// 				panic("mock out the Get method")
-// 			},
-// 		}
+//		// make and configure a mocked ConsulClient
+//		mockedConsulClient := &ConsulClientMock{
+//			GetFunc: func() ([]consulService, error) {
+//				panic("mock out the Get method")
+//			},
+//		}
 //
-// 		// use mockedConsulClient in code that requires ConsulClient
-// 		// and then make assertions.
+//		// use mockedConsulClient in code that requires ConsulClient
+//		// and then make assertions.
 //
-// 	}
+//	}
 type ConsulClientMock struct {
 	// GetFunc mocks the Get method.
 	GetFunc func() ([]consulService, error)
@@ -50,7 +50,8 @@ func (mock *ConsulClientMock) Get() ([]consulService, error) {
 
 // GetCalls gets all the calls that were made to Get.
 // Check the length with:
-//     len(mockedConsulClient.GetCalls())
+//
+//	len(mockedConsulClient.GetCalls())
 func (mock *ConsulClientMock) GetCalls() []struct {
 } {
 	var calls []struct {

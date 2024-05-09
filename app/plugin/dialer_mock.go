@@ -13,19 +13,19 @@ var _ RPCDialer = &RPCDialerMock{}
 
 // RPCDialerMock is a mock implementation of RPCDialer.
 //
-// 	func TestSomethingThatUsesRPCDialer(t *testing.T) {
+//	func TestSomethingThatUsesRPCDialer(t *testing.T) {
 //
-// 		// make and configure a mocked RPCDialer
-// 		mockedRPCDialer := &RPCDialerMock{
-// 			DialFunc: func(network string, address string) (RPCClient, error) {
-// 				panic("mock out the Dial method")
-// 			},
-// 		}
+//		// make and configure a mocked RPCDialer
+//		mockedRPCDialer := &RPCDialerMock{
+//			DialFunc: func(network string, address string) (RPCClient, error) {
+//				panic("mock out the Dial method")
+//			},
+//		}
 //
-// 		// use mockedRPCDialer in code that requires RPCDialer
-// 		// and then make assertions.
+//		// use mockedRPCDialer in code that requires RPCDialer
+//		// and then make assertions.
 //
-// 	}
+//	}
 type RPCDialerMock struct {
 	// DialFunc mocks the Dial method.
 	DialFunc func(network string, address string) (RPCClient, error)
@@ -63,7 +63,8 @@ func (mock *RPCDialerMock) Dial(network string, address string) (RPCClient, erro
 
 // DialCalls gets all the calls that were made to Dial.
 // Check the length with:
-//     len(mockedRPCDialer.DialCalls())
+//
+//	len(mockedRPCDialer.DialCalls())
 func (mock *RPCDialerMock) DialCalls() []struct {
 	Network string
 	Address string

@@ -9,19 +9,19 @@ import (
 
 // DockerClientMock is a mock implementation of DockerClient.
 //
-// 	func TestSomethingThatUsesDockerClient(t *testing.T) {
+//	func TestSomethingThatUsesDockerClient(t *testing.T) {
 //
-// 		// make and configure a mocked DockerClient
-// 		mockedDockerClient := &DockerClientMock{
-// 			ListContainersFunc: func() ([]containerInfo, error) {
-// 				panic("mock out the ListContainers method")
-// 			},
-// 		}
+//		// make and configure a mocked DockerClient
+//		mockedDockerClient := &DockerClientMock{
+//			ListContainersFunc: func() ([]containerInfo, error) {
+//				panic("mock out the ListContainers method")
+//			},
+//		}
 //
-// 		// use mockedDockerClient in code that requires DockerClient
-// 		// and then make assertions.
+//		// use mockedDockerClient in code that requires DockerClient
+//		// and then make assertions.
 //
-// 	}
+//	}
 type DockerClientMock struct {
 	// ListContainersFunc mocks the ListContainers method.
 	ListContainersFunc func() ([]containerInfo, error)
@@ -50,7 +50,8 @@ func (mock *DockerClientMock) ListContainers() ([]containerInfo, error) {
 
 // ListContainersCalls gets all the calls that were made to ListContainers.
 // Check the length with:
-//     len(mockedDockerClient.ListContainersCalls())
+//
+//	len(mockedDockerClient.ListContainersCalls())
 func (mock *DockerClientMock) ListContainersCalls() []struct {
 } {
 	var calls []struct {

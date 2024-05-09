@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/didip/tollbooth/v6"
-	"github.com/didip/tollbooth/v6/libstring"
+	"github.com/didip/tollbooth/v7"
+	"github.com/didip/tollbooth/v7/libstring"
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/gorilla/handlers"
