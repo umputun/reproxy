@@ -4,7 +4,6 @@ ARG GIT_BRANCH
 ARG GITHUB_SHA
 ARG CI
 
-ENV GOFLAGS="-mod=vendor"
 ENV CGO_ENABLED=0
 
 ADD . /build
@@ -23,6 +22,8 @@ RUN \
 FROM ghcr.io/umputun/baseimage/app:v1.12.0 as base
 
 FROM scratch
+# enables automatic changelog generation by tools like Dependabot
+LABEL org.opencontainers.image.source="https://github.com/umputun/reproxy"
 ENV REPROXY_IN_DOCKER=1
 
 COPY --from=backend /build/reproxy /srv/reproxy

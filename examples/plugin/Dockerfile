@@ -1,6 +1,5 @@
 FROM golang:1.16-alpine as build
 
-ENV GOFLAGS="-mod=vendor"
 ENV CGO_ENABLED=0
 
 ADD . /build

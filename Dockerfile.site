@@ -11,6 +11,8 @@ RUN mkdocs build
 
 
 FROM ghcr.io/umputun/reproxy
+# enables automatic changelog generation by tools like Dependabot
+LABEL org.opencontainers.image.source="https://github.com/umputun/reproxy"
 COPY --from=build /build/site /srv/site
 EXPOSE 8080
 USER app
