@@ -22,12 +22,20 @@ jobs:
 
       - name: build and test
         run: |
-          go test -v -timeout=100s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
+          go test -race -v -timeout=100s -covermode=atomic -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
+          go build -race ./...
           cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mocks" | grep -v "_mock" > $GITHUB_WORKSPACE/profile.cov
         working-directory: app
         env:
           TZ: "America/Chicago"
 
+      - name: test examples
+        run: |
+          go test -race ./...
+          go build -race ./...
+        working-directory: examples/plugin
+        env:
+          TZ: "America/Chicago"
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6

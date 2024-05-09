@@ -210,7 +210,7 @@ Custom 404 (not found) page can be set with `--assets.404=<path>` parameter. The
 Serving purely static content is one of the popular use cases. Usually this used for the separate frontend container providing UI only. With the assets server such a container is almost trivial to make. This is an example from the container serving [reproxy.io](http://reproxy.io)
 
 ```docker
-FROM node:16-alpine as build
+FROM node:22-alpine as build
 
 WORKDIR /build
 COPY site/ /build
