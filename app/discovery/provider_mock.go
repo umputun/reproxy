@@ -14,22 +14,22 @@ var _ Provider = &ProviderMock{}
 
 // ProviderMock is a mock implementation of Provider.
 //
-// 	func TestSomethingThatUsesProvider(t *testing.T) {
+//	func TestSomethingThatUsesProvider(t *testing.T) {
 //
-// 		// make and configure a mocked Provider
-// 		mockedProvider := &ProviderMock{
-// 			EventsFunc: func(ctx context.Context) <-chan ProviderID {
-// 				panic("mock out the Events method")
-// 			},
-// 			ListFunc: func() ([]URLMapper, error) {
-// 				panic("mock out the List method")
-// 			},
-// 		}
+//		// make and configure a mocked Provider
+//		mockedProvider := &ProviderMock{
+//			EventsFunc: func(ctx context.Context) <-chan ProviderID {
+//				panic("mock out the Events method")
+//			},
+//			ListFunc: func() ([]URLMapper, error) {
+//				panic("mock out the List method")
+//			},
+//		}
 //
-// 		// use mockedProvider in code that requires Provider
-// 		// and then make assertions.
+//		// use mockedProvider in code that requires Provider
+//		// and then make assertions.
 //
-// 	}
+//	}
 type ProviderMock struct {
 	// EventsFunc mocks the Events method.
 	EventsFunc func(ctx context.Context) <-chan ProviderID
@@ -70,7 +70,8 @@ func (mock *ProviderMock) Events(ctx context.Context) <-chan ProviderID {
 
 // EventsCalls gets all the calls that were made to Events.
 // Check the length with:
-//     len(mockedProvider.EventsCalls())
+//
+//	len(mockedProvider.EventsCalls())
 func (mock *ProviderMock) EventsCalls() []struct {
 	Ctx context.Context
 } {
@@ -98,7 +99,8 @@ func (mock *ProviderMock) List() ([]URLMapper, error) {
 
 // ListCalls gets all the calls that were made to List.
 // Check the length with:
-//     len(mockedProvider.ListCalls())
+//
+//	len(mockedProvider.ListCalls())
 func (mock *ProviderMock) ListCalls() []struct {
 } {
 	var calls []struct {
