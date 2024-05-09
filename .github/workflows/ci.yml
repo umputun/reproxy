@@ -32,9 +32,14 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
-        env:
-          TZ: "America/Chicago"
+          version: v1.58
+
+      - name: golangci-lint on example directory
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.58
+          args: --config ../../.golangci.yml
+          working-directory: examples/plugin
 
       - name: install goveralls
         run: |
