@@ -33,7 +33,9 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 
 Server (host) can be set as FQDN, i.e. `s.example.com`, `*` (catch all) or a regex. Exact match takes priority, so if there are two rules with servers `example.com` and `example\.(com|org)`, request to `example.com/some/url` will match the former. Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
 
-For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`
+For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`.
+
+The host substitution is supported in the destination URL. For example, `/files/${host}` will be replaced with the matched host name. `$host` (without braces) can also be used.
 
 Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
@@ -88,6 +90,8 @@ default: # the same as * (catch-all) server
 srv.example.com:
   - { route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc" }
   - { route: "^/web/", dest: "/var/www", "assets": true }
+"*.files.example.com":
+  - { route: "^/files/(.*)", dest: "http://123.123.200.200:8080/$host/$1" }
 ```
 
 This is a dynamic provider and file change will be applied automatically.
