@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -20,7 +21,16 @@ import (
 	"github.com/umputun/reproxy/lib"
 )
 
+var setupLoggerOnce sync.Once
+
+func setupLogger() {
+	setupLoggerOnce.Do(func() {
+		log.Setup(log.Debug, log.CallerFile, log.CallerFunc, log.Msec, log.LevelBraces)
+	})
+}
+
 func Test_Main(t *testing.T) {
+	setupLogger()
 
 	port := 40000 + int(rand.Int31n(10000))
 	os.Args = []string{"test", "--static.enabled",
@@ -45,7 +55,6 @@ func Test_Main(t *testing.T) {
 		close(finished)
 	}()
 
-	// defer cleanup because require check below can fail
 	defer func() {
 		close(done)
 		<-finished
@@ -96,6 +105,8 @@ func Test_Main(t *testing.T) {
 }
 
 func Test_MainWithSSL(t *testing.T) {
+	setupLogger()
+
 	port := 40000 + int(rand.Int31n(10000))
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
@@ -118,7 +129,6 @@ func Test_MainWithSSL(t *testing.T) {
 		close(finished)
 	}()
 
-	// defer cleanup because require check below can fail
 	defer func() {
 		close(done)
 		<-finished
@@ -128,7 +138,6 @@ func Test_MainWithSSL(t *testing.T) {
 	time.Sleep(time.Second)
 
 	client := http.Client{
-		// allow self-signed certificate
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -156,6 +165,8 @@ func Test_MainWithSSL(t *testing.T) {
 }
 
 func Test_MainWithPlugin(t *testing.T) {
+	setupLogger()
+
 	proxyPort := rand.Intn(10000) + 40000
 	conductorPort := rand.Intn(10000) + 40000
 	os.Args = []string{"test", "--static.enabled",
@@ -181,7 +192,6 @@ func Test_MainWithPlugin(t *testing.T) {
 		close(finished)
 	}()
 
-	// defer cleanup because require check below can fail
 	defer func() {
 		close(done)
 		<-finished
@@ -222,6 +232,7 @@ func Test_MainWithPlugin(t *testing.T) {
 }
 
 func Test_listenAddress(t *testing.T) {
+	setupLogger()
 
 	tbl := []struct {
 		addr    string
@@ -254,6 +265,8 @@ func Test_listenAddress(t *testing.T) {
 }
 
 func Test_redirHTTPPort(t *testing.T) {
+	setupLogger()
+
 	tbl := []struct {
 		port int
 		env  string
@@ -281,6 +294,7 @@ func Test_redirHTTPPort(t *testing.T) {
 }
 
 func Test_sizeParse(t *testing.T) {
+	setupLogger()
 
 	tbl := []struct {
 		inp string
@@ -315,7 +329,6 @@ func Test_sizeParse(t *testing.T) {
 }
 
 func waitForHTTPServerStart(port int) {
-	// wait for up to 10 seconds for server to start before returning it
 	client := http.Client{Timeout: time.Second}
 	for i := 0; i < 100; i++ {
 		time.Sleep(time.Millisecond * 100)
@@ -328,8 +341,7 @@ func waitForHTTPServerStart(port int) {
 
 type TestPlugin struct{}
 
-// nolint
-func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error) {
+func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) error { //nolint:unparam // doesn't fail in tests
 	log.Printf("req: %+v", req)
 	res.HeadersIn = http.Header{}
 	res.HeadersIn.Add("inh", "val")
@@ -339,8 +351,7 @@ func (h *TestPlugin) HeaderThing(req *lib.Request, res *lib.Response) (err error
 	return nil
 }
 
-// nolint
-func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) {
+func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) error { //nolint:unparam // doesn't fail in tests
 	log.Printf("req: %+v", req)
 	if req.URL == "/fail" {
 		res.StatusCode = 500
@@ -353,6 +364,7 @@ func (h *TestPlugin) ErrorThing(req lib.Request, res *lib.Response) (err error) 
 }
 
 func Test_splitAtCommas(t *testing.T) {
+	setupLogger()
 
 	tbl := []struct {
 		inp string
@@ -377,6 +389,8 @@ func Test_splitAtCommas(t *testing.T) {
 }
 
 func Test_makeBasicAuth(t *testing.T) {
+	setupLogger()
+
 	pf := `test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW
 		test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12
 		bad bad`
