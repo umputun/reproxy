@@ -164,7 +164,6 @@ func TestService_Match(t *testing.T) {
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
@@ -192,10 +191,12 @@ func TestService_MatchServerRegex(t *testing.T) {
 					Dst: "http://127.0.0.10:8080/", MatchType: MTProxy, dead: false},
 
 				// regex servers
-				{Server: "test-prefix\\.(.*)", SrcMatch: *regexp.MustCompile("^/"),
-					Dst: "http://127.0.0.1:8080/", MatchType: MTProxy, dead: false},
-				{Server: "(.*)\\.test-domain\\.(com|org)", SrcMatch: *regexp.MustCompile("^/"),
-					Dst: "http://127.0.0.2:8080/", MatchType: MTProxy, dead: false},
+				{Server: "test-prefix\\.(.*)", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.1:8080/$host/blah/$1", MatchType: MTProxy, dead: false},
+				{Server: "test-prefix2\\.(.*)", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.1:8080/${host}/blah/$1", MatchType: MTProxy, dead: false},
+				{Server: "(.*)\\.test-domain\\.(com|org)", SrcMatch: *regexp.MustCompile("^/bar/(.*)"),
+					Dst: "http://127.0.0.2:8080/$1/foo", MatchType: MTProxy, dead: false},
 
 				// strict match
 				{Server: "test-prefix.exact.com", SrcMatch: *regexp.MustCompile("/"),
@@ -212,21 +213,49 @@ func TestService_MatchServerRegex(t *testing.T) {
 	assert.Equal(t, context.DeadlineExceeded, err)
 
 	tbl := []struct {
+		name        string
 		server, src string
 		res         Matches
 	}{
-		// strict match should take priority
-		{"test-prefix.exact.com", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.4:8080/", Alive: true}}}},
-
-		// regex servers
-		{"test-prefix.example.com", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/", Alive: true}}}},
-		{"another-prefix.example.com", "/", Matches{MTProxy, nil}},
-		{"another-prefix.test-domain.org", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.2:8080/", Alive: true}}}},
-		{"another-prefix.test-domain.net", "/", Matches{MTProxy, nil}},
+		{
+			name:   "strict match",
+			server: "test-prefix.exact.com",
+			src:    "/",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.4:8080/", Alive: true}}},
+		},
+		{
+			name:   "regex server with $host match",
+			server: "test-prefix.example.com",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix.example.com/blah/some", Alive: true}}},
+		},
+		{
+			name:   "regex server with ${host} match",
+			server: "test-prefix2.example.com",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix2.example.com/blah/some", Alive: true}}},
+		},
+		{
+			name:   "regex server without a match",
+			server: "another-prefix.example.com",
+			src:    "/",
+			res:    Matches{MTProxy, nil},
+		},
+		{
+			name:   "regex server with test-domain.org match",
+			server: "another-prefix.test-domain.org",
+			src:    "/bar/123",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.2:8080/123/foo", Alive: true}}},
+		},
+		{
+			name:   "regex server with test-domain.net mismatch",
+			server: "another-prefix.test-domain.net",
+			src:    "/",
+			res:    Matches{MTProxy, nil},
+		},
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
@@ -374,7 +403,6 @@ func TestService_Servers(t *testing.T) {
 }
 
 func TestService_extendRule(t *testing.T) {
-
 	tbl := []struct {
 		inp URLMapper
 		out URLMapper
@@ -411,11 +439,9 @@ func TestService_extendRule(t *testing.T) {
 			assert.Equal(t, tt.out, res)
 		})
 	}
-
 }
 
 func TestService_redirects(t *testing.T) {
-
 	tbl := []struct {
 		inp URLMapper
 		out URLMapper
