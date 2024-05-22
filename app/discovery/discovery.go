@@ -165,6 +165,15 @@ func (s *Service) Run(ctx context.Context) error {
 // For MTStatic always a single match because fail-over doesn't supported for assets
 func (s *Service) Match(srv, src string) (res Matches) {
 
+	replaceHost := func(dest, srv string) string {
+		// $host or ${host} in dest replaced by srv
+		dest = strings.ReplaceAll(dest, "$host", srv)
+		if strings.Contains(dest, "${host}") {
+			dest = strings.ReplaceAll(dest, "${host}", srv)
+		}
+		return dest
+	}
+
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -179,8 +188,9 @@ func (s *Service) Match(srv, src string) (res Matches) {
 
 			switch m.MatchType {
 			case MTProxy:
-				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-				if src != dest { // regex matched
+				dest := replaceHost(m.Dst, srv) // replace $host and ${host} in dest first, before regex match
+				dest = m.SrcMatch.ReplaceAllString(src, dest)
+				if src != dest { // regex matched because dest changed after replacement
 					lastSrcMatch = m.SrcMatch.String()
 					res.MatchType = MTProxy
 					res.Routes = append(res.Routes, MatchedRoute{Destination: dest, Alive: m.IsAlive(), Mapper: m})
