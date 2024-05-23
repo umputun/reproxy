@@ -214,6 +214,16 @@ func (s *Service) Match(srv, src string) (res Matches) {
 		}
 	}
 
+	// if match returns both default and concrete server(s), drop default as we have a better match with concrete
+	if len(res.Routes) > 1 {
+		for i := range res.Routes {
+			if res.Routes[i].Mapper.Server == "*" || res.Routes[i].Mapper.Server == "" {
+				res.Routes = append(res.Routes[:i], res.Routes[i+1:]...)
+				break
+			}
+		}
+	}
+
 	return res
 }
 
