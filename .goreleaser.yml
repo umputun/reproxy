@@ -22,10 +22,6 @@ builds:
 
 archives:
   - name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
-    replacements:
-      386: i386
-      amd64: x86_64
-      darwin: macos
     format_overrides:
       - goos: windows
         format: zip
@@ -34,8 +30,7 @@ archives:
       - README.md
 
 nfpms:
-  -
-    id: reproxy
+  - id: reproxy
     package_name: reproxy
     file_name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
     vendor: Umputun
@@ -52,11 +47,9 @@ nfpms:
     contents:
       - src: reproxy.service
         dst: /etc/systemd/system/reproxy.service
-
       - src: reproxy-example.yml
         dst: /etc/reproxy-example.yml
         type: config
-
     scripts:
       postinstall: "scripts/postinstall.sh"
       preremove: "scripts/preremove.sh"
