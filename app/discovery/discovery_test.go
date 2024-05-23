@@ -370,6 +370,73 @@ func TestService_MatchConflictRegex(t *testing.T) {
 	}
 }
 
+// https://github.com/umputun/reproxy/issues/192
+func TestService_Match192(t *testing.T) {
+	p1 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{
+					Server:     "*",
+					SrcMatch:   *regexp.MustCompile("^/(.*)"),
+					Dst:        "@temp https://site1.ru/",
+					ProviderID: PIFile,
+				},
+				{
+					Server:     "example1.ru",
+					SrcMatch:   *regexp.MustCompile("^/(.*)"),
+					Dst:        "@temp https://site2.ru/",
+					ProviderID: PIFile,
+				},
+				{
+					Server:     "example2.ru",
+					SrcMatch:   *regexp.MustCompile("^/(.*)"),
+					Dst:        "@temp https://site2.ru/",
+					ProviderID: PIFile,
+				},
+			}, nil
+		},
+	}
+
+	svc := NewService([]Provider{p1}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := svc.Run(ctx)
+	require.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.Equal(t, 3, len(svc.Mappers()))
+
+	tbl := []struct {
+		server, src string
+		res         Matches
+	}{
+		{"example2.ru", "/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "https://site2.ru/", Alive: true}}}},
+		{"example1.ru", "/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "https://site2.ru/", Alive: true}}}},
+		{"example123.ru", "/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "https://site1.ru/", Alive: true}}}},
+	}
+
+	for i, tt := range tbl {
+		tt := tt
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res := svc.Match(tt.server, tt.src)
+			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			for i := 0; i < len(res.Routes); i++ {
+				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
+				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+			}
+			assert.Equal(t, tt.res.MatchType, res.MatchType)
+		})
+	}
+}
+
 func TestService_Servers(t *testing.T) {
 	p1 := &ProviderMock{
 		EventsFunc: func(ctx context.Context) <-chan ProviderID {
