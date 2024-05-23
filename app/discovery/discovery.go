@@ -233,6 +233,16 @@ func findMatchingMappers(s *Service, srvName string) []URLMapper {
 			continue
 		}
 
+		// handle *.example.com simple patterns
+		if strings.HasPrefix(mapperServer, "*.") {
+			domainPattern := mapperServer[1:] // strip the '*'
+			if strings.HasSuffix(srvName, domainPattern) {
+				s.mappersCache[srvName] = mapper
+				return mapper
+			}
+			continue
+		}
+
 		re, err := regexp.Compile(mapperServer)
 		if err != nil {
 			log.Printf("[WARN] invalid regexp %s: %s", mapperServer, err)

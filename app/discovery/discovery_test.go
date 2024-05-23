@@ -197,6 +197,8 @@ func TestService_MatchServerRegex(t *testing.T) {
 					Dst: "http://127.0.0.1:8080/${host}/blah/$1", MatchType: MTProxy, dead: false},
 				{Server: "(.*)\\.test-domain\\.(com|org)", SrcMatch: *regexp.MustCompile("^/bar/(.*)"),
 					Dst: "http://127.0.0.2:8080/$1/foo", MatchType: MTProxy, dead: false},
+				{Server: "*.test-domain2.com", SrcMatch: *regexp.MustCompile("^/foo/(.*)"),
+					Dst: "http://127.0.0.3:8080/$1/bar", MatchType: MTProxy, dead: false},
 
 				// strict match
 				{Server: "test-prefix.exact.com", SrcMatch: *regexp.MustCompile("/"),
@@ -252,6 +254,12 @@ func TestService_MatchServerRegex(t *testing.T) {
 			server: "another-prefix.test-domain.net",
 			src:    "/",
 			res:    Matches{MTProxy, nil},
+		},
+		{
+			name:   "pattern server with *.test-domain2.com match",
+			server: "test.test-domain2.com",
+			src:    "/foo/123",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.3:8080/123/bar", Alive: true}}},
 		},
 	}
 
