@@ -18,12 +18,18 @@ RUN \
     echo "version=$version" && \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
-FROM umputun/baseimage:scratch-latest
-# enables automatic changelog generation by tools like Dependabot
+
+FROM ghcr.io/umputun/baseimage/app:v1.12.0 as base
+
+FROM scratch
 LABEL org.opencontainers.image.source="https://github.com/umputun/reproxy"
 ENV REPROXY_IN_DOCKER=1
 
 COPY --from=backend /build/reproxy /srv/reproxy
+COPY --from=base /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=base /etc/passwd /etc/passwd
+COPY --from=base /etc/group /etc/group
 
 WORKDIR /srv
 ENTRYPOINT ["/srv/reproxy"]
