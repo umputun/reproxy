@@ -19,9 +19,11 @@ RUN \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
 
-FROM ghcr.io/umputun/baseimage/app:v1.12.0 as base
+FROM ghcr.io/umputun/baseimage/app:latest as base
 
 FROM scratch
+
+# enables automatic changelog generation by tools like Dependabot
 LABEL org.opencontainers.image.source="https://github.com/umputun/reproxy"
 ENV REPROXY_IN_DOCKER=1
 
@@ -31,5 +33,6 @@ COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=base /etc/passwd /etc/passwd
 COPY --from=base /etc/group /etc/group
 
+# user is implicitly set to `root`, learn how to use non-root user here: https://reproxy.io/#container-security
 WORKDIR /srv
 ENTRYPOINT ["/srv/reproxy"]
