@@ -339,11 +339,26 @@ _See [examples/plugin](https://github.com/umputun/reproxy/tree/master/examples/p
 
 ## Container security
 
-By default, the reproxy container runs under the root user to simplify the initial setup and access the docker's socket. This is needed to allow the docker provider discovery of the running containers. However, if such a discovery is not required or the docker provider not in use, it is recommended to change the user to some less-privileged one. It can be done on the docker-compose level and on docker level with `user` option.
+By default, the reproxy container runs under the root user to simplify the initial setup and access the docker's socket. This is needed to allow the docker provider discovery of the running containers. However, if such a discovery is not required or the docker provider not in use, it is recommended to change the user to some less-privileged one. It can be done on the docker-compose level and on docker level with `user` option, see the section below for details.
 
 Sometimes, even with inside-the-docker routing, it makes sense to disable the docker provider and setup rules with either static or file provider. All the containers running within a compose sharing the same network and accessible via local DNS. User can have a rule like this to avoid docker discovery: `- STATIC_RULES=*,/api/email/(.*),http://email-sender:8080/$$1`. This rule expects `email-sender` container defined inside the same compose. Please note: users can achieve the same result by using the docker network even if the destination service was defined in a different compose file. This way reproxy configuration can stay separate from the actual services.
 
 There is nothing except reproxy binary inside the reproxy container, as it builds on top of an empty (scratch) image.
+
+### Running with a non-root user
+
+A user with UID `1001` (belonging to groups `1001` and `999`) is pre-created within the container and can be used for running reproxy as a non-root user:
+
+```yaml
+services:
+  reproxy:
+    user: 1001
+    image: umputun/reproxy:latest
+# <...>
+# see examples/ssl/docker-compose.yml for the full file example
+```
+
+If you want to use the Docker provider, you will need to ensure this user has permission to access the Docker socket on the host system. How you set up these permissions depends on your host system configuration. For more information on configuring Docker socket permissions, see the [Docker documentation on securing the Docker daemon socket](https://docs.docker.com/engine/security/protect-access/).
 
 ## Options
 
