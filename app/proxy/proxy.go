@@ -222,7 +222,6 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			r.URL.Path = uu.Path
 			r.URL.Host = uu.Host
 			r.URL.Scheme = uu.Scheme
-			log.Printf("[DEBUG] keep host is %t", keepHost)
 			if !keepHost {
 				r.Host = uu.Host
 			}
