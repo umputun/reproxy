@@ -224,6 +224,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			r.URL.Scheme = uu.Scheme
 			if !keepHost {
 				r.Host = uu.Host
+			} else {
+				log.Printf("[DEBUG] keep host %s", r.Host)
 			}
 			h.setXRealIP(r)
 		},
