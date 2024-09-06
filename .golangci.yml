@@ -69,6 +69,3 @@ issues:
       path: _test\.go$
       text: "unused-parameter"
   exclude-use-default: false
-
-service:
-  golangci-lint-version: 1.43.x

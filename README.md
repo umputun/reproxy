@@ -339,11 +339,57 @@ _See [examples/plugin](https://github.com/umputun/reproxy/tree/master/examples/p
 
 ## Container security
 
-By default, the reproxy container runs under the root user to simplify the initial setup and access the docker's socket. This is needed to allow the docker provider discovery of the running containers. However, if such a discovery is not required or the docker provider not in use, it is recommended to change the user to some less-privileged one. It can be done on the docker-compose level and on docker level with `user` option.
+By default, the reproxy container runs under the root user to simplify the initial setup and access the docker's socket. This is needed to allow the docker provider discovery of the running containers. However, if such a discovery is not required or the docker provider not in use, it is recommended to change the user to some less-privileged one. It can be done on the docker-compose level and on docker level with `user` option, see the section below for details.
 
 Sometimes, even with inside-the-docker routing, it makes sense to disable the docker provider and setup rules with either static or file provider. All the containers running within a compose sharing the same network and accessible via local DNS. User can have a rule like this to avoid docker discovery: `- STATIC_RULES=*,/api/email/(.*),http://email-sender:8080/$$1`. This rule expects `email-sender` container defined inside the same compose. Please note: users can achieve the same result by using the docker network even if the destination service was defined in a different compose file. This way reproxy configuration can stay separate from the actual services.
 
 There is nothing except reproxy binary inside the reproxy container, as it builds on top of an empty (scratch) image.
+
+### How to set up non-root user with docker access and use it with reproxy container
+
+User with UID `1001` with groups `1001` and `999` is pre-created within the container and could be used for running reproxy. The prerequisite for this is to grant the user permissions to access the docker socket:
+
+1. Check which user/group IDs are already in use on the host machine. In case any of the groups `999` and `1001` are not in use, safest option is to create them on the host machine, otherwise you need to decide if you are okay with granting the existing group permissions to write to docker socket.
+    ```shell
+    # check groups which you can use within container
+    getent group 999
+    getent group 1001
+    # check user which you can use within container
+    getent passwd 1001
+    # empty output means that there is no such group or user, and output will show you which group or user already exist
+    ```
+2. In case groups are not in use, create one of them on the host machine. For example, to create group `1001`:
+    ```shell
+    sudo groupadd -g 1001 reproxy
+    # here is group info after adding:
+    # getent group 1001
+    # reproxy:x:1001:
+    ```
+   In case user is not in use, create it as well with no login shell and no home directory:
+    ```shell
+    sudo useradd -u 1001 -g 1001 -s /sbin/nologin -M reproxy
+    # here is user info after adding:
+    # getent passwd 1001
+    # reproxy:x:1001:1001::/nonexistent:/usr/sbin/nologin
+    ```
+3. Grant permissions to the group (`1001` in that example, `999` can be used as well) or user to the docker socket:
+    ```shell
+    # in case you created user
+    sudo usermod -aG docker reproxy
+    # in case you created only the group
+    sudo setfacl -m group:reproxy:rw /var/run/docker.sock
+    ```
+
+After setup is done, you can run reproxy container with the user `1001`:
+
+```yaml
+services:
+  reproxy:
+    user: 1001
+    image: umputun/reproxy:latest
+# <...>
+# see examples/ssl/docker-compose.yml for the full file example
+```
 
 ## Options
 
