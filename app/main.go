@@ -17,6 +17,7 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/umputun/go-flags"
+	"github.com/umputun/reproxy/app/proxy/autocert/dnsprovider"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/umputun/reproxy/app/discovery"
@@ -47,6 +48,15 @@ var opts struct {
 		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
 		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
+
+		DNS struct {
+			Type       string `long:"dns-type" env:"DNS_TYPE" description:"dns provider type" choice:"cloudflare" default:"none"` // nolint
+			Cloudflare struct {
+				Email string        `long:"email" env:"EMAIL" description:"cloudflare email"`
+				Key   string        `long:"key" env:"KEY" description:"cloudflare key"`
+				TTL   time.Duration `long:"ttl" env:"TTL" default:"300s" description:"cloudflare TTL"`
+			} `group:"cloudflare" namespace:"cloudflare" env-namespace:"CLOUDFLARE"`
+		} `group:"dns" namespace:"dns" env-namespace:"DNS"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
@@ -411,6 +421,14 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
+		switch opts.SSL.DNS.Type {
+		case "cloudflare":
+			config.DNSProvider = &dnsprovider.Cloudflare{
+				Email: opts.SSL.DNS.Cloudflare.Email,
+				Key:   opts.SSL.DNS.Cloudflare.Key,
+				TTL:   opts.SSL.DNS.Cloudflare.TTL,
+			}
+		}
 	default:
 		return config, fmt.Errorf("invalid value %q for SSL_TYPE, allowed values are: none, static or auto", opts.SSL.Type)
 	}

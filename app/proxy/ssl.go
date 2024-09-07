@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	log "github.com/go-pkgz/lgr"
+	R "github.com/go-pkgz/rest"
 	"github.com/umputun/reproxy/app/proxy/autocert"
 	"golang.org/x/crypto/acme"
-
-	R "github.com/go-pkgz/rest"
 )
 
 // sslMode defines ssl mode for rest server
@@ -36,6 +35,7 @@ type SSLConfig struct {
 	ACMEEmail     string
 	FQDNs         []string
 	RedirHTTPPort int
+	DNSProvider   autocert.DNSManager
 }
 
 // httpToHTTPSRouter creates new router which does redirect from http to https server
@@ -66,14 +66,16 @@ func (h *Http) redirectHandler() http.Handler {
 }
 
 func (h *Http) makeAutocertManager() *autocert.Manager {
-	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q",
-		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail)
+	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q, dns provider: %s",
+		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail, h.SSLConfig.DNSProvider)
+
 	return &autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		Cache:      autocert.DirCache(h.SSLConfig.ACMELocation),
 		HostPolicy: autocert.HostWhitelist(h.SSLConfig.FQDNs...),
 		Client:     &acme.Client{DirectoryURL: autocert.DefaultACMEDirectory},
 		Email:      h.SSLConfig.ACMEEmail,
+		DNSManager: h.SSLConfig.DNSProvider,
 	}
 }
 
