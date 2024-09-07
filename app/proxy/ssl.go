@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	log "github.com/go-pkgz/lgr"
-	"golang.org/x/crypto/acme/autocert"
+	"github.com/umputun/reproxy/app/proxy/autocert"
+	"golang.org/x/crypto/acme"
 
 	R "github.com/go-pkgz/rest"
 )
@@ -71,6 +72,7 @@ func (h *Http) makeAutocertManager() *autocert.Manager {
 		Prompt:     autocert.AcceptTOS,
 		Cache:      autocert.DirCache(h.SSLConfig.ACMELocation),
 		HostPolicy: autocert.HostWhitelist(h.SSLConfig.FQDNs...),
+		Client:     &acme.Client{DirectoryURL: autocert.DefaultACMEDirectory},
 		Email:      h.SSLConfig.ACMEEmail,
 	}
 }
