@@ -129,7 +129,6 @@ func (h *Http) makeAutocertManager() AutocertManager {
 	if h.SSLConfig.DNSProvider != nil {
 		acme.DNS01Solver = &certmagic.DNS01Solver{
 			DNSManager: certmagic.DNSManager{
-				Resolvers:   h.SSLConfig.DNSProvider,
 				DNSProvider: h.SSLConfig.DNSProvider,
 				TTL:         h.SSLConfig.DNSTTL,
 				Logger:      logger,
