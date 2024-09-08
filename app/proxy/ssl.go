@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/caddyserver/certmagic"
 	log "github.com/go-pkgz/lgr"
@@ -39,6 +40,7 @@ type SSLConfig struct {
 	FQDNs         []string
 	RedirHTTPPort int
 	DNSProvider   certmagic.DNSProvider
+	DNSTTL        time.Duration
 }
 
 // httpToHTTPSRouter creates new router which does redirect from http to https server
@@ -90,35 +92,47 @@ func (h *Http) makeAutocertManager() AutocertManager {
 		fqdns[fqdn] = struct{}{}
 	}
 
-	cfg := &certmagic.Config{
-		RenewalWindowRatio: certmagic.DefaultRenewalWindowRatio,
-		Storage:            &certmagic.FileStorage{Path: h.SSLConfig.ACMELocation},
-		KeySource:          certmagic.DefaultKeyGenerator,
-		OnDemand: &certmagic.OnDemandConfig{
-			DecisionFunc: func(ctx context.Context, name string) error {
-				if _, ok := fqdns[name]; ok {
-					return nil
-				}
-				return fmt.Errorf("not allowed domain %q", name)
+	logger := zap.NewNop()
+
+	config := func() certmagic.Config {
+		return certmagic.Config{
+			RenewalWindowRatio: certmagic.DefaultRenewalWindowRatio,
+			Storage:            &certmagic.FileStorage{Path: h.SSLConfig.ACMELocation},
+			KeySource:          certmagic.DefaultKeyGenerator,
+			OnDemand: &certmagic.OnDemandConfig{
+				DecisionFunc: func(ctx context.Context, name string) error {
+					if _, ok := fqdns[name]; ok {
+						return nil
+					}
+					return fmt.Errorf("not allowed domain %q", name)
+				},
 			},
-		},
-		Logger: zap.NewNop(),
+			Logger: logger,
+		}
 	}
+
 	cache := certmagic.NewCache(certmagic.CacheOptions{
-		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) { return cfg, nil },
-		Logger:           zap.NewNop(),
+		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) {
+			cfg := config()
+			return &cfg, nil
+		},
+		Logger: logger,
 	})
-	cfg = certmagic.New(cache, *cfg)
+	cfg := certmagic.New(cache, config())
+
 	acme := certmagic.NewACMEIssuer(cfg, certmagic.ACMEIssuer{
 		CA:     cmp.Or(os.Getenv("TEST_ACME_CA"), certmagic.LetsEncryptProductionCA),
 		Email:  h.SSLConfig.ACMEEmail,
-		Logger: zap.NewNop(),
+		Logger: logger,
 	})
 
 	if h.SSLConfig.DNSProvider != nil {
 		acme.DNS01Solver = &certmagic.DNS01Solver{
 			DNSManager: certmagic.DNSManager{
+				Resolvers:   h.SSLConfig.DNSProvider,
 				DNSProvider: h.SSLConfig.DNSProvider,
+				TTL:         h.SSLConfig.DNSTTL,
+				Logger:      logger,
 			},
 		}
 	}
