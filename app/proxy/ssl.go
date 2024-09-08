@@ -1,15 +1,16 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/caddyserver/certmagic"
 	log "github.com/go-pkgz/lgr"
-	"golang.org/x/crypto/acme/autocert"
-
 	R "github.com/go-pkgz/rest"
+	"go.uber.org/zap"
 )
 
 // sslMode defines ssl mode for rest server
@@ -48,7 +49,7 @@ func (h *Http) httpToHTTPSRouter() http.Handler {
 // with default middlewares. This part is necessary to obtain certificate from LE.
 // If it receives not a acme challenge it performs redirect to https server.
 // Used in 'auto' ssl mode.
-func (h *Http) httpChallengeRouter(m *autocert.Manager) http.Handler {
+func (h *Http) httpChallengeRouter(m AutocertManager) http.Handler {
 	log.Printf("[DEBUG] create http-challenge routes")
 	return R.Wrap(m.HTTPHandler(h.redirectHandler()), R.Recoverer(log.Default()))
 }
@@ -64,19 +65,58 @@ func (h *Http) redirectHandler() http.Handler {
 	})
 }
 
-func (h *Http) makeAutocertManager() *autocert.Manager {
+type certmagicManager struct {
+	cfg  *certmagic.Config
+	acme *certmagic.ACMEIssuer
+}
+
+func (m certmagicManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	return m.cfg.GetCertificate(hello)
+}
+
+func (m certmagicManager) HTTPHandler(next http.Handler) http.Handler {
+	return m.acme.HTTPChallengeHandler(next)
+}
+
+func (h *Http) makeAutocertManager() AutocertManager {
 	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q",
 		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail)
-	return &autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		Cache:      autocert.DirCache(h.SSLConfig.ACMELocation),
-		HostPolicy: autocert.HostWhitelist(h.SSLConfig.FQDNs...),
-		Email:      h.SSLConfig.ACMEEmail,
+
+	fqdns := map[string]struct{}{}
+	for _, fqdn := range h.SSLConfig.FQDNs {
+		fqdns[fqdn] = struct{}{}
 	}
+
+	cfg := &certmagic.Config{
+		RenewalWindowRatio: certmagic.DefaultRenewalWindowRatio,
+		Storage:            &certmagic.FileStorage{Path: h.SSLConfig.ACMELocation},
+		KeySource:          certmagic.DefaultKeyGenerator,
+		OnDemand: &certmagic.OnDemandConfig{
+			DecisionFunc: func(ctx context.Context, name string) error {
+				if _, ok := fqdns[name]; ok {
+					return nil
+				}
+				return fmt.Errorf("not allowed domain %q", name)
+			},
+		},
+		Logger: zap.NewNop(),
+	}
+	cache := certmagic.NewCache(certmagic.CacheOptions{
+		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) { return cfg, nil },
+		Logger:           zap.NewNop(),
+	})
+	cfg = certmagic.New(cache, *cfg)
+	acme := certmagic.NewACMEIssuer(cfg, certmagic.ACMEIssuer{
+		CA:    certmagic.LetsEncryptProductionCA,
+		Email: h.SSLConfig.ACMEEmail,
+	})
+	cfg.Issuers = []certmagic.Issuer{acme}
+
+	return certmagicManager{cfg: cfg, acme: acme}
 }
 
 // makeHTTPSAutoCertServer makes https server with autocert mode (LE support)
-func (h *Http) makeHTTPSAutocertServer(address string, router http.Handler, m *autocert.Manager) *http.Server {
+func (h *Http) makeHTTPSAutocertServer(address string, router http.Handler, m AutocertManager) *http.Server {
 	server := h.makeHTTPServer(address, router)
 	cfg := h.makeTLSConfig()
 	cfg.GetCertificate = m.GetCertificate

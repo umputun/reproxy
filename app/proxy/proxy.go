@@ -83,6 +83,12 @@ type LBSelector interface {
 	Select(size int) int // return index of picked server
 }
 
+// AutocertManager interface to get certificate for the domain
+type AutocertManager interface {
+	GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
+	HTTPHandler(http.Handler) http.Handler
+}
+
 // Timeouts consolidate timeouts for both server and transport
 type Timeouts struct {
 	// server timeouts
