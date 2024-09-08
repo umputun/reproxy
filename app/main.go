@@ -16,6 +16,9 @@ import (
 	"time"
 
 	log "github.com/go-pkgz/lgr"
+	"github.com/libdns/cloudflare"
+	"github.com/libdns/gandi"
+	"github.com/libdns/route53"
 	"github.com/umputun/go-flags"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -47,6 +50,23 @@ var opts struct {
 		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
 		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
+		DNS           struct {
+			Type       string `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" default:"none"` // nolint
+			Cloudflare struct {
+				APIToken string `long:"api-token" env:"API_TOKEN" description:"cloudflare api token"`
+			} `group:"cloudfare" namespace:"cloudflare" env-namespace:"CLOUDFLARE"`
+			Route53 struct {
+				Region          string `long:"region" env:"REGION" description:"AWS region"`
+				Profile         string `long:"profile" env:"PROFILE" description:"AWS profile"`
+				AccessKeyId     string `long:"access-key-id" env:"ACCESS_KEY_ID" description:"AWS access key id"`
+				SecretAccessKey string `long:"secret-access-key" env:"SECRET_ACCESS_KEY" description:"AWS secret access key"`
+				SessionToken    string `long:"session-token" env:"SESSION_TOKEN" description:"AWS session token"`
+				HostedZoneID    string `long:"hosted-zone-id" env:"HOSTED_ZONE_ID" description:"AWS hosted zone id"`
+			} `group:"route53" namespace:"route53" env-namespace:"ROUTE53"`
+			Gandi struct {
+				BearerToken string `long:"bearer-token" env:"BEARER_TOKEN" description:"gandi bearer token"`
+			} `group:"gandi" namespace:"gandi" env-namespace:"GANDI"`
+		} `group:"dns" namespace:"dns" env-namespace:"DNS"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
 	Assets struct {
@@ -411,6 +431,24 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
+		switch opts.SSL.DNS.Type {
+		case "cloudflare":
+			config.DNSProvider = &cloudflare.Provider{APIToken: opts.SSL.DNS.Cloudflare.APIToken}
+		case "route53":
+			config.DNSProvider = &route53.Provider{
+				Region:             opts.SSL.DNS.Route53.Region,
+				Profile:            opts.SSL.DNS.Route53.Profile,
+				AccessKeyId:        opts.SSL.DNS.Route53.AccessKeyId,
+				SecretAccessKey:    opts.SSL.DNS.Route53.SecretAccessKey,
+				SessionToken:       opts.SSL.DNS.Route53.SessionToken,
+				HostedZoneID:       opts.SSL.DNS.Route53.HostedZoneID,
+				WaitForPropagation: true,
+			}
+		case "gandi":
+			config.DNSProvider = &gandi.Provider{
+				BearerToken: opts.SSL.DNS.Gandi.BearerToken,
+			}
+		}
 	default:
 		return config, fmt.Errorf("invalid value %q for SSL_TYPE, allowed values are: none, static or auto", opts.SSL.Type)
 	}

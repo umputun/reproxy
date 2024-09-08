@@ -1,10 +1,12 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/caddyserver/certmagic"
@@ -36,6 +38,7 @@ type SSLConfig struct {
 	ACMEEmail     string
 	FQDNs         []string
 	RedirHTTPPort int
+	DNSProvider   certmagic.DNSProvider
 }
 
 // httpToHTTPSRouter creates new router which does redirect from http to https server
@@ -79,8 +82,8 @@ func (m certmagicManager) HTTPHandler(next http.Handler) http.Handler {
 }
 
 func (h *Http) makeAutocertManager() AutocertManager {
-	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q",
-		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail)
+	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q, dns provider: %T",
+		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail, h.SSLConfig.DNSProvider)
 
 	fqdns := map[string]struct{}{}
 	for _, fqdn := range h.SSLConfig.FQDNs {
@@ -107,9 +110,19 @@ func (h *Http) makeAutocertManager() AutocertManager {
 	})
 	cfg = certmagic.New(cache, *cfg)
 	acme := certmagic.NewACMEIssuer(cfg, certmagic.ACMEIssuer{
-		CA:    certmagic.LetsEncryptProductionCA,
-		Email: h.SSLConfig.ACMEEmail,
+		CA:     cmp.Or(os.Getenv("TEST_ACME_CA"), certmagic.LetsEncryptProductionCA),
+		Email:  h.SSLConfig.ACMEEmail,
+		Logger: zap.NewNop(),
 	})
+
+	if h.SSLConfig.DNSProvider != nil {
+		acme.DNS01Solver = &certmagic.DNS01Solver{
+			DNSManager: certmagic.DNSManager{
+				DNSProvider: h.SSLConfig.DNSProvider,
+			},
+		}
+	}
+
 	cfg.Issuers = []certmagic.Issuer{acme}
 
 	return certmagicManager{cfg: cfg, acme: acme}
