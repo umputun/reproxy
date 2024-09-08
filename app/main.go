@@ -51,7 +51,8 @@ var opts struct {
 		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 		DNS           struct {
-			Type       string `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" default:"none"` // nolint
+			Type       string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" default:"none"` // nolint
+			TTL        time.Duration `long:"ttl" env:"TTL" default:"2m" description:"DNS record TTL"`
 			Cloudflare struct {
 				APIToken string `long:"api-token" env:"API_TOKEN" description:"cloudflare api token"`
 			} `group:"cloudfare" namespace:"cloudflare" env-namespace:"CLOUDFLARE"`
@@ -431,6 +432,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
+		config.DNSTTL = opts.SSL.DNS.TTL
 		switch opts.SSL.DNS.Type {
 		case "cloudflare":
 			config.DNSProvider = &cloudflare.Provider{APIToken: opts.SSL.DNS.Cloudflare.APIToken}
