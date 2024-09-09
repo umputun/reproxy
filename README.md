@@ -240,7 +240,7 @@ This mode is off by default and can be turned on by setting `--assets.spa` or `A
 
 ## Redirects 
 
-By default reproxy treats destination as a proxy location, i.e. it invokes http call internally and returns response back to the client. However by prefixing destination url with `@code` this behaviour can be changed to a permanent (status code 301) or temporary (status code 302) redirects. I.e. destination set to `@301 https://example.com/something` with cause permanent http redirect to `Location: https://example.com/something`
+By default reproxy treats destination as a proxy location, i.e. it invokes http call internally and returns response back to the client. However by prefixing destination url with `@code` this behaviour can be changed to a permanent (status code 301) or temporary (status code 302) redirects. I.e. destination set to `@301 https://example.com/something` will cause permanent http redirect to `Location: https://example.com/something`
 
 supported codes:
 
@@ -322,7 +322,7 @@ Checking headers should be used with caution, as it is possible to fake them. Ho
 
 ## Plugins support
 
-The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
+The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins are registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
 
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 
