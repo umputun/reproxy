@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"golang.org/x/crypto/acme"
+
 	log "github.com/go-pkgz/lgr"
 	"golang.org/x/crypto/acme/autocert"
 
@@ -31,6 +33,7 @@ type SSLConfig struct {
 	SSLMode       sslMode
 	Cert          string
 	Key           string
+	ACMEDirectory string
 	ACMELocation  string
 	ACMEEmail     string
 	FQDNs         []string
@@ -65,9 +68,19 @@ func (h *Http) redirectHandler() http.Handler {
 }
 
 func (h *Http) makeAutocertManager() *autocert.Manager {
-	log.Printf("[DEBUG] autocert manager for domains: %+v, location: %s, email: %q",
-		h.SSLConfig.FQDNs, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail)
+	acmeDirectory := autocert.DefaultACMEDirectory
+	if h.SSLConfig.ACMEDirectory != "" {
+		acmeDirectory = h.SSLConfig.ACMEDirectory
+	}
+
+	log.Printf("[DEBUG] autocert manager for domains: %+v, acmeDirectory: %s, location: %s, email: %q",
+		h.SSLConfig.FQDNs, acmeDirectory, h.SSLConfig.ACMELocation, h.SSLConfig.ACMEEmail)
+
 	return &autocert.Manager{
+		Client: &acme.Client{
+			DirectoryURL: acmeDirectory,
+		},
+
 		Prompt:     autocert.AcceptTOS,
 		Cache:      autocert.DirCache(h.SSLConfig.ACMELocation),
 		HostPolicy: autocert.HostWhitelist(h.SSLConfig.FQDNs...),

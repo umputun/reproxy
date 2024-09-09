@@ -43,6 +43,7 @@ var opts struct {
 		Type          string   `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` // nolint
 		Cert          string   `long:"cert" env:"CERT" description:"path to cert.pem file"`
 		Key           string   `long:"key" env:"KEY" description:"path to key.pem file"`
+		ACMEDirectoru string   `long:"acme-directory" env:"ACME_DITRCTORY" description:"acme directory url"`
 		ACMELocation  string   `long:"acme-location" env:"ACME_LOCATION" description:"dir where certificates will be stored by autocert manager" default:"./var/acme"`
 		ACMEEmail     string   `long:"acme-email" env:"ACME_EMAIL" description:"admin email for certificate notifications"`
 		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
