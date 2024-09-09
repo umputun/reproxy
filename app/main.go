@@ -432,7 +432,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
-		config.DNSTTL = opts.SSL.DNS.TTL
+		config.TTL = opts.SSL.DNS.TTL
 		switch opts.SSL.DNS.Type {
 		case "cloudflare":
 			config.DNSProvider = &cloudflare.Provider{APIToken: opts.SSL.DNS.Cloudflare.APIToken}

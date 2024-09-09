@@ -2,10 +2,8 @@ package proxy
 
 import (
 	"crypto/tls"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -37,52 +35,4 @@ func TestSSL_Redirect(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, 307, resp.StatusCode)
 	assert.Equal(t, "https://localhost:443/blah?param=1", resp.Header.Get("Location"))
-}
-
-func TestSSL_ACME_HTTPChallengeRouter(t *testing.T) {
-	t.Skip("due to unavailability of storing the token in the storage")
-	p := Http{
-		SSLConfig: SSLConfig{
-			ACMELocation: "acme",
-			FQDNs:        []string{"example.com", "localhost"},
-		},
-	}
-
-	m := p.makeAutocertManager()
-	defer os.RemoveAll(p.SSLConfig.ACMELocation)
-
-	ts := httptest.NewServer(p.httpChallengeRouter(m))
-	defer ts.Close()
-
-	client := http.Client{
-		// prevent http redirect
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	lh := strings.Replace(ts.URL, "127.0.0.1", "localhost", 1)
-	// check http to https redirect response
-	resp, err := client.Get(lh + "/blah?param=1")
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, 307, resp.StatusCode)
-	assert.Equal(t, "https://localhost:443/blah?param=1", resp.Header.Get("Location"))
-
-	// check acme http challenge
-	req, err := http.NewRequest("GET", lh+"/.well-known/acme-challenge/token123", http.NoBody)
-	require.NoError(t, err)
-	req.Host = "localhost" // for passing hostPolicy check
-	resp, err = client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, 404, resp.StatusCode)
-
-	resp, err = client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, 200, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, "token", string(body))
 }
