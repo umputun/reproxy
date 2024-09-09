@@ -15,28 +15,28 @@ var _ Matcher = &MatcherMock{}
 
 // MatcherMock is a mock implementation of Matcher.
 //
-// 	func TestSomethingThatUsesMatcher(t *testing.T) {
+//	func TestSomethingThatUsesMatcher(t *testing.T) {
 //
-// 		// make and configure a mocked Matcher
-// 		mockedMatcher := &MatcherMock{
-// 			CheckHealthFunc: func() map[string]error {
-// 				panic("mock out the CheckHealth method")
-// 			},
-// 			MappersFunc: func() []discovery.URLMapper {
-// 				panic("mock out the Mappers method")
-// 			},
-// 			MatchFunc: func(srv string, src string) discovery.Matches {
-// 				panic("mock out the Match method")
-// 			},
-// 			ServersFunc: func() []string {
-// 				panic("mock out the Servers method")
-// 			},
-// 		}
+//		// make and configure a mocked Matcher
+//		mockedMatcher := &MatcherMock{
+//			CheckHealthFunc: func() map[string]error {
+//				panic("mock out the CheckHealth method")
+//			},
+//			MappersFunc: func() []discovery.URLMapper {
+//				panic("mock out the Mappers method")
+//			},
+//			MatchFunc: func(srv string, src string) discovery.Matches {
+//				panic("mock out the Match method")
+//			},
+//			ServersFunc: func() []string {
+//				panic("mock out the Servers method")
+//			},
+//		}
 //
-// 		// use mockedMatcher in code that requires Matcher
-// 		// and then make assertions.
+//		// use mockedMatcher in code that requires Matcher
+//		// and then make assertions.
 //
-// 	}
+//	}
 type MatcherMock struct {
 	// CheckHealthFunc mocks the CheckHealth method.
 	CheckHealthFunc func() map[string]error
@@ -90,7 +90,8 @@ func (mock *MatcherMock) CheckHealth() map[string]error {
 
 // CheckHealthCalls gets all the calls that were made to CheckHealth.
 // Check the length with:
-//     len(mockedMatcher.CheckHealthCalls())
+//
+//	len(mockedMatcher.CheckHealthCalls())
 func (mock *MatcherMock) CheckHealthCalls() []struct {
 } {
 	var calls []struct {
@@ -116,7 +117,8 @@ func (mock *MatcherMock) Mappers() []discovery.URLMapper {
 
 // MappersCalls gets all the calls that were made to Mappers.
 // Check the length with:
-//     len(mockedMatcher.MappersCalls())
+//
+//	len(mockedMatcher.MappersCalls())
 func (mock *MatcherMock) MappersCalls() []struct {
 } {
 	var calls []struct {
@@ -147,7 +149,8 @@ func (mock *MatcherMock) Match(srv string, src string) discovery.Matches {
 
 // MatchCalls gets all the calls that were made to Match.
 // Check the length with:
-//     len(mockedMatcher.MatchCalls())
+//
+//	len(mockedMatcher.MatchCalls())
 func (mock *MatcherMock) MatchCalls() []struct {
 	Srv string
 	Src string
@@ -177,7 +180,8 @@ func (mock *MatcherMock) Servers() []string {
 
 // ServersCalls gets all the calls that were made to Servers.
 // Check the length with:
-//     len(mockedMatcher.ServersCalls())
+//
+//	len(mockedMatcher.ServersCalls())
 func (mock *MatcherMock) ServersCalls() []struct {
 } {
 	var calls []struct {

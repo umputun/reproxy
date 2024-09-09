@@ -39,7 +39,7 @@ func TestService_Run(t *testing.T) {
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
 				{Server: "localhost", SrcMatch: *regexp.MustCompile("/api/svc3/xyz"),
-					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
+					Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker, OnlyFromIPs: []string{"127.0.0.1"}},
 			}, nil
 		},
 	}
@@ -66,6 +66,7 @@ func TestService_Run(t *testing.T) {
 	assert.Equal(t, "localhost", mappers[0].Server)
 	assert.Equal(t, "/api/svc3/xyz", mappers[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", mappers[0].Dst)
+	assert.Equal(t, []string{"127.0.0.1"}, mappers[0].OnlyFromIPs)
 
 	assert.Equal(t, 1, len(p1.EventsCalls()))
 	assert.Equal(t, 1, len(p2.EventsCalls()))
@@ -104,7 +105,8 @@ func TestService_Match(t *testing.T) {
 		},
 		ListFunc: func() ([]URLMapper, error) {
 			return []URLMapper{
-				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz", ProviderID: PIDocker},
+				{SrcMatch: *regexp.MustCompile("/api/svc3/xyz"), Dst: "http://127.0.0.3:8080/blah3/xyz",
+					OnlyFromIPs: []string{"127.0.0.1", "192.168.1.0/24"}, ProviderID: PIDocker},
 				{SrcMatch: *regexp.MustCompile("/web"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
 					AssetsWebRoot: "/web", AssetsLocation: "/var/web"},
 				{SrcMatch: *regexp.MustCompile("/www/"), Dst: "/var/web", ProviderID: PIDocker, MatchType: MTStatic,
@@ -131,9 +133,11 @@ func TestService_Match(t *testing.T) {
 		res         Matches
 	}{
 		{"example.com", "/api/svc3/xyz/something", Matches{MTProxy, []MatchedRoute{
-			{Destination: "http://127.0.0.3:8080/blah3/xyz/something", Alive: true}}}},
+			{Destination: "http://127.0.0.3:8080/blah3/xyz/something", Alive: true,
+				Mapper: URLMapper{OnlyFromIPs: []string{"127.0.0.1", "192.168.1.0/24"}}}}}},
 		{"example.com", "/api/svc3/xyz", Matches{MTProxy, []MatchedRoute{{
-			Destination: "http://127.0.0.3:8080/blah3/xyz", Alive: true}}}},
+			Destination: "http://127.0.0.3:8080/blah3/xyz", Alive: true,
+			Mapper: URLMapper{OnlyFromIPs: []string{"127.0.0.1", "192.168.1.0/24"}}}}}},
 		{"abc.example.com", "/api/svc1/1234", Matches{MTProxy, []MatchedRoute{
 			{Destination: "http://127.0.0.1:8080/blah1/1234", Alive: true}}}},
 		{"zzz.example.com", "/aaa/api/svc1/1234", Matches{MTProxy, nil}},
@@ -160,13 +164,13 @@ func TestService_Match(t *testing.T) {
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+				assert.Equal(t, tt.res.Routes[i].Mapper.OnlyFromIPs, res.Routes[i].Mapper.OnlyFromIPs)
 			}
 			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
@@ -187,10 +191,14 @@ func TestService_MatchServerRegex(t *testing.T) {
 					Dst: "http://127.0.0.10:8080/", MatchType: MTProxy, dead: false},
 
 				// regex servers
-				{Server: "test-prefix\\.(.*)", SrcMatch: *regexp.MustCompile("^/"),
-					Dst: "http://127.0.0.1:8080/", MatchType: MTProxy, dead: false},
-				{Server: "(.*)\\.test-domain\\.(com|org)", SrcMatch: *regexp.MustCompile("^/"),
-					Dst: "http://127.0.0.2:8080/", MatchType: MTProxy, dead: false},
+				{Server: "test-prefix\\.(.*)", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.1:8080/$host/blah/$1", MatchType: MTProxy, dead: false},
+				{Server: "test-prefix2\\.(.*)", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.1:8080/${host}/blah/$1", MatchType: MTProxy, dead: false},
+				{Server: "(.*)\\.test-domain\\.(com|org)", SrcMatch: *regexp.MustCompile("^/bar/(.*)"),
+					Dst: "http://127.0.0.2:8080/$1/foo", MatchType: MTProxy, dead: false},
+				{Server: "*.test-domain2.com", SrcMatch: *regexp.MustCompile("^/foo/(.*)"),
+					Dst: "http://127.0.0.3:8080/$1/bar", MatchType: MTProxy, dead: false},
 
 				// strict match
 				{Server: "test-prefix.exact.com", SrcMatch: *regexp.MustCompile("/"),
@@ -207,21 +215,55 @@ func TestService_MatchServerRegex(t *testing.T) {
 	assert.Equal(t, context.DeadlineExceeded, err)
 
 	tbl := []struct {
+		name        string
 		server, src string
 		res         Matches
 	}{
-		// strict match should take priority
-		{"test-prefix.exact.com", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.4:8080/", Alive: true}}}},
-
-		// regex servers
-		{"test-prefix.example.com", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/", Alive: true}}}},
-		{"another-prefix.example.com", "/", Matches{MTProxy, nil}},
-		{"another-prefix.test-domain.org", "/", Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.2:8080/", Alive: true}}}},
-		{"another-prefix.test-domain.net", "/", Matches{MTProxy, nil}},
+		{
+			name:   "strict match",
+			server: "test-prefix.exact.com",
+			src:    "/",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.4:8080/", Alive: true}}},
+		},
+		{
+			name:   "regex server with $host match",
+			server: "test-prefix.example.com",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix.example.com/blah/some", Alive: true}}},
+		},
+		{
+			name:   "regex server with ${host} match",
+			server: "test-prefix2.example.com",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix2.example.com/blah/some", Alive: true}}},
+		},
+		{
+			name:   "regex server without a match",
+			server: "another-prefix.example.com",
+			src:    "/",
+			res:    Matches{MTProxy, nil},
+		},
+		{
+			name:   "regex server with test-domain.org match",
+			server: "another-prefix.test-domain.org",
+			src:    "/bar/123",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.2:8080/123/foo", Alive: true}}},
+		},
+		{
+			name:   "regex server with test-domain.net mismatch",
+			server: "another-prefix.test-domain.net",
+			src:    "/",
+			res:    Matches{MTProxy, nil},
+		},
+		{
+			name:   "pattern server with *.test-domain2.com match",
+			server: "test.test-domain2.com",
+			src:    "/foo/123",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.3:8080/123/bar", Alive: true}}},
+		},
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
@@ -328,6 +370,73 @@ func TestService_MatchConflictRegex(t *testing.T) {
 	}
 }
 
+// https://github.com/umputun/reproxy/issues/192
+func TestService_Match192(t *testing.T) {
+	p1 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{
+					Server:     "*",
+					SrcMatch:   *regexp.MustCompile("^/(.*)"),
+					Dst:        "@temp https://site1.ru/",
+					ProviderID: PIFile,
+				},
+				{
+					Server:     "example1.ru",
+					SrcMatch:   *regexp.MustCompile("^/(.*)"),
+					Dst:        "@temp https://site2.ru/",
+					ProviderID: PIFile,
+				},
+				{
+					Server:     "example2.ru",
+					SrcMatch:   *regexp.MustCompile("^/(.*)"),
+					Dst:        "@temp https://site2.ru/",
+					ProviderID: PIFile,
+				},
+			}, nil
+		},
+	}
+
+	svc := NewService([]Provider{p1}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := svc.Run(ctx)
+	require.Error(t, err)
+	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.Equal(t, 3, len(svc.Mappers()))
+
+	tbl := []struct {
+		server, src string
+		res         Matches
+	}{
+		{"example2.ru", "/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "https://site2.ru/", Alive: true}}}},
+		{"example1.ru", "/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "https://site2.ru/", Alive: true}}}},
+		{"example123.ru", "/something", Matches{MTProxy, []MatchedRoute{
+			{Destination: "https://site1.ru/", Alive: true}}}},
+	}
+
+	for i, tt := range tbl {
+		tt := tt
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			res := svc.Match(tt.server, tt.src)
+			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			for i := 0; i < len(res.Routes); i++ {
+				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
+				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
+			}
+			assert.Equal(t, tt.res.MatchType, res.MatchType)
+		})
+	}
+}
+
 func TestService_Servers(t *testing.T) {
 	p1 := &ProviderMock{
 		EventsFunc: func(ctx context.Context) <-chan ProviderID {
@@ -369,7 +478,6 @@ func TestService_Servers(t *testing.T) {
 }
 
 func TestService_extendRule(t *testing.T) {
-
 	tbl := []struct {
 		inp URLMapper
 		out URLMapper
@@ -406,11 +514,9 @@ func TestService_extendRule(t *testing.T) {
 			assert.Equal(t, tt.out, res)
 		})
 	}
-
 }
 
 func TestService_redirects(t *testing.T) {
-
 	tbl := []struct {
 		inp URLMapper
 		out URLMapper
@@ -607,4 +713,40 @@ func TestCheckHealth(t *testing.T) {
 	assert.Error(t, res[failPingULR])
 	assert.NoError(t, res[ts.URL])
 	assert.NoError(t, res[ts2.URL])
+}
+
+func TestParseOnlyFrom(t *testing.T) {
+	tbl := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name:     "single IP",
+			input:    "192.168.1.1",
+			expected: []string{"192.168.1.1"},
+		},
+		{
+			name:     "multiple IPs",
+			input:    "192.168.1.1, 192.168.1.2, 192.168.1.3, 10.0.0.0/16",
+			expected: []string{"192.168.1.1", "192.168.1.2", "192.168.1.3", "10.0.0.0/16"},
+		},
+		{
+			name:     "multiple IPs with extra spaces",
+			input:    " 192.168.1.1 , 192.168.1.2 , 192.168.1.3 ",
+			expected: []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"},
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParseOnlyFrom(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

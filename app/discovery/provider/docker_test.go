@@ -30,7 +30,7 @@ func TestDocker_List(t *testing.T) {
 				{
 					Name: "c1", State: "running", IP: "127.0.0.2", Ports: []int{12345},
 					Labels: map[string]string{"reproxy.route": "^/api/123/(.*)", "reproxy.dest": "/blah/$1",
-						"reproxy.server": "example.com", "reproxy.ping": "/ping"},
+						"reproxy.server": "example.com", "reproxy.ping": "/ping", "reproxy.remote": "192.168.1.0/24, 127.0.0.1"},
 				},
 				{
 					Name: "c1", State: "running", IP: "127.0.0.21", Ports: []int{12345},
@@ -64,21 +64,25 @@ func TestDocker_List(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
 	assert.Equal(t, "example.com", res[0].Server)
 	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
+	assert.Equal(t, []string{"192.168.1.0/24", "127.0.0.1"}, res[0].OnlyFromIPs)
 
 	assert.Equal(t, "^/api/90/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://example.com/blah/$1", res[1].Dst)
 	assert.Equal(t, "https://example.com//ping", res[1].PingURL)
 	assert.Equal(t, "example.com", res[1].Server)
+	assert.Equal(t, []string{}, res[1].OnlyFromIPs)
 
 	assert.Equal(t, "^/c2/(.*)", res[2].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:12346/$1", res[2].Dst)
 	assert.Equal(t, "http://127.0.0.3:12346/ping", res[2].PingURL)
 	assert.Equal(t, "*", res[2].Server)
+	assert.Equal(t, []string{}, res[2].OnlyFromIPs)
 
 	assert.Equal(t, "^/a/(.*)", res[3].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[3].Dst)
 	assert.Equal(t, "http://127.0.0.2:12348/ping", res[3].PingURL)
 	assert.Equal(t, "example.com", res[3].Server)
+	assert.Equal(t, []string{}, res[3].OnlyFromIPs)
 }
 
 func TestDocker_ListMulti(t *testing.T) {
@@ -133,6 +137,14 @@ func TestDocker_ListMulti(t *testing.T) {
 					Name: "c5", State: "running", IP: "127.0.0.122", Ports: []int{2345}, // not enabled
 					Labels: map[string]string{"reproxy.enabled": "false"},
 				},
+				{
+					Name: "c6", State: "running", IP: "127.0.0.3", Ports: []int{12346},
+					Labels: map[string]string{"reproxy.enabled": "y", "reproxy.keep-host": "y", "reproxy.route": "^/ky/"},
+				},
+				{
+					Name: "c7", State: "running", IP: "127.0.0.3", Ports: []int{12346},
+					Labels: map[string]string{"reproxy.enabled": "y", "reproxy.keep-host": "n", "reproxy.route": "^/kn/"},
+				},
 			}, nil
 		},
 	}
@@ -140,12 +152,13 @@ func TestDocker_ListMulti(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 6, len(res))
+	require.Equal(t, 8, len(res))
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
 	assert.Equal(t, "example.com", res[0].Server)
 	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
+	assert.Nil(t, res[0].KeepHost)
 
 	assert.Equal(t, "/api/1/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:7890/blah/1/$1", res[1].Dst)
@@ -171,6 +184,12 @@ func TestDocker_ListMulti(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[5].Dst)
 	assert.Equal(t, "http://127.0.0.2:12348/ping", res[5].PingURL)
 	assert.Equal(t, "example.com", res[5].Server)
+
+	assert.Equal(t, "^/ky/", res[6].SrcMatch.String())
+	assert.Equal(t, true, *res[6].KeepHost)
+
+	assert.Equal(t, "^/kn/", res[7].SrcMatch.String())
+	assert.Equal(t, false, *res[7].KeepHost)
 }
 
 func TestDocker_ListMultiFallBack(t *testing.T) {
@@ -350,7 +369,7 @@ func TestDocker_refresh(t *testing.T) {
 
 func TestDockerClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, `/v1.22/containers/json`, r.URL.Path)
+		require.Equal(t, `/v1.24/containers/json`, r.URL.Path)
 
 		// obtained using curl --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json
 		resp, err := os.ReadFile("testdata/containers.json")

@@ -247,6 +247,7 @@ const (
 	PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY = 0x00020007
 	PROC_THREAD_ATTRIBUTE_UMS_THREAD        = 0x00030006
 	PROC_THREAD_ATTRIBUTE_PROTECTION_LEVEL  = 0x0002000b
+	PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE     = 0x00020016
 )
 
 const (
@@ -1093,7 +1094,33 @@ const (
 
 	SOMAXCONN = 0x7fffffff
 
-	TCP_NODELAY = 1
+	TCP_NODELAY                    = 1
+	TCP_EXPEDITED_1122             = 2
+	TCP_KEEPALIVE                  = 3
+	TCP_MAXSEG                     = 4
+	TCP_MAXRT                      = 5
+	TCP_STDURG                     = 6
+	TCP_NOURG                      = 7
+	TCP_ATMARK                     = 8
+	TCP_NOSYNRETRIES               = 9
+	TCP_TIMESTAMPS                 = 10
+	TCP_OFFLOAD_PREFERENCE         = 11
+	TCP_CONGESTION_ALGORITHM       = 12
+	TCP_DELAY_FIN_ACK              = 13
+	TCP_MAXRTMS                    = 14
+	TCP_FASTOPEN                   = 15
+	TCP_KEEPCNT                    = 16
+	TCP_KEEPIDLE                   = TCP_KEEPALIVE
+	TCP_KEEPINTVL                  = 17
+	TCP_FAIL_CONNECT_ON_ICMP_ERROR = 18
+	TCP_ICMP_ERROR_INFO            = 19
+
+	UDP_NOCHECKSUM              = 1
+	UDP_SEND_MSG_SIZE           = 2
+	UDP_RECV_MAX_COALESCED_SIZE = 3
+	UDP_CHECKSUM_COVERAGE       = 20
+
+	UDP_COALESCED_INFO = 3
 
 	SHUT_RD   = 0
 	SHUT_WR   = 1
@@ -1976,7 +2003,21 @@ const (
 	MOVEFILE_FAIL_IF_NOT_TRACKABLE = 0x20
 )
 
-const GAA_FLAG_INCLUDE_PREFIX = 0x00000010
+// Flags for GetAdaptersAddresses, see
+// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersaddresses.
+const (
+	GAA_FLAG_SKIP_UNICAST                = 0x1
+	GAA_FLAG_SKIP_ANYCAST                = 0x2
+	GAA_FLAG_SKIP_MULTICAST              = 0x4
+	GAA_FLAG_SKIP_DNS_SERVER             = 0x8
+	GAA_FLAG_INCLUDE_PREFIX              = 0x10
+	GAA_FLAG_SKIP_FRIENDLY_NAME          = 0x20
+	GAA_FLAG_INCLUDE_WINS_INFO           = 0x40
+	GAA_FLAG_INCLUDE_GATEWAYS            = 0x80
+	GAA_FLAG_INCLUDE_ALL_INTERFACES      = 0x100
+	GAA_FLAG_INCLUDE_ALL_COMPARTMENTS    = 0x200
+	GAA_FLAG_INCLUDE_TUNNEL_BINDINGORDER = 0x400
+)
 
 const (
 	IF_TYPE_OTHER              = 1
@@ -2137,6 +2178,12 @@ const (
 	ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x4
 	DISABLE_NEWLINE_AUTO_RETURN        = 0x8
 	ENABLE_LVB_GRID_WORLDWIDE          = 0x10
+)
+
+// Pseudo console related constants used for the flags parameter to
+// CreatePseudoConsole. See: https://learn.microsoft.com/en-us/windows/console/createpseudoconsole
+const (
+	PSEUDOCONSOLE_INHERIT_CURSOR = 0x1
 )
 
 type Coord struct {
@@ -3347,3 +3394,38 @@ type BLOB struct {
 	Size     uint32
 	BlobData *byte
 }
+
+type ComStat struct {
+	Flags    uint32
+	CBInQue  uint32
+	CBOutQue uint32
+}
+
+type DCB struct {
+	DCBlength  uint32
+	BaudRate   uint32
+	Flags      uint32
+	wReserved  uint16
+	XonLim     uint16
+	XoffLim    uint16
+	ByteSize   uint8
+	Parity     uint8
+	StopBits   uint8
+	XonChar    byte
+	XoffChar   byte
+	ErrorChar  byte
+	EofChar    byte
+	EvtChar    byte
+	wReserved1 uint16
+}
+
+// Keyboard Layout Flags.
+// See https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadkeyboardlayoutw
+const (
+	KLF_ACTIVATE      = 0x00000001
+	KLF_SUBSTITUTE_OK = 0x00000002
+	KLF_REORDER       = 0x00000008
+	KLF_REPLACELANG   = 0x00000010
+	KLF_NOTELLSHELL   = 0x00000080
+	KLF_SETFORPROCESS = 0x00000100
+)

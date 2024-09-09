@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net/http"
 	"net/rpc"
 	"os"
@@ -30,14 +29,16 @@ import (
 )
 
 var opts struct {
-	Listen            string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
-	MaxSize           string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
-	GzipEnabled       bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
-	ProxyHeaders      []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
-	DropHeaders       []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
-	AuthBasicHtpasswd string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
-
-	LBType string `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" default:"random"` // nolint
+	Listen              string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
+	MaxSize             string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
+	GzipEnabled         bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	ProxyHeaders        []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
+	DropHeaders         []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
+	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
+	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers"`
+	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" choice:"roundrobin" default:"random"` // nolint
+	Insecure            bool     `long:"insecure" env:"INSECURE" description:"skip SSL certificate verification for the destination host"`
+	KeepHost            bool     `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
 
 	SSL struct {
 		Type                 string        `long:"type" env:"TYPE" description:"ssl (auto) support" choice:"none" choice:"static" choice:"auto" default:"none"` //nolint
@@ -285,6 +286,7 @@ func run() error {
 		CacheControl:   cacheControl,
 		GzEnabled:      opts.GzipEnabled,
 		SSLConfig:      sslConfig,
+		Insecure:       opts.Insecure,
 		ProxyHeaders:   proxyHeaders,
 		DropHeader:     opts.DropHeaders,
 		AccessLog:      accessLog,
@@ -309,10 +311,12 @@ func run() error {
 		ThrottleUser:     opts.Throttle.User,
 		BasicAuthEnabled: len(basicAuthAllowed) > 0,
 		BasicAuthAllowed: basicAuthAllowed,
+		KeepHost:         opts.KeepHost,
+		OnlyFrom:         makeOnlyFromMiddleware(),
 	}
 
 	err = px.Run(ctx)
-	if err != nil && err == http.ErrServerClosed {
+	if err != nil && errors.Is(err, http.ErrServerClosed) {
 		log.Printf("[WARN] proxy server closed, %v", err) // nolint gocritic
 		return nil
 	}
@@ -390,7 +394,7 @@ func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 
 	conductor := &plugin.Conductor{
 		Address: opts.Plugin.Listen,
-		RPCDialer: plugin.RPCDialerFunc(func(network, address string) (plugin.RPCClient, error) {
+		RPCDialer: plugin.RPCDialerFunc(func(_, address string) (plugin.RPCClient, error) {
 			return rpc.Dial("tcp", address)
 		}),
 	}
@@ -449,15 +453,24 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 	return config, err
 }
 
-func makeLBSelector() func(len int) int {
+func makeLBSelector() proxy.LBSelector {
 	switch opts.LBType {
 	case "random":
-		return rand.Intn
+		return &proxy.RandomSelector{}
 	case "failover":
-		return func(int) int { return 0 } // dead server won't be in the list, we can safely pick the first one
+		return &proxy.FailoverSelector{}
+	case "roundrobin":
+		return &proxy.RoundRobinSelector{}
 	default:
-		return func(int) int { return 0 }
+		return &proxy.FailoverSelector{}
 	}
+}
+
+func makeOnlyFromMiddleware() *proxy.OnlyFrom {
+	if opts.RemoteLookupHeaders {
+		return proxy.NewOnlyFrom(proxy.OFRealIP, proxy.OFForwarded, proxy.OFRemoteAddr)
+	}
+	return proxy.NewOnlyFrom(proxy.OFRemoteAddr)
 }
 
 func makeErrorReporter() (proxy.Reporter, error) {

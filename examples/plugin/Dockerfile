@@ -1,6 +1,5 @@
-FROM golang:1.16-alpine as build
+FROM golang:1.22-alpine as build
 
-ENV GOFLAGS="-mod=vendor"
 ENV CGO_ENABLED=0
 
 ADD . /build
@@ -8,8 +7,6 @@ WORKDIR /build
 
 RUN go build -o /build/plugin-example -ldflags "-X main.revision=${version} -s -w"
 
-
-FROM ghcr.io/umputun/baseimage/app:v1.6.1 as base
 
 FROM scratch
 

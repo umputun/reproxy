@@ -3,9 +3,9 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -28,32 +28,35 @@ import (
 // Http is a proxy server for both http and https
 type Http struct { // nolint golint
 	Matcher
-	Address         string
-	AssetsLocation  string
-	AssetsWebRoot   string
-	Assets404       string
-	AssetsSPA       bool
-	MaxBodySize     int64
-	GzEnabled       bool
-	ProxyHeaders    []string
-	DropHeader      []string
-	SSLConfig       SSLConfig
-	Version         string
-	AccessLog       io.Writer
-	StdOutEnabled   bool
-	Signature       bool
-	Timeouts        Timeouts
-	CacheControl    MiddlewareProvider
-	Metrics         MiddlewareProvider
-	PluginConductor MiddlewareProvider
-	Reporter        Reporter
-	LBSelector      func(len int) int
-
+	Address          string
+	AssetsLocation   string
+	AssetsWebRoot    string
+	Assets404        string
+	AssetsSPA        bool
+	MaxBodySize      int64
+	GzEnabled        bool
+	ProxyHeaders     []string
+	DropHeader       []string
+	SSLConfig        SSLConfig
+	Insecure         bool
+	Version          string
+	AccessLog        io.Writer
+	StdOutEnabled    bool
+	Signature        bool
+	Timeouts         Timeouts
+	CacheControl     MiddlewareProvider
+	Metrics          MiddlewareProvider
+	PluginConductor  MiddlewareProvider
+	Reporter         Reporter
+	LBSelector       LBSelector
+	OnlyFrom         *OnlyFrom
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
 
 	ThrottleSystem int
 	ThrottleUser   int
+
+	KeepHost bool
 }
 
 // Matcher source info (server and route) to the destination url
@@ -73,6 +76,11 @@ type MiddlewareProvider interface {
 // Reporter defines error reporting service
 type Reporter interface {
 	Report(w http.ResponseWriter, code int)
+}
+
+// LBSelector defines load balancer strategy
+type LBSelector interface {
+	Select(len int) int // return index of picked server
 }
 
 // Timeouts consolidate timeouts for both server and transport
@@ -101,7 +109,7 @@ func (h *Http) Run(ctx context.Context) error {
 	}
 
 	if h.LBSelector == nil {
-		h.LBSelector = rand.Intn
+		h.LBSelector = &RandomSelector{}
 	}
 
 	var httpServer, httpsServer *http.Server
@@ -127,6 +135,7 @@ func (h *Http) Run(ctx context.Context) error {
 		basicAuthHandler(h.BasicAuthEnabled, h.BasicAuthAllowed), // basic auth
 		h.healthMiddleware,                                       // respond to /health
 		h.matchHandler,                                           // set matched routes to context
+		h.OnlyFrom.Handler,                                       // limit source (remote) IPs if defined
 		limiterSystemHandler(h.ThrottleSystem),                   // limit total requests/sec
 		limiterUserHandler(h.ThrottleUser),                       // req/seq per user/route match
 		h.mgmtHandler(),                                          // handles /metrics and /routes for prometheus
@@ -192,6 +201,7 @@ const (
 	ctxURL       = contextKey("url")
 	ctxMatchType = contextKey("type")
 	ctxMatch     = contextKey("match")
+	ctxKeepHost  = contextKey("keepHost")
 )
 
 func (h *Http) proxyHandler() http.HandlerFunc {
@@ -200,11 +210,23 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 		Director: func(r *http.Request) {
 			ctx := r.Context()
 			uu := ctx.Value(ctxURL).(*url.URL)
+			keepHost := ctx.Value(ctxKeepHost).(bool)
 			r.Header.Add("X-Forwarded-Host", r.Host)
+			scheme := "http"
+			if h.SSLConfig.SSLMode == SSLAuto || h.SSLConfig.SSLMode == SSLStatic {
+				h.setHeaderIfNotExists(r, "X-Forwarded-Proto", "https")
+				h.setHeaderIfNotExists(r, "X-Forwarded-Port", "443")
+				scheme = "https"
+			}
+			r.Header.Set("X-Forwarded-URL", fmt.Sprintf("%s://%s%s", scheme, r.Host, r.URL.String()))
 			r.URL.Path = uu.Path
 			r.URL.Host = uu.Host
 			r.URL.Scheme = uu.Scheme
-			r.Host = uu.Host
+			if !keepHost {
+				r.Host = uu.Host
+			} else {
+				log.Printf("[DEBUG] keep host %s", r.Host)
+			}
 			h.setXRealIP(r)
 		},
 		Transport: &http.Transport{
@@ -218,6 +240,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			IdleConnTimeout:       h.Timeouts.IdleConn,
 			TLSHandshakeTimeout:   h.Timeouts.TLSHandshake,
 			ExpectContinueTimeout: h.Timeouts.ExpectContinue,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: h.Insecure}, //nolint:gosec // G402: User defined option to disable verification for self-signed certificates
 		},
 		ErrorLog: log.ToStdLogger(log.Default(), "WARN"),
 	}
@@ -276,7 +299,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 // and if match found sets it to the request context. Context used by proxy handler as well as by plugin conductor
 func (h *Http) matchHandler(next http.Handler) http.Handler {
 
-	getMatch := func(mm discovery.Matches, picker func(len int) int) (m discovery.MatchedRoute, ok bool) {
+	getMatch := func(mm discovery.Matches, picker LBSelector) (m discovery.MatchedRoute, ok bool) {
 		if len(mm.Routes) == 0 {
 			return m, false
 		}
@@ -293,7 +316,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		case 1:
 			return matches[0], true
 		default:
-			return matches[picker(len(matches))], true
+			return matches[picker.Select(len(matches))], true
 		}
 	}
 
@@ -317,6 +340,13 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 					return
 				}
 				ctx = context.WithValue(ctx, ctxURL, uu) // set destination url in request's context
+				var keepHost bool
+				if match.Mapper.KeepHost == nil {
+					keepHost = h.KeepHost
+				} else {
+					keepHost = *match.Mapper.KeepHost
+				}
+				ctx = context.WithValue(ctx, ctxKeepHost, keepHost) // set keep host in request's context
 			}
 			r = r.WithContext(ctx)
 		}
@@ -326,7 +356,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 
 func (h *Http) assetsHandler() http.HandlerFunc {
 	if h.AssetsLocation == "" || h.AssetsWebRoot == "" {
-		return func(writer http.ResponseWriter, request *http.Request) {}
+		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
 
 	var notFound []byte
@@ -344,7 +374,7 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 	fs, err := h.fileServer(h.AssetsWebRoot, h.AssetsLocation, h.AssetsSPA, notFound)
 	if err != nil {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
-		return func(writer http.ResponseWriter, request *http.Request) {}
+		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
 	return h.CacheControl.Middleware(fs).ServeHTTP
 }
@@ -400,22 +430,22 @@ func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 }
 
 func (h *Http) setXRealIP(r *http.Request) {
-
-	remoteIP := r.Header.Get("X-Forwarded-For")
-	if remoteIP == "" {
-		remoteIP = r.RemoteAddr
-	}
-
-	ip, _, err := net.SplitHostPort(remoteIP)
-	if err != nil {
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		// use the left-most non-private client IP address
+		// if there is no any non-private IP address, use the left-most address
+		r.Header.Set("X-Real-IP", preferPublicIP(strings.Split(forwarded, ",")))
 		return
 	}
 
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return
+	}
 	userIP := net.ParseIP(ip)
 	if userIP == nil {
 		return
 	}
-	r.Header.Add("X-Real-IP", ip)
+	r.Header.Set("X-Real-IP", ip)
 }
 
 // discoveredServers gets the list of servers discovered by providers.
@@ -439,4 +469,10 @@ func (h *Http) discoveredServers(ctx context.Context, interval time.Duration) (s
 		time.Sleep(interval)
 	}
 	return servers
+}
+
+func (h *Http) setHeaderIfNotExists(r *http.Request, key, value string) {
+	if _, ok := r.Header[key]; !ok {
+		r.Header.Set(key, value)
+	}
 }

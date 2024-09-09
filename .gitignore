@@ -7,5 +7,6 @@ docker-compose-private.yml
 .vscode
 .idea
 *.gpg
+reproxy-private.yml
 .DS_Store
 *.pem

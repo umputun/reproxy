@@ -37,6 +37,8 @@ type URLMapper struct {
 	PingURL      string
 	MatchType    MatchType
 	RedirectType RedirectType
+	KeepHost     *bool
+	OnlyFromIPs  []string
 
 	AssetsLocation string // local FS root location
 	AssetsWebRoot  string // web root location
@@ -136,11 +138,16 @@ func (s *Service) Run(ctx context.Context) error {
 			evRecv = false
 			lst := s.mergeLists()
 			for _, m := range lst {
+				onlyFrom := ""
+				if len(m.OnlyFromIPs) > 0 {
+					onlyFrom = fmt.Sprintf(" +[%v]", strings.Join(m.OnlyFromIPs, ",")) // show onlyFrom if set
+				}
 				if m.MatchType == MTProxy {
-					log.Printf("[INFO] proxy  %s: %s %s -> %s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst)
+					log.Printf("[INFO] proxy  %s: %s %s -> %s%s", m.ProviderID, m.Server, m.SrcMatch.String(), m.Dst, onlyFrom)
 				}
 				if m.MatchType == MTStatic {
-					log.Printf("[INFO] assets %s: %s %s -> %s", m.ProviderID, m.Server, m.AssetsWebRoot, m.AssetsLocation)
+					log.Printf("[INFO] assets %s: %s %s -> %s%s", m.ProviderID, m.Server, m.AssetsWebRoot,
+						m.AssetsLocation, onlyFrom)
 				}
 			}
 			s.lock.Lock()
@@ -158,6 +165,15 @@ func (s *Service) Run(ctx context.Context) error {
 // For MTStatic always a single match because fail-over doesn't supported for assets
 func (s *Service) Match(srv, src string) (res Matches) {
 
+	replaceHost := func(dest, srv string) string {
+		// $host or ${host} in dest replaced by srv
+		dest = strings.ReplaceAll(dest, "$host", srv)
+		if strings.Contains(dest, "${host}") {
+			dest = strings.ReplaceAll(dest, "${host}", srv)
+		}
+		return dest
+	}
+
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -172,8 +188,9 @@ func (s *Service) Match(srv, src string) (res Matches) {
 
 			switch m.MatchType {
 			case MTProxy:
-				dest := m.SrcMatch.ReplaceAllString(src, m.Dst)
-				if src != dest { // regex matched
+				dest := replaceHost(m.Dst, srv) // replace $host and ${host} in dest first, before regex match
+				dest = m.SrcMatch.ReplaceAllString(src, dest)
+				if src != dest { // regex matched because dest changed after replacement
 					lastSrcMatch = m.SrcMatch.String()
 					res.MatchType = MTProxy
 					res.Routes = append(res.Routes, MatchedRoute{Destination: dest, Alive: m.IsAlive(), Mapper: m})
@@ -197,6 +214,16 @@ func (s *Service) Match(srv, src string) (res Matches) {
 		}
 	}
 
+	// if match returns both default and concrete server(s), drop default as we have a better match with concrete
+	if len(res.Routes) > 1 {
+		for i := range res.Routes {
+			if res.Routes[i].Mapper.Server == "*" || res.Routes[i].Mapper.Server == "" {
+				res.Routes = append(res.Routes[:i], res.Routes[i+1:]...)
+				break
+			}
+		}
+	}
+
 	return res
 }
 
@@ -213,6 +240,16 @@ func findMatchingMappers(s *Service, srvName string) []URLMapper {
 	for mapperServer, mapper := range s.mappers {
 		// * and "" should not be treated as regex and require exact match (above)
 		if mapperServer == "*" || mapperServer == "" {
+			continue
+		}
+
+		// handle *.example.com simple patterns
+		if strings.HasPrefix(mapperServer, "*.") {
+			domainPattern := mapperServer[1:] // strip the '*'
+			if strings.HasSuffix(srvName, domainPattern) {
+				s.mappersCache[srvName] = mapper
+				return mapper
+			}
 			continue
 		}
 
@@ -421,15 +458,23 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		return m
 	}
 
-	m.Dst = strings.TrimSuffix(m.Dst, "/") + "/$1"
-
+	res := URLMapper{
+		Server:         m.Server,
+		Dst:            strings.TrimSuffix(m.Dst, "/") + "/$1",
+		ProviderID:     m.ProviderID,
+		PingURL:        m.PingURL,
+		MatchType:      m.MatchType,
+		AssetsWebRoot:  m.AssetsWebRoot,
+		AssetsLocation: m.AssetsLocation,
+		AssetsSPA:      m.AssetsSPA,
+	}
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
 	if err != nil {
 		log.Printf("[WARN] can't extend %s, %v", m.SrcMatch.String(), err)
 		return m
 	}
-	m.SrcMatch = *rx
-	return m
+	res.SrcMatch = *rx
+	return res
 }
 
 // redirects process @code prefix and sets redirect type, i.e. "@302 /something"
@@ -484,16 +529,6 @@ func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-c
 	return out
 }
 
-// Contains checks if the input string (e) in the given slice
-func Contains(e string, s []string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 // IsAlive indicates whether mapper destination is alive
 func (m URLMapper) IsAlive() bool {
 	return !m.dead
@@ -514,4 +549,25 @@ func (m URLMapper) ping() (string, error) {
 	}
 
 	return "", err
+}
+
+// Contains checks if the input string (e) in the given slice
+func Contains(e string, s []string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+// ParseOnlyFrom parses comma separated list of IPs
+func ParseOnlyFrom(s string) (res []string) {
+	if s == "" {
+		return []string{}
+	}
+	for _, v := range strings.Split(s, ",") {
+		res = append(res, strings.TrimSpace(v))
+	}
+	return res
 }

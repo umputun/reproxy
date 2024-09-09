@@ -84,6 +84,8 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		Ping          string `yaml:"ping"`
 		AssetsEnabled bool   `yaml:"assets"`
 		AssetsSPA     bool   `yaml:"spa"`
+		KeepHost      *bool  `yaml:"keep-host,omitempty"`
+		OnlyFrom      string `yaml:"remote"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -106,12 +108,14 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 				srv = "*"
 			}
 			mapper := discovery.URLMapper{
-				Server:     srv,
-				SrcMatch:   *rx,
-				Dst:        f.Dest,
-				PingURL:    f.Ping,
-				ProviderID: discovery.PIFile,
-				MatchType:  discovery.MTProxy,
+				Server:      srv,
+				SrcMatch:    *rx,
+				Dst:         f.Dest,
+				PingURL:     f.Ping,
+				KeepHost:    f.KeepHost,
+				ProviderID:  discovery.PIFile,
+				MatchType:   discovery.MTProxy,
+				OnlyFromIPs: discovery.ParseOnlyFrom(f.OnlyFrom),
 			}
 			if f.AssetsEnabled || f.AssetsSPA {
 				mapper.MatchType = discovery.MTStatic

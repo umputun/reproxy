@@ -11,8 +11,9 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 - Dynamic, file-based proxy rules provider
 - Docker provider with an automatic discovery
 - Consul Catalog provider with discovery by service tags
-- Support of multiple (virtual) hosts
+- Support for multiple (virtual) hosts
 - Optional traffic compression
+- Optional IP-based access control
 - User-defined size limits and timeouts
 - Single binary distribution
 - Docker container distribution
@@ -32,13 +33,15 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 
 Server (host) can be set as FQDN, i.e. `s.example.com`, `*` (catch all) or a regex. Exact match takes priority, so if there are two rules with servers `example.com` and `example\.(com|org)`, request to `example.com/some/url` will match the former. Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
 
-For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`
+For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`.
+
+The host substitution is supported in the destination URL. For example, `/files/${host}` will be replaced with the matched host name. `$host` (without braces) can also be used.
 
 Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
 Examples:
 
- - with a static provider: `reproxy --static.enabled --static.rule="example.com/api/(.*),https://api.example.com/$1"`
+ - with a static provider: `reproxy --static.enabled --static.rule="*,example.com/api/(.*),https://api.example.com/$1"`
  - with an automatic docker discovery: `reproxy --docker.enabled --docker.auto`
  - as a docker container: `docker up -p 80:8080 umputun/reproxy --docker.enabled --docker.auto`  
  - with automatic SSL: `docker up -p 80:8080 -p 443:8443 umputun/reproxy --docker.enabled --docker.auto --ssl.type=auto --ssl.fqdn=example.com`  
@@ -82,10 +85,13 @@ default: # the same as * (catch-all) server
       route: "/api/svc3/xyz",
       dest: "http://127.0.0.3:8080/blah3/xyz",
       ping: "http://127.0.0.3:8080/ping",
+      remote: "192.168.1.0/24, 127.0.0.1" # optional, restrict access to the route 
     }
 srv.example.com:
   - { route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc" }
   - { route: "^/web/", dest: "/var/www", "assets": true }
+"*.files.example.com":
+  - { route: "^/files/(.*)", dest: "http://123.123.200.200:8080/$host/$1" }
 ```
 
 This is a dynamic provider and file change will be applied automatically.
@@ -101,7 +107,9 @@ This default can be changed with labels:
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to container's ip:port
 - `reproxy.port` - destination port for the discovered container
 - `reproxy.ping` - ping path for the destination container.
+- `reproxy.remote` - restrict access to the route with a list of comma-separated subnets or ips
 - `reproxy.assets` - set assets mapping as `web-root:location`, for example `reproxy.assets=/web:/var/www`
+- `reproxy.keep-host` - keep host header as is (`yes`, `true`, `1`) or replace with destination host (`no`, `false`, `0`)
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`no`, `false`, `0`) container from reproxy destinations.
 
 Pls note: without `--docker.auto` the destination container has to have at least one of `reproxy.*` labels to be considered as a potential destination.
@@ -142,6 +150,7 @@ This default can be changed with tags:
 - `reproxy.route` - source route (location)
 - `reproxy.dest` - destination path. Note: this is not full url, but just the path which will be appended to service's ip:port
 - `reproxy.port` - destination port for the discovered service
+- `reproxy.remote` - restrict access to the route with a list of comma-separated subnets or ips
 - `reproxy.ping` - ping path for the destination service.
 - `reproxy.enabled` - enable (`yes`, `true`, `1`) or disable (`any different value`) service from reproxy destinations.
 
@@ -152,7 +161,7 @@ In case if rules set as a part of docker compose environment, destination with t
 
 ## SSL support
 
-SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s)
+SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s). In `auto` and `static` SSL mode, Reproxy will automatically add the `X-Forwarded-Proto` and `X-Forwarded-Port` headers. These headers are useful for services behind the proxy to know the original protocol (http or https) and port number used by the client.
 
 ### DNS Challenge 
 
@@ -212,7 +221,7 @@ Custom 404 (not found) page can be set with `--assets.404=<path>` parameter. The
 Serving purely static content is one of the popular use cases. Usually this used for the separate frontend container providing UI only. With the assets server such a container is almost trivial to make. This is an example from the container serving [reproxy.io](http://reproxy.io)
 
 ```docker
-FROM node:16-alpine as build
+FROM node:22-alpine as build
 
 WORKDIR /build
 COPY site/ /build
@@ -250,20 +259,21 @@ supported codes:
 - `--gzip`   enables gzip compression for responses.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options). A zero or negative value means there will be no timeout.
+- `--insecure` disables SSL verification on the destination host. This is useful for the self-signed certificates.
 
 ## Default ports
 
 In order to eliminate the need to pass custom params/environment, the default `--listen` is dynamic and trying to be reasonable and helpful for the typical cases:
 
 - If anything set by users to `--listen` all the logic below ignored and host:port passed in and used directly.
-- If nothing set by users to `--listen` and reproxy runs outside of the docker container, the default is `127.0.0.1:80` for http mode (`ssl.type=none`) and `127.0.0.1:443` for ssl mode (`ssl.type=auto` or `ssl.type=static`).
+- If nothing set by users to `--listen` and reproxy runs outside the docker container, the default is `127.0.0.1:80` for http mode (`ssl.type=none`) and `127.0.0.1:443` for ssl mode (`ssl.type=auto` or `ssl.type=static`).
 -  If nothing set by users to `--listen` and reproxy runs inside the docker, the default is `0.0.0.0:8080` for http mode, and `0.0.0.0:8443` for ssl mode.
 
 Another default set in the similar dynamic way is `--ssl.http-port`. For run inside of the docker container it set to `8080` and without to `80`. 
 
 ## Ping, health checks and fail-over
 
-reproxy provides 2 endpoints for this purpose:
+reproxy provides two endpoints for this purpose:
 
 - `/ping` responds with `pong` and indicates what reproxy up and running
 - `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
@@ -304,8 +314,18 @@ username1:bcrypt(password2)
 username2:bcrypt(password2)
 ...
 ```
-
 this can be generated with `htpasswd -nbB` command, i.e. `htpasswd -nbB test passwd`
+
+## IP-based access control
+
+Reproxy allows restricting access to the routes with a list of comma-separated subnets or ips. This is useful for the development and testing, before allowing unrestricted access to them. It also can be used to restrict access to the internal services. By default, all the routes are open for all the clients.
+
+To restrict access to the routes, user should set appropriate keys for the routes, i.e. `reproxy.remote` for docker and consul, and `remote` for file provider. The value should be a list of comma-separated subnets or ips or subnets. For example `127.0.0.1, 192.168.1.0/24`. For more details see [docker provider](#docker-provider) and [consul catalog provider](#consul-catalog-provider) sections.
+
+By default, reproxy will check the remote address from the client's request. However, in some cases, it won't work as expected, for example behind of other proxy, or with docker bridge network. This can be altered with `--remote-lookup-headers` parameter allowing check the value of the header `X-Real-IP` or `X-Forwarded-For` (in this order) and use it for the check. If the header is not set, the check will be performed against the remote address of the client.
+
+Checking headers should be used with caution, as it is possible to fake them. However, in some cases, it is the only way to get the real remote address of the client. Generally, it is recommended to use this option only if user is completely controlling all the headers and can guarantee the headers are not faked.
+
 
 ## Plugins support
 
@@ -314,7 +334,7 @@ The core functionality of reproxy can be extended with external plugins. Each pl
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 
 
-By default headers set by a plugin will be mixed with the original headers. In case if plugin need to control all the headers, for example drop some of them, `OverrideHeaders*` field can be set by a plugin indicating to the core reporxy process the need to overwrite all the headers instead of mixing them in.
+By default headers set by a plugin will be mixed with the original headers. In case if plugin need to control all the headers, for example drop some of them, `OverrideHeaders*` field can be set by a plugin indicating to the core reproxy process the need to overwrite all the headers instead of mixing them in.
 
 - `OverrideHeadersIn` - indicates plugin responsible for all incoming headers.
 - `OverrideHeadersOut` - indicates plugin responsible for all outgoing headers 
@@ -359,8 +379,11 @@ This is the list of all options supporting multiple elements:
   -x, --header=                     outgoing proxy headers to add [$HEADER]
       --drop-header=                incoming headers to drop [$DROP_HEADERS]
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
-      --lb-type=[random|failover]   load balancer type (default: random) [$LB_TYPE]
+      --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
+      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
+      --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
+      --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
 
 ssl:

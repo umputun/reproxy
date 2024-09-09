@@ -15,19 +15,19 @@ var _ Informer = &InformerMock{}
 
 // InformerMock is a mock implementation of Informer.
 //
-// 	func TestSomethingThatUsesInformer(t *testing.T) {
+//	func TestSomethingThatUsesInformer(t *testing.T) {
 //
-// 		// make and configure a mocked Informer
-// 		mockedInformer := &InformerMock{
-// 			MappersFunc: func() []discovery.URLMapper {
-// 				panic("mock out the Mappers method")
-// 			},
-// 		}
+//		// make and configure a mocked Informer
+//		mockedInformer := &InformerMock{
+//			MappersFunc: func() []discovery.URLMapper {
+//				panic("mock out the Mappers method")
+//			},
+//		}
 //
-// 		// use mockedInformer in code that requires Informer
-// 		// and then make assertions.
+//		// use mockedInformer in code that requires Informer
+//		// and then make assertions.
 //
-// 	}
+//	}
 type InformerMock struct {
 	// MappersFunc mocks the Mappers method.
 	MappersFunc func() []discovery.URLMapper
@@ -56,7 +56,8 @@ func (mock *InformerMock) Mappers() []discovery.URLMapper {
 
 // MappersCalls gets all the calls that were made to Mappers.
 // Check the length with:
-//     len(mockedInformer.MappersCalls())
+//
+//	len(mockedInformer.MappersCalls())
 func (mock *InformerMock) MappersCalls() []struct {
 } {
 	var calls []struct {

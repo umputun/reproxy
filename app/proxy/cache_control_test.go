@@ -13,7 +13,7 @@ import (
 )
 
 func TestCacheControl_MiddlewareDefault(t *testing.T) {
-	req := httptest.NewRequest("GET", "/file.html", nil)
+	req := httptest.NewRequest("GET", "/file.html", http.NoBody)
 	w := httptest.NewRecorder()
 
 	h := NewCacheControl(time.Hour).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +26,7 @@ func TestCacheControl_MiddlewareDefault(t *testing.T) {
 }
 
 func TestCacheControl_MiddlewareDisabled(t *testing.T) {
-	req := httptest.NewRequest("GET", "/file.html", nil)
+	req := httptest.NewRequest("GET", "/file.html", http.NoBody)
 	w := httptest.NewRecorder()
 
 	h := NewCacheControl(0).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func TestCacheControl_MiddlewareMime(t *testing.T) {
 	}))
 
 	{
-		req := httptest.NewRequest("GET", "/file.html", nil)
+		req := httptest.NewRequest("GET", "/file.html", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
@@ -57,7 +57,7 @@ func TestCacheControl_MiddlewareMime(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("GET", "/xyz/file.png?something=blah", nil)
+		req := httptest.NewRequest("GET", "/xyz/file.png?something=blah", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
@@ -66,7 +66,7 @@ func TestCacheControl_MiddlewareMime(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("GET", "/xyz/file.gif?something=blah", nil)
+		req := httptest.NewRequest("GET", "/xyz/file.gif?something=blah", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
@@ -75,7 +75,7 @@ func TestCacheControl_MiddlewareMime(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("GET", "/xyz/", nil)
+		req := httptest.NewRequest("GET", "/xyz/", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()

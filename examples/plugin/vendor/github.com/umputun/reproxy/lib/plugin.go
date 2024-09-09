@@ -23,7 +23,7 @@ type Plugin struct {
 
 // Do register the plugin, send info to reproxy conductor and activate RPC listener.
 // On completion unregister from reproxy. Blocking call, should run in goroutine on the caller side
-// rvcr is provided struct implemented at least one RPC methods with teh signature leike this:
+// rvcr is provided struct implemented at least one RPC methods with the signature like this:
 // func(req lib.Request, res *lib.Response) (err error)
 // see [examples/plugin]() for more info
 func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (err error) {
@@ -39,7 +39,7 @@ func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (er
 	client := http.Client{Timeout: time.Second}
 	time.AfterFunc(time.Millisecond*50, func() {
 		// registration http call delayed to let listener time to start
-		err := repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
+		err = repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
 			return p.send(&client, conductor, "POST")
 		})
 		if err != nil {
@@ -63,6 +63,13 @@ func (p *Plugin) listen(ctx context.Context) error {
 		return fmt.Errorf("can't listen on %s: %v", p.Address, err)
 	}
 
+	go func() {
+		<-ctx.Done()
+		if err := listener.Close(); err != nil {
+			log.Printf("[WARN] can't lose plugin listener")
+		}
+	}()
+
 	for {
 		log.Printf("[DEBUG] plugin listener for %s:%s activated", p.Name, p.Address)
 		conn, err := listener.Accept()
@@ -78,7 +85,7 @@ func (p *Plugin) listen(ctx context.Context) error {
 	}
 }
 
-func (p *Plugin) send(client *http.Client, conductor string, method string) error {
+func (p *Plugin) send(client *http.Client, conductor, method string) error {
 
 	if conductor == "" {
 		return nil
@@ -96,7 +103,7 @@ func (p *Plugin) send(client *http.Client, conductor string, method string) erro
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid status %s", resp.Status)

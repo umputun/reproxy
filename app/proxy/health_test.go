@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,7 +74,10 @@ func TestHttp_healthHandler(t *testing.T) {
 	}))
 
 	var count int
+	var mux sync.Mutex
 	ps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.Lock()
+		defer mux.Unlock()
 		count++
 		t.Logf("req: %v", r)
 		if r.URL.Path == "/123/ping" {

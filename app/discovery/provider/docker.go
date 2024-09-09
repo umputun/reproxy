@@ -103,6 +103,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// defaults
 		destURL, pingURL, server := fmt.Sprintf("http://%s:%d/$1", c.IP, port), fmt.Sprintf("http://%s:%d/ping", c.IP, port), "*"
 		assetsWebRoot, assetsLocation, assetsSPA := "", "", false
+		onlyFrom := []string{}
 
 		if d.AutoAPI && n == 0 {
 			enabled = true
@@ -133,6 +134,10 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			server = v
 		}
 
+		if v, ok := d.labelN(c.Labels, n, "remote"); ok {
+			onlyFrom = discovery.ParseOnlyFrom(v)
+		}
+
 		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
 			enabled = true
 			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
@@ -158,6 +163,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			enabled = true
 		}
 
+		keepHost := d.getKeepHostValue(c.Labels, n)
+
 		if !enabled {
 			continue
 		}
@@ -171,7 +178,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// docker server label may have multiple, comma separated servers
 		for _, srv := range strings.Split(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy}
+				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
+				KeepHost: keepHost, OnlyFromIPs: onlyFrom}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {
@@ -365,7 +373,7 @@ func NewDockerClient(host, network string) DockerClient {
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 	// Minimum API version that returns attached networks
 	// docs.docker.com/engine/api/version-history/#v122-api-changes
-	const APIVersion = "v1.22"
+	const APIVersion = "v1.24"
 
 	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", APIVersion))
 	if err != nil {
@@ -431,4 +439,24 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 	}
 
 	return containers, nil
+}
+
+func (d *Docker) getKeepHostValue(labels map[string]string, n int) *bool {
+	v, ok := d.labelN(labels, n, "keep-host")
+	if !ok {
+		return nil
+	}
+
+	if v == "true" || v == "yes" || v == "y" || v == "1" {
+		k := true
+		return &k
+	}
+
+	if v == "false" || v == "no" || v == "n" || v == "0" {
+		k := false
+		return &k
+	}
+
+	log.Printf("[WARN] keep-host label value %s is not valid, ignoring", v)
+	return nil
 }

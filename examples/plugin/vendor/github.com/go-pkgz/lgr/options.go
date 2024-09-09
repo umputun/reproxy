@@ -1,11 +1,14 @@
 package lgr
 
-import "io"
+import (
+	"io"
+	"strings"
+)
 
 // Option func type
 type Option func(l *Logger)
 
-// Out sets out writer, stdout by default
+// Out sets output writer, stdout by default
 func Out(w io.Writer) Option {
 	return func(l *Logger) {
 		l.stdout = w
@@ -74,6 +77,9 @@ func Msec(l *Logger) {
 func Secret(vals ...string) Option {
 	return func(l *Logger) {
 		for _, v := range vals {
+			if strings.TrimSpace(v) == "" {
+				continue // skip empty secrets
+			}
 			l.secrets = append(l.secrets, []byte(v))
 		}
 	}

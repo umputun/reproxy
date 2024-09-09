@@ -1,10 +1,9 @@
-FROM golang:1.20-alpine as backend
+FROM golang:1.22-alpine as backend
 
 ARG GIT_BRANCH
 ARG GITHUB_SHA
 ARG CI
 
-ENV GOFLAGS="-mod=vendor"
 ENV CGO_ENABLED=0
 
 ADD . /build
@@ -20,9 +19,10 @@ RUN \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
 
-FROM ghcr.io/umputun/baseimage/app:v1.11.0 as base
+FROM ghcr.io/umputun/baseimage/app:v1.12.0 as base
 
 FROM scratch
+LABEL org.opencontainers.image.source="https://github.com/umputun/reproxy"
 ENV REPROXY_IN_DOCKER=1
 
 COPY --from=backend /build/reproxy /srv/reproxy
