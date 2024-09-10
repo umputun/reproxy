@@ -5,12 +5,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/caddyserver/certmagic"
+	log "github.com/go-pkgz/lgr"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Manager specifies methods for the automatic ACME certificate manager to implement
@@ -37,12 +40,18 @@ type Certmagic struct {
 
 // NewCertmagic creates a new ACME certificate manager.
 func NewCertmagic(cfg Config) Manager {
+	mngr := Certmagic{}
+
 	fqdns := map[string]struct{}{}
 	for _, fqdn := range cfg.FQDNs {
 		fqdns[fqdn] = struct{}{}
 	}
 
-	logger := zap.NewNop()
+	logger := zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(zap.NewProductionEncoderConfig()),
+		nopSyncer{Writer: log.ToWriter(log.Default(), "[DEBUG][certmagic]")},
+		zap.DebugLevel,
+	))
 
 	// certmagic requires to make a configuration template in order to keep up
 	// with the changes, for instance, in DNS providers in runtime in cache
@@ -51,6 +60,7 @@ func NewCertmagic(cfg Config) Manager {
 	magicTmpl := certmagic.Config{
 		RenewalWindowRatio: certmagic.DefaultRenewalWindowRatio,
 		KeySource:          certmagic.DefaultKeyGenerator,
+		Storage:            &certmagic.FileStorage{Path: cfg.ACMELocation},
 		OnDemand: &certmagic.OnDemandConfig{
 			DecisionFunc: func(ctx context.Context, name string) error {
 				if _, ok := fqdns[name]; ok {
@@ -87,10 +97,10 @@ func NewCertmagic(cfg Config) Manager {
 	}
 	magic.Issuers = []certmagic.Issuer{acme}
 
-	return &Certmagic{
-		magic: magic,
-		acme:  acme,
-	}
+	mngr.magic = magic
+	mngr.acme = acme
+
+	return mngr
 }
 
 // GetCertificate is a hook to get a certificate for a given ClientHelloInfo.
@@ -102,3 +112,7 @@ func (m Certmagic) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate,
 func (m Certmagic) HTTPHandler(next http.Handler) http.Handler {
 	return m.acme.HTTPChallengeHandler(next)
 }
+
+type nopSyncer struct{ io.Writer }
+
+func (nopSyncer) Sync() error { return nil }
