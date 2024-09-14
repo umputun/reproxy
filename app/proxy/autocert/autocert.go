@@ -1,13 +1,11 @@
 package autocert
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/caddyserver/certmagic"
@@ -24,11 +22,12 @@ type Manager interface {
 
 // Config specifies parameters for the ACME certificate manager
 type Config struct {
-	ACMELocation string                // directory where the obtained certificates are stored
-	ACMEEmail    string                // email address to use for the ACME account
-	FQDNs        []string              // list of fully qualified domain names to manage certificates for
-	DNSProvider  certmagic.DNSProvider // provider to use for DNS-01 challenges
-	TTL          time.Duration         // TTL to use when setting DNS records for DNS-01 challenges
+	ACMEDirectory string                // URL of the ACME directory to use
+	ACMELocation  string                // directory where the obtained certificates are stored
+	ACMEEmail     string                // email address to use for the ACME account
+	FQDNs         []string              // list of fully qualified domain names to manage certificates for
+	DNSProvider   certmagic.DNSProvider // provider to use for DNS-01 challenges
+	TTL           time.Duration         // TTL to use when setting DNS records for DNS-01 challenges
 }
 
 // Certmagic is a wrapper for certmagic.Config and certmagic.ACMEIssuer,
@@ -80,8 +79,7 @@ func NewCertmagic(cfg Config) Manager {
 	})
 	magic := certmagic.New(cache, magicTmpl)
 	acme := certmagic.NewACMEIssuer(magic, certmagic.ACMEIssuer{
-		// OS env used in tests
-		CA:     cmp.Or(os.Getenv("TEST_ACME_CA"), certmagic.LetsEncryptProductionCA),
+		CA:     cfg.ACMEDirectory,
 		Email:  cfg.ACMEEmail,
 		Agreed: true,
 		Logger: logger,
@@ -100,16 +98,16 @@ func NewCertmagic(cfg Config) Manager {
 	mngr.magic = magic
 	mngr.acme = acme
 
-	return mngr
+	return &mngr
 }
 
 // GetCertificate is a hook to get a certificate for a given ClientHelloInfo.
-func (m Certmagic) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (m *Certmagic) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return m.magic.GetCertificate(hello)
 }
 
 // HTTPHandler returns an http.Handler that handles ACME HTTP challenges.
-func (m Certmagic) HTTPHandler(next http.Handler) http.Handler {
+func (m *Certmagic) HTTPHandler(next http.Handler) http.Handler {
 	return m.acme.HTTPChallengeHandler(next)
 }
 
