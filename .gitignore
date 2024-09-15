@@ -8,3 +8,4 @@ docker-compose-private.yml
 .idea
 *.gpg
 reproxy-private.yml
+.env
