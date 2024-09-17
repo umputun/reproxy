@@ -57,6 +57,8 @@ type Http struct { // nolint golint
 	ThrottleUser   int
 
 	KeepHost bool
+
+	dnsResolvers []string // used to mock DNS resolvers for testing
 }
 
 // Matcher source info (server and route) to the destination url

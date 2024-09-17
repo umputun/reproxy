@@ -72,6 +72,10 @@ func (h *Http) redirectHandler() http.Handler {
 	})
 }
 
+//go:generate moq -out dns_provider_mock.go -fmt goimports . dnsProvider
+
+type dnsProvider interface{ certmagic.DNSProvider }
+
 // AutocertManager specifies methods for the automatic ACME certificate manager to implement
 type AutocertManager interface {
 	GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
@@ -136,6 +140,7 @@ func (h *Http) makeAutocertManager() AutocertManager {
 				DNSProvider: h.SSLConfig.DNSProvider,
 				TTL:         h.SSLConfig.TTL,
 				Logger:      logger,
+				Resolvers:   h.dnsResolvers,
 			},
 		}
 	}
