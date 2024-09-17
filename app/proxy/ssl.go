@@ -90,9 +90,12 @@ func (h *Http) makeAutocertManager() AutocertManager {
 	}
 
 	logger := zap.New(zapcore.NewCore(
-		zapcore.NewConsoleEncoder(zap.NewProductionEncoderConfig()),
+		zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
+			MessageKey:     "msg",
+			EncodeDuration: zapcore.StringDurationEncoder,
+		}),
 		nopSyncer{Writer: log.ToWriter(log.Default(), "[WARN][certmagic]")},
-		zap.WarnLevel,
+		zap.DebugLevel,
 	))
 
 	// certmagic requires to make a configuration template in order to keep up
