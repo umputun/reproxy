@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"math/big"
@@ -27,7 +28,7 @@ type ACMEServer struct {
 	t         *testing.T
 	url       string
 	cl        *http.Client
-	checkDNS  func(domain, token string) (exists bool, value string, err error)
+	checkDNS  func(domain string) (exists bool, value string, err error)
 	modifyReq func(*http.Request)
 
 	issuedCerts  map[string][]byte
@@ -35,14 +36,16 @@ type ACMEServer struct {
 	orders       map[string]order  // map[orderID]order
 	mu           sync.Mutex
 
-	privateKey *ecdsa.PrivateKey
+	rootKey      *ecdsa.PrivateKey
+	rootTemplate *x509.Certificate
+	rootCert     []byte
 }
 
 // Option is a function that configures the ACMEServer.
 type Option func(*ACMEServer)
 
 // CheckDNS is an option to enable DNS check for DNS-01 challenge.
-func CheckDNS(fn func(domain, token string) (exists bool, value string, err error)) Option {
+func CheckDNS(fn func(domain string) (exists bool, value string, err error)) Option {
 	return func(s *ACMEServer) { s.checkDNS = fn }
 }
 
@@ -53,17 +56,11 @@ func ModifyRequest(fn func(r *http.Request)) Option {
 
 // NewACMEServer creates a new ACMEServer for testing.
 func NewACMEServer(t *testing.T, opts ...Option) *ACMEServer {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("[acmetest] failed to generate private key: %v", err)
-	}
-
 	s := &ACMEServer{
-		privateKey:   privateKey,
 		orders:       make(map[string]order),
 		orderByAuthz: make(map[string]string),
 		issuedCerts:  make(map[string][]byte),
-		checkDNS:     func(string, string) (bool, string, error) { return false, "", nil },
+		checkDNS:     func(string) (bool, string, error) { return false, "", nil },
 		modifyReq:    func(*http.Request) {},
 		cl: &http.Client{
 			// Prevent HTTP redirects
@@ -80,8 +77,29 @@ func NewACMEServer(t *testing.T, opts ...Option) *ACMEServer {
 	t.Cleanup(srv.Close)
 
 	s.url = srv.URL
+	s.genRoot()
 
 	return s
+}
+
+func (s *ACMEServer) genRoot() {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(s.t, err)
+
+	s.rootTemplate = &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Test Reproxy Co Root CA"},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, s.rootTemplate, s.rootTemplate, &key.PublicKey, key)
+	require.NoError(s.t, err)
+
+	s.rootCert = der
+	s.rootKey = key
 }
 
 // URL returns the URL of the server.
@@ -359,7 +377,7 @@ func (s *ACMEServer) finalizeCtrl(w http.ResponseWriter, r *http.Request) {
 		leaf.DNSNames = []string{csr.Subject.CommonName}
 	}
 
-	cert, err := x509.CreateCertificate(rand.Reader, leaf, leaf, s.privateKey.Public(), s.privateKey)
+	cert, err := x509.CreateCertificate(rand.Reader, s.rootTemplate, leaf, csr.PublicKey, s.rootKey)
 	if err != nil {
 		s.error(w, 500, "create certificate: %v", err)
 		return
@@ -384,8 +402,9 @@ func (s *ACMEServer) certCtrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/pkix-cert")
-	w.Write(cert)
+	w.Header().Set("Content-Type", "application/pem-certificate-chain")
+	pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: cert})
+	pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: s.rootCert})
 }
 
 // POST /challenge - verify a challenge
@@ -435,7 +454,7 @@ func (s *ACMEServer) challengeCtrl(w http.ResponseWriter, r *http.Request) {
 		s.verifyHTTP01Challenge(w, token, domain)
 		o.HTTP01Accepted = true
 	case challengeType == "dns-01":
-		s.verifyDNS01Challenge(w, token, domain)
+		s.verifyDNS01Challenge(w, domain)
 		o.DNS01Accepted = true
 	default:
 		s.error(w, 400, "invalid challenge type")
@@ -473,17 +492,19 @@ func (s *ACMEServer) verifyHTTP01Challenge(w http.ResponseWriter, token, domain 
 }
 
 // requires the server to be locked
-func (s *ACMEServer) verifyDNS01Challenge(w http.ResponseWriter, token, domain string) {
-	exists, value, err := s.checkDNS(domain, token)
+func (s *ACMEServer) verifyDNS01Challenge(w http.ResponseWriter, domain string) {
+	exists, value, err := s.checkDNS(domain)
 	if err != nil {
 		s.t.Logf("[acmetest] DNS-01 challenge check failed: %v", err)
 		require.NoError(s.t, rest.EncodeJSON(w, 200, rest.JSON{"status": "invalid"}))
 		return
 	}
 
-	expectedValue := base64.RawURLEncoding.EncodeToString(s.privateKey.Public().(*ecdsa.PublicKey).X.Bytes())
-	if !exists || value != expectedValue {
-		s.t.Logf("[acmetest] DNS-01 challenge invalid. Expected: %s, Got: %s", expectedValue, value)
+	// we don't check the token, as it is derived from account's public key,
+	// but we check whether the consumer's code assumes that the record exists
+	// and has a value
+	if !exists || value == "" {
+		s.t.Logf("[acmetest] DNS-01 challenge failed: domain %s does not exist or has no value", domain)
 		require.NoError(s.t, rest.EncodeJSON(w, 200, rest.JSON{"status": "invalid"}))
 		return
 	}
