@@ -429,6 +429,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 	case "auto":
 		config.SSLMode = proxy.SSLAuto
+		config.ACMEDirectory = opts.SSL.ACMEDirectory
 		config.ACMELocation = opts.SSL.ACMELocation
 		config.ACMEEmail = opts.SSL.ACMEEmail
 		config.FQDNs = fqdns(opts.SSL.FQDNs)
