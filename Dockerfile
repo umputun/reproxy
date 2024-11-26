@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine as backend
+FROM golang:1.23-alpine as backend
 
 ARG GIT_BRANCH
 ARG GITHUB_SHA
