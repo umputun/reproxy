@@ -242,7 +242,7 @@ func run() error {
 		Version:        revision,
 		Matcher:        svc,
 		Address:        addr,
-		MaxBodySize:    int64(maxBodySize),
+		MaxBodySize:    int64(maxBodySize), //nolint
 		AssetsLocation: opts.Assets.Location,
 		AssetsWebRoot:  opts.Assets.WebRoot,
 		Assets404:      opts.Assets.NotFound,
@@ -466,7 +466,7 @@ func makeAccessLogWriter() (accessLog io.WriteCloser, err error) {
 	log.Printf("[INFO] logger enabled for %s, max size %dM", opts.Logger.FileName, maxSize)
 	return &lumberjack.Logger{
 		Filename:   opts.Logger.FileName,
-		MaxSize:    int(maxSize), // in MB
+		MaxSize:    int(maxSize), //nolint in MB
 		MaxBackups: opts.Logger.MaxBackups,
 		Compress:   true,
 		LocalTime:  true,

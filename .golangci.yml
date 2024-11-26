@@ -40,7 +40,6 @@ linters:
     - ineffassign
     - stylecheck
     - gochecknoinits
-    - exportloopref
     - gocritic
     - nakedret
     - gosimple

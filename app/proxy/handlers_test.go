@@ -35,7 +35,7 @@ func Test_headersHandler(t *testing.T) {
 }
 
 func Test_maxReqSizeHandler(t *testing.T) {
-	{
+	t.Run("good size", func(t *testing.T) {
 		wr := httptest.NewRecorder()
 		handler := maxReqSizeHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Logf("req: %v", r)
@@ -44,8 +44,9 @@ func Test_maxReqSizeHandler(t *testing.T) {
 		require.NoError(t, err)
 		handler.ServeHTTP(wr, req)
 		assert.Equal(t, http.StatusOK, wr.Result().StatusCode, "good size, full response")
-	}
-	{
+	})
+
+	t.Run("too large size", func(t *testing.T) {
 		wr := httptest.NewRecorder()
 		handler := maxReqSizeHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Logf("req: %v", r)
@@ -54,8 +55,9 @@ func Test_maxReqSizeHandler(t *testing.T) {
 		require.NoError(t, err)
 		handler.ServeHTTP(wr, req)
 		assert.Equal(t, http.StatusRequestEntityTooLarge, wr.Result().StatusCode)
-	}
-	{
+	})
+
+	t.Run("zero max size", func(t *testing.T) {
 		wr := httptest.NewRecorder()
 		handler := maxReqSizeHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Logf("req: %v", r)
@@ -64,7 +66,29 @@ func Test_maxReqSizeHandler(t *testing.T) {
 		require.NoError(t, err)
 		handler.ServeHTTP(wr, req)
 		assert.Equal(t, http.StatusOK, wr.Result().StatusCode, "good size, full response")
-	}
+	})
+
+	t.Run("too large request size", func(t *testing.T) {
+		wr := httptest.NewRecorder()
+		handler := maxReqSizeHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("req: %v", r)
+		}))
+		req, err := http.NewRequest("GET", "http://example.com?q=123456789012345", http.NoBody)
+		require.NoError(t, err)
+		handler.ServeHTTP(wr, req)
+		assert.Equal(t, http.StatusRequestURITooLong, wr.Result().StatusCode)
+	})
+
+	t.Run("good request size", func(t *testing.T) {
+		wr := httptest.NewRecorder()
+		handler := maxReqSizeHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("req: %v", r)
+		}))
+		req, err := http.NewRequest("GET", "http://example.com?q=12345678", http.NoBody)
+		require.NoError(t, err)
+		handler.ServeHTTP(wr, req)
+		assert.Equal(t, http.StatusOK, wr.Result().StatusCode)
+	})
 }
 
 func Test_signatureHandler(t *testing.T) {
