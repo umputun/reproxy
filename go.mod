@@ -9,7 +9,7 @@ require (
 	github.com/go-pkgz/rest v1.19.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/prometheus/client_golang v1.20.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/umputun/go-flags v1.5.1
 	golang.org/x/crypto v0.29.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
