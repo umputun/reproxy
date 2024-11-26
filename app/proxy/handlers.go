@@ -60,6 +60,12 @@ func maxReqSizeHandler(maxSize int64) func(next http.Handler) http.Handler {
 				return
 			}
 
+			// check query string size
+			if int64(len(r.URL.RawQuery)) > maxSize {
+				w.WriteHeader(http.StatusRequestURITooLong)
+				return
+			}
+
 			r.Body = http.MaxBytesReader(w, r.Body, maxSize)
 			next.ServeHTTP(w, r)
 		}

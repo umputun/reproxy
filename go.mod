@@ -1,6 +1,6 @@
 module github.com/umputun/reproxy
 
-go 1.22
+go 1.23
 
 require (
 	github.com/didip/tollbooth/v7 v7.0.2
