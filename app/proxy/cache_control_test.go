@@ -39,7 +39,6 @@ func TestCacheControl_MiddlewareDisabled(t *testing.T) {
 }
 
 func TestCacheControl_MiddlewareMime(t *testing.T) {
-
 	cc := NewCacheControl(time.Hour)
 	cc.AddMime("text/html", time.Hour*2)
 	cc.AddMime("image/png", time.Hour*10)
@@ -47,41 +46,41 @@ func TestCacheControl_MiddlewareMime(t *testing.T) {
 		w.Write([]byte("something"))
 	}))
 
-	{
+	t.Run("match on html", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/file.html", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "public, max-age=7200", resp.Header.Get("Cache-Control"), "match on .html")
-	}
+	})
 
-	{
+	t.Run("match on png", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/xyz/file.png?something=blah", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "public, max-age=36000", resp.Header.Get("Cache-Control"), "match on png")
-	}
+	})
 
-	{
+	t.Run("no match, default", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/xyz/file.gif?something=blah", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "public, max-age=3600", resp.Header.Get("Cache-Control"), "no match, default")
-	}
+	})
 
-	{
+	t.Run("no match, empty", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/xyz/", http.NoBody)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		resp := w.Result()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "public, max-age=7200", resp.Header.Get("Cache-Control"), "match on empty (index)")
-	}
+	})
 }
 
 func TestMakeCacheControl(t *testing.T) {

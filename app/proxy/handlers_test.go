@@ -92,7 +92,7 @@ func Test_maxReqSizeHandler(t *testing.T) {
 }
 
 func Test_signatureHandler(t *testing.T) {
-	{
+	t.Run("with signature", func(t *testing.T) {
 		wr := httptest.NewRecorder()
 		handler := signatureHandler(true, "v0.0.1")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Logf("req: %v", r)
@@ -104,8 +104,9 @@ func Test_signatureHandler(t *testing.T) {
 		assert.Equal(t, "reproxy", wr.Result().Header.Get("App-Name"), wr.Result().Header)
 		assert.Equal(t, "umputun", wr.Result().Header.Get("Author"), wr.Result().Header)
 		assert.Equal(t, "v0.0.1", wr.Result().Header.Get("App-Version"), wr.Result().Header)
-	}
-	{
+	})
+
+	t.Run("without signature", func(t *testing.T) {
 		wr := httptest.NewRecorder()
 		handler := signatureHandler(false, "v0.0.1")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Logf("req: %v", r)
@@ -117,7 +118,7 @@ func Test_signatureHandler(t *testing.T) {
 		assert.Equal(t, "", wr.Result().Header.Get("App-Name"), wr.Result().Header)
 		assert.Equal(t, "", wr.Result().Header.Get("Author"), wr.Result().Header)
 		assert.Equal(t, "", wr.Result().Header.Get("App-Version"), wr.Result().Header)
-	}
+	})
 }
 
 func Test_limiterSystemHandler(t *testing.T) {

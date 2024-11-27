@@ -80,7 +80,7 @@ type Reporter interface {
 
 // LBSelector defines load balancer strategy
 type LBSelector interface {
-	Select(len int) int // return index of picked server
+	Select(size int) int // return index of picked server
 }
 
 // Timeouts consolidate timeouts for both server and transport

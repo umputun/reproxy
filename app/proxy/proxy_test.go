@@ -543,7 +543,8 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	client := http.Client{}
-	{
+
+	t.Run("web2 spa not found page", func(t *testing.T) {
 		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/web2/nop.html")
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -556,9 +557,9 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "", resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
-	}
+	})
 
-	{
+	t.Run("api call on 127.0.0.1", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
@@ -572,9 +573,9 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		assert.Equal(t, "response /567/something", string(body))
 		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
-	}
+	})
 
-	{
+	t.Run("web call on localhost", func(t *testing.T) {
 		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/web/1.html")
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -587,15 +588,14 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		assert.Equal(t, "", resp.Header.Get("App-Method"))
 		assert.Equal(t, "", resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
-	}
+	})
 
-	{
+	t.Run("web call on localhost, not found", func(t *testing.T) {
 		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/web/nop.html")
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	}
-
+	})
 }
 
 func TestHttp_DoWithRedirects(t *testing.T) {
@@ -631,7 +631,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 		},
 	}
 
-	{
+	t.Run("localhost to example.com", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
@@ -640,9 +640,9 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 		assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 		t.Logf("%+v", resp.Header)
 		assert.Equal(t, "http://example.com/123/something", resp.Header.Get("Location"))
-	}
+	})
 
-	{
+	t.Run("127.0.0.1 to example.com", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
@@ -651,7 +651,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 		assert.Equal(t, http.StatusFound, resp.StatusCode)
 		t.Logf("%+v", resp.Header)
 		assert.Equal(t, "http://example.com/567/something", resp.Header.Get("Location"))
-	}
+	})
 }
 
 func TestHttp_DoLimitedReq(t *testing.T) {
@@ -690,7 +690,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 
 	client := http.Client{}
 
-	{
+	t.Run("allowed request size", func(t *testing.T) {
 		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
 		require.NoError(t, err)
 		resp, err := client.Do(req)
@@ -706,16 +706,16 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
 		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
-	}
+	})
 
-	{
+	t.Run("request size too large", func(t *testing.T) {
 		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg1234567"))
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
-	}
+	})
 }
 
 func TestHttp_health(t *testing.T) {
@@ -755,35 +755,33 @@ func TestHttp_health(t *testing.T) {
 
 	client := http.Client{}
 
-	{
-		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		t.Logf("%+v", resp.Header)
+	// api call
+	req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	t.Logf("%+v", resp.Header)
 
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
-		assert.Equal(t, "v1", resp.Header.Get("h1"))
-		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
-		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
-	}
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "response /567/something", string(body))
+	assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+	assert.Equal(t, "v1", resp.Header.Get("h1"))
+	assert.Equal(t, "vv1", resp.Header.Get("hh1"))
+	assert.Equal(t, "vv2", resp.Header.Get("hh2"))
 
-	{
-		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", http.NoBody)
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, `{"status": "ok", "services": 2}`, string(body))
-	}
+	// health check
+	req, err = http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, `{"status": "ok", "services": 2}`, string(body))
 }
 
 func TestHttp_withBasicAuth(t *testing.T) {
