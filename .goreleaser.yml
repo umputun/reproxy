@@ -21,7 +21,7 @@ builds:
     ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
 
 archives:
-  - name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
+  - name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ if eq .Os \"darwin\" }}macos{{ else }}{{ .Os }}{{ end }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
