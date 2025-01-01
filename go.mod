@@ -6,12 +6,12 @@ require (
 	github.com/didip/tollbooth/v7 v7.0.2
 	github.com/go-pkgz/lgr v0.11.1
 	github.com/go-pkgz/repeater v1.2.0
-	github.com/go-pkgz/rest v1.19.0
+	github.com/go-pkgz/rest v1.20.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/prometheus/client_golang v1.20.5
 	github.com/stretchr/testify v1.10.0
 	github.com/umputun/go-flags v1.5.1
-	golang.org/x/crypto v0.29.0
+	golang.org/x/crypto v0.31.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -30,7 +30,7 @@ require (
 	github.com/prometheus/common v0.60.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/text v0.20.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 )
