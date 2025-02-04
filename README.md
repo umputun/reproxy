@@ -37,7 +37,7 @@ For convenience, requests with the trailing `/` and without regex groups expande
 
 The host substitution is supported in the destination URL. For example, `/files/${host}` will be replaced with the matched host name. `$host` (without braces) can also be used.
 
-Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
+Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt or compatible) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
 Examples:
 
@@ -383,6 +383,7 @@ ssl:
       --ssl.cert=                   path to cert.pem file [$SSL_CERT]
       --ssl.key=                    path to key.pem file [$SSL_KEY]
       --ssl.acme-location=          dir where certificates will be stored by autocert manager (default: ./var/acme) [$SSL_ACME_LOCATION]
+      --ssl.acme-directory=         acme directory url [$SSL_ACME_DITRCTORY]
       --ssl.acme-email=             admin email for certificate notifications [$SSL_ACME_EMAIL]
       --ssl.http-port=              http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without) [$SSL_HTTP_PORT]
       --ssl.fqdn=                   FQDN(s) for ACME certificates [$SSL_ACME_FQDN]
