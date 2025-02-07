@@ -207,7 +207,7 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
-Custom 404 (not found) page can be set with `--assets.404=<path>` parameter. The path should be relative to the assets root.
+Custom 404 (not found) page can be set with `--assets.not-found=<path>` parameter. The path should be relative to the assets root.
 
 ## Using reproxy as a base image
 
