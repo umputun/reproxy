@@ -18,20 +18,23 @@ import (
 )
 
 func headersHandler(addHeaders, dropHeaders []string) func(next http.Handler) http.Handler {
-
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if len(addHeaders) == 0 && len(dropHeaders) == 0 {
 				next.ServeHTTP(w, r)
 				return
 			}
+
 			// add headers to response
 			for _, h := range addHeaders {
-				elems := strings.Split(h, ":")
-				if len(elems) != 2 {
-					continue
+				// split on first colon only
+				if i := strings.Index(h, ":"); i >= 0 {
+					key := strings.TrimSpace(h[:i])
+					value := strings.TrimSpace(h[i+1:])
+					if key != "" {
+						w.Header().Set(key, value)
+					}
 				}
-				w.Header().Set(strings.TrimSpace(elems[0]), strings.TrimSpace(elems[1]))
 			}
 
 			// drop headers from request
