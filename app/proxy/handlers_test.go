@@ -270,3 +270,61 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestHeaders_CSPParsing(t *testing.T) {
+	tbl := []struct {
+		name     string
+		headers  []string
+		expected map[string]string
+	}{
+		{
+			name:     "simple headers",
+			headers:  []string{"X-Frame-Options:SAMEORIGIN", "X-XSS-Protection:1; mode=block"},
+			expected: map[string]string{"X-Frame-Options": "SAMEORIGIN", "X-XSS-Protection": "1; mode=block"},
+		},
+		{
+			name:     "CSP header with multiple directives",
+			headers:  []string{"Content-Security-Policy:default-src 'self'; style-src 'self' 'unsafe-inline': something"},
+			expected: map[string]string{"Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline': something"},
+		},
+		{
+			name:     "CSP header with quotes and colons",
+			headers:  []string{"Content-Security-Policy:script-src 'unsafe-inline' 'unsafe-eval' 'self' https://example.com:443"},
+			expected: map[string]string{"Content-Security-Policy": "script-src 'unsafe-inline' 'unsafe-eval' 'self' https://example.com:443"},
+		},
+		{
+			name:     "multiple colons in value",
+			headers:  []string{"Custom-Header:value:with:colons"},
+			expected: map[string]string{"Custom-Header": "value:with:colons"},
+		},
+		{
+			name:     "empty value after colon",
+			headers:  []string{"Empty-Header:"},
+			expected: map[string]string{"Empty-Header": ""},
+		},
+		{
+			name:     "malformed no colon",
+			headers:  []string{"Bad-Header-No-Colon"},
+			expected: map[string]string{},
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			wr := httptest.NewRecorder()
+			handler := headersHandler(tt.headers, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+			req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
+			handler.ServeHTTP(wr, req)
+
+			if len(tt.expected) == 0 {
+				// For malformed headers, check they weren't set
+				assert.Equal(t, 0, len(wr.Header()))
+				return
+			}
+
+			for k, v := range tt.expected {
+				assert.Equal(t, v, wr.Header().Get(k), "Header %s value mismatch", k)
+			}
+		})
+	}
+}
