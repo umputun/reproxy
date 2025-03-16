@@ -56,7 +56,7 @@ var opts struct {
 			TTL        time.Duration `long:"ttl" env:"TTL" default:"2m" description:"DNS record TTL"`
 			Cloudflare struct {
 				APIToken string `long:"api-token" env:"API_TOKEN" description:"cloudflare api token"`
-			} `group:"cloudfare" namespace:"cloudflare" env-namespace:"CLOUDFLARE"`
+			} `group:"cloudflare" namespace:"cloudflare" env-namespace:"CLOUDFLARE"`
 			Route53 struct {
 				Region          string `long:"region" env:"REGION" description:"AWS region"`
 				Profile         string `long:"profile" env:"PROFILE" description:"AWS profile"`
