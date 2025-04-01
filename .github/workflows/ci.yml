@@ -38,12 +38,12 @@ jobs:
           TZ: "America/Chicago"
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v1.61
 
       - name: golangci-lint on example directory
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v1.61
           args: --config ../../.golangci.yml
