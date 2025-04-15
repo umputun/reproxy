@@ -16,14 +16,16 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     groups:
       "Go modules updates":
         dependency-type: "production"
+        applies-to: "security-updates"
   - package-ecosystem: "gomod"
     directory: "/examples/plugin"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     groups:
       "Go modules updates":
         dependency-type: "production"
+        applies-to: "security-updates"
