@@ -10,8 +10,8 @@ github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/go-pkgz/expirable-cache/v3 v3.0.0 h1:u3/gcu3sabLYiTCevoRKv+WzjIn5oo7P8XtiXBeRDLw=
 github.com/go-pkgz/expirable-cache/v3 v3.0.0/go.mod h1:2OQiDyEGQalYecLWmXprm3maPXeVb5/6/X7yRPYTzec=
-github.com/go-pkgz/lgr v0.11.1 h1:hXFhZcznehI6imLhEa379oMOKFz7TQUmisAqb3oLOSM=
-github.com/go-pkgz/lgr v0.11.1/go.mod h1:tgDF4RXQnBfIgJqjgkv0yOeTQ3F1yewWIZkpUhHnAkU=
+github.com/go-pkgz/lgr v0.12.0 h1:uoSCLdiMocZDa+L66DavHG5UIkOJvWKOVqt6sNQllw0=
+github.com/go-pkgz/lgr v0.12.0/go.mod h1:A4AxjOthFVFK6jRnVYMeusno5SeDAxcLVHd0kI/lN/Y=
 github.com/go-pkgz/repeater v1.2.0 h1:oJFvjyKdTDd5RCzpzxlzYIZFFj6Zfl17rE1aUfu6UjQ=
 github.com/go-pkgz/repeater v1.2.0/go.mod h1:vypP6xamA53MFmafnGUucqOmALKk36xgKu2hSG73LHM=
 github.com/go-pkgz/rest v1.20.2 h1:6wYWo85H7xFU09FadVKKc5LKIfIpCStBXJj9F/P4COc=

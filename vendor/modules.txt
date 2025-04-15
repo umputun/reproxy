@@ -20,8 +20,8 @@ github.com/felixge/httpsnoop
 # github.com/go-pkgz/expirable-cache/v3 v3.0.0
 ## explicit; go 1.20
 github.com/go-pkgz/expirable-cache/v3
-# github.com/go-pkgz/lgr v0.11.1
-## explicit; go 1.20
+# github.com/go-pkgz/lgr v0.12.0
+## explicit; go 1.21
 github.com/go-pkgz/lgr
 # github.com/go-pkgz/repeater v1.2.0
 ## explicit; go 1.20
