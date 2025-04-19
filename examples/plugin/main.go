@@ -17,7 +17,7 @@ func main() {
 		Methods: []string{"HeaderThing", "ErrorThing"},
 	}
 	log.Printf("start demo plugin")
-	// Do start the plugin listener and register with reproxy plugin conductor
+	// do start the plugin listener and register with reproxy plugin conductor
 	if err := plugin.Do(context.TODO(), "http://reproxy:8081", new(Handler)); err != nil {
 		log.Fatal(err)
 	}
