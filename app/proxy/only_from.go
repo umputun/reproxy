@@ -72,10 +72,10 @@ func (o *OnlyFrom) realIP(ipLookups []OFLookup, r *http.Request) string {
 		}
 
 		if lookup == OFForwarded && forwardedFor != "" {
-			// X-Forwarded-For is potentially a list of addresses separated with ","
-			// The left-most being the original client, and each successive proxy that passed the request
+			// x-Forwarded-For is potentially a list of addresses separated with ","
+			// the left-most being the original client, and each successive proxy that passed the request
 			// adding the IP address where it received the request from.
-			// In case if the original IP is a private behind a proxy, we need to get the first public IP from the list
+			// in case if the original IP is a private behind a proxy, we need to get the first public IP from the list
 			return preferPublicIP(strings.Split(forwardedFor, ","))
 		}
 

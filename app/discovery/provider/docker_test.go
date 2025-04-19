@@ -344,20 +344,20 @@ func TestDocker_refresh(t *testing.T) {
 		}
 	}()
 
-	// Start some
+	// start some
 	containers <- []containerInfo{stub("1"), stub("2")}
 	recv()
 
-	// Nothing changed
+	// nothing changed
 	containers <- []containerInfo{stub("1"), stub("2")}
 	time.Sleep(time.Millisecond)
 	assert.Empty(t, events, "unexpected refresh notification")
 
-	// Stopped
+	// stopped
 	containers <- []containerInfo{stub("1")}
 	recv()
 
-	// One changed
+	// one changed
 	containers <- []containerInfo{
 		{ID: "1", Name: "1", State: "running", IP: "127.42.42.42", Ports: []int{12345}},
 	}

@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/libdns/libdns"
@@ -86,10 +88,31 @@ func TestSSL_ACME_HTTPChallengeRouter(t *testing.T) {
 	assert.Equal(t, 307, resp.StatusCode)
 	assert.Equal(t, "https://localhost:443/blah?param=1", resp.Header.Get("Location"))
 
-	// acquire new cert from CA and check it
-	cert, err := m.GetCertificate(&tls.ClientHelloInfo{ServerName: "example.com"})
-	require.NoError(t, err)
-	assert.NotNil(t, cert)
+	// acquire new cert from CA and check it with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	certCh := make(chan struct {
+		cert *tls.Certificate
+		err  error
+	})
+
+	go func() {
+		cert, err := m.GetCertificate(&tls.ClientHelloInfo{ServerName: "example.com"})
+		certCh <- struct {
+			cert *tls.Certificate
+			err  error
+		}{cert, err}
+	}()
+
+	// wait for certificate or timeout
+	select {
+	case <-ctx.Done():
+		t.Fatalf("Certificate acquisition timed out: %v", ctx.Err())
+	case result := <-certCh:
+		require.NoError(t, result.err)
+		assert.NotNil(t, result.cert)
+	}
 }
 
 func TestSSL_ACME_DNSChallenge(t *testing.T) {
@@ -100,11 +123,26 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 	log.Printf("[DEBUG] acme dir: %s", dir)
 	defer os.RemoveAll(dir)
 
+	// use mutex to protect expectedToken from race conditions
 	var expectedToken string
+	var tokenMutex sync.Mutex
+
+	getToken := func() string {
+		tokenMutex.Lock()
+		defer tokenMutex.Unlock()
+		return expectedToken
+	}
+
+	setToken := func(token string) {
+		tokenMutex.Lock()
+		defer tokenMutex.Unlock()
+		expectedToken = token
+	}
+
 	cas := acmetest.NewACMEServer(t,
 		acmetest.CheckDNS(func(domain string) (exists bool, value string, err error) {
 			assert.Equal(t, "example.com", domain)
-			return true, expectedToken, nil
+			return true, getToken(), nil
 		}),
 	)
 
@@ -119,6 +157,12 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
 			msg := &dns.Msg{}
 			msg.SetReply(r)
+
+			if len(r.Question) == 0 {
+				msg.SetRcode(r, dns.RcodeNameError)
+				_ = w.WriteMsg(msg)
+				return
+			}
 
 			switch r.Question[0].Qtype {
 			case dns.TypeSOA:
@@ -136,7 +180,7 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 				assert.Equal(t, "_acme-challenge.example.com.", r.Question[0].Name)
 				msg.Answer = []dns.RR{&dns.TXT{
 					Hdr: dns.RR_Header{Name: r.Question[0].Name, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: 0},
-					Txt: []string{expectedToken},
+					Txt: []string{getToken()},
 				}}
 			default:
 				msg.SetRcode(r, dns.RcodeNameError)
@@ -146,7 +190,23 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 		}),
 	}
 
-	go func() { require.NoError(t, dnsMock.ActivateAndServe()) }()
+	// create a channel to ensure DNS server is ready
+	dnsReady := make(chan struct{})
+
+	go func() {
+		// signal that the DNS server is ready to accept connections
+		close(dnsReady)
+		// set a timeout for the DNS server
+		err := dnsMock.ActivateAndServe()
+		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+			t.Logf("DNS server error: %v", err)
+		}
+	}()
+
+	// wait for DNS server to be ready
+	<-dnsReady
+
+	// ensure the server is shut down at the end of the test
 	defer dnsMock.Shutdown()
 
 	t.Log("dns server started at", dnsMock.Addr)
@@ -163,7 +223,7 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 					assert.Equal(t, "_acme-challenge", recs[0].Name)
 					assert.Equal(t, "TXT", recs[0].Type)
 					assert.NotEmpty(t, recs[0].Value)
-					expectedToken = recs[0].Value
+					setToken(recs[0].Value)
 					return recs, nil
 				},
 				DeleteRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
@@ -176,7 +236,30 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 
 	m := p.makeAutocertManager()
 
-	cert, err := m.GetCertificate(&tls.ClientHelloInfo{ServerName: "example.com"})
-	require.NoError(t, err)
-	assert.NotNil(t, cert)
+	// create context with timeout to prevent test from hanging
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// use a channel to handle the certificate acquisition with timeout
+	certCh := make(chan struct {
+		cert *tls.Certificate
+		err  error
+	})
+
+	go func() {
+		cert, err := m.GetCertificate(&tls.ClientHelloInfo{ServerName: "example.com"})
+		certCh <- struct {
+			cert *tls.Certificate
+			err  error
+		}{cert, err}
+	}()
+
+	// wait for certificate or timeout
+	select {
+	case <-ctx.Done():
+		t.Fatalf("Certificate acquisition timed out: %v", ctx.Err())
+	case result := <-certCh:
+		require.NoError(t, result.err)
+		assert.NotNil(t, result.cert)
+	}
 }

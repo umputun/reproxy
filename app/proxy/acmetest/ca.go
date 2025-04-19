@@ -63,7 +63,7 @@ func NewACMEServer(t *testing.T, opts ...Option) *ACMEServer {
 		checkDNS:     func(string) (bool, string, error) { return false, "", nil },
 		modifyReq:    func(*http.Request) {},
 		cl: &http.Client{
-			// Prevent HTTP redirects
+			// prevent HTTP redirects
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 		t: t,

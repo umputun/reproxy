@@ -241,7 +241,7 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 	ticker := time.NewTicker(d.RefreshInterval)
 	defer ticker.Stop()
 
-	// Keep track of running containers
+	// keep track of running containers
 	saved := make(map[string]containerInfo)
 
 	update := func() {
@@ -276,7 +276,7 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 		}
 	}
 
-	update() // Refresh immediately
+	update() // refresh immediately
 	for {
 		select {
 		case <-ctx.Done():
@@ -371,7 +371,7 @@ func NewDockerClient(host, network string) DockerClient {
 }
 
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {
-	// Minimum API version that returns attached networks
+	// minimum API version that returns attached networks
 	// docs.docker.com/engine/api/version-history/#v122-api-changes
 	const APIVersion = "v1.24"
 
