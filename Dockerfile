@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine as backend
+FROM golang:1.24-alpine AS backend
 
 ARG GIT_BRANCH
 ARG GITHUB_SHA
@@ -19,7 +19,7 @@ RUN \
     cd app && go build -o /build/reproxy -ldflags "-X main.revision=${version} -s -w"
 
 
-FROM ghcr.io/umputun/baseimage/app:v1.15.0 as base
+FROM ghcr.io/umputun/baseimage/app:v1.15.0 AS base
 
 FROM scratch
 LABEL org.opencontainers.image.source="https://github.com/umputun/reproxy"
