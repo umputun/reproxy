@@ -173,13 +173,14 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 
 		if v, ok := c.Labels["reproxy.keep-host"]; ok {
 			enabled = true
-			if v == "true" || v == "yes" || v == "1" {
+			switch v {
+			case "true", "yes", "1":
 				t := true
 				keepHost = &t
-			} else if v == "false" || v == "no" || v == "0" {
+			case "false", "no", "0":
 				f := false
 				keepHost = &f
-			} else {
+			default:
 				log.Printf("[WARN] invalid value for reproxy.keep-host: %s", v)
 			}
 		}

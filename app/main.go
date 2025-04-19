@@ -321,7 +321,7 @@ func makeBasicAuth(htpasswdFile string) ([]string, error) {
 		basicAuthAllowed = strings.Split(string(data), "\n")
 		for i, v := range basicAuthAllowed {
 			basicAuthAllowed[i] = strings.TrimSpace(v)
-			basicAuthAllowed[i] = strings.Replace(basicAuthAllowed[i], "\t", "", -1)
+			basicAuthAllowed[i] = strings.ReplaceAll(basicAuthAllowed[i], "\t", "")
 		}
 	}
 	return basicAuthAllowed, nil

@@ -1,70 +1,72 @@
-run:
-  timeout: 5m
-
-linters-settings:
-  govet:
-    enable:
-      - shadow
-  goconst:
-    min-len: 2
-    min-occurrences: 2
-  misspell:
-    locale: US
-  lll:
-    line-length: 140
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
-    disabled-checks:
-      - wrapperFunc
-      - hugeParam
-      - rangeValCopy
-      - singleCaseSwitch
-      - ifElseChain
-
+version: "2"
 linters:
+  default: none
   enable:
-    - staticcheck
-    - revive
-    - govet
-    - unconvert
-    - unused
-    - gosec
-    - gocyclo
     - dupl
-    - misspell
-    - unparam
-    - typecheck
-    - ineffassign
-    - stylecheck
     - gochecknoinits
     - gocritic
+    - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
     - nakedret
-    - gosimple
     - prealloc
-  fast: false
-  disable-all: true
-
-issues:
-  exclude-dirs:
-    - vendor
-  exclude-rules:
-    - text: "at least one file in a package should have a package comment"
-      linters:
-        - stylecheck
-    - text: "should have a package comment"
-      linters:
-        - revive
-    - path: _test\.go
-      linters:
-        - gosec
-        - dupl
-    - linters:
-        - unparam
-        - unused
-        - revive
-      path: _test\.go$
-      text: "unused-parameter"
-  exclude-use-default: false
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+  settings:
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocritic:
+      disabled-checks:
+        - wrapperFunc
+        - hugeParam
+        - rangeValCopy
+        - singleCaseSwitch
+        - ifElseChain
+      enabled-tags:
+        - performance
+        - style
+        - experimental
+    govet:
+      enable:
+        - shadow
+    lll:
+      line-length: 140
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - staticcheck
+        text: at least one file in a package should have a package comment
+      - linters:
+          - revive
+        text: should have a package comment
+      - linters:
+          - dupl
+          - gosec
+        path: _test\.go
+      - linters:
+          - revive
+          - unparam
+          - unused
+        path: _test\.go$
+        text: unused-parameter
+    paths:
+      - vendor
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
