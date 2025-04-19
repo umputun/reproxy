@@ -539,7 +539,7 @@ func (m URLMapper) ping() (string, error) {
 
 	resp, err := client.Get(m.PingURL)
 	if err != nil {
-		errMsg := strings.Replace(err.Error(), "\"", "", -1)
+		errMsg := strings.ReplaceAll(err.Error(), "\"", "")
 		errMsg = fmt.Sprintf("failed to ping for health %s, %s", m.PingURL, errMsg)
 		return errMsg, fmt.Errorf("%s %s: %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
 	}
