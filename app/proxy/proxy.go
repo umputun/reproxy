@@ -242,7 +242,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			IdleConnTimeout:       h.Timeouts.IdleConn,
 			TLSHandshakeTimeout:   h.Timeouts.TLSHandshake,
 			ExpectContinueTimeout: h.Timeouts.ExpectContinue,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: h.Insecure}, //nolint:gosec // G402: User defined option to disable verification for self-signed certificates
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: h.Insecure}, //nolint:gosec // g402: User defined option to disable verification for self-signed certificates
 		},
 		ErrorLog: log.ToStdLogger(log.Default(), "WARN"),
 	}

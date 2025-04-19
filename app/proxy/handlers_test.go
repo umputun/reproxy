@@ -317,7 +317,7 @@ func TestHeaders_CSPParsing(t *testing.T) {
 			handler.ServeHTTP(wr, req)
 
 			if len(tt.expected) == 0 {
-				// For malformed headers, check they weren't set
+				// for malformed headers, check they weren't set
 				assert.Equal(t, 0, len(wr.Header()))
 				return
 			}
