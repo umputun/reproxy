@@ -108,13 +108,15 @@ func Test_MainWithSSL(t *testing.T) {
 	setupLogger()
 
 	port := 40000 + int(rand.Int31n(10000))
+	httpPort := 50000 + int(rand.Int31n(10000)) // use a high port for HTTP redirect
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--ssl.type=static",
-		"--ssl.cert=proxy/testdata/localhost.crt", "--ssl.key=proxy/testdata/localhost.key"}
+		"--ssl.cert=proxy/testdata/localhost.crt", "--ssl.key=proxy/testdata/localhost.key",
+		"--ssl.http-port=" + strconv.Itoa(httpPort)}
 	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
 	go func() {

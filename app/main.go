@@ -60,7 +60,7 @@ var opts struct {
 			Route53 struct {
 				Region          string `long:"region" env:"REGION" description:"AWS region"`
 				Profile         string `long:"profile" env:"PROFILE" description:"AWS profile"`
-				AccessKeyId     string `long:"access-key-id" env:"ACCESS_KEY_ID" description:"AWS access key id"`
+				AccessKeyID     string `long:"access-key-id" env:"ACCESS_KEY_ID" description:"AWS access key id"`
 				SecretAccessKey string `long:"secret-access-key" env:"SECRET_ACCESS_KEY" description:"AWS secret access key"`
 				SessionToken    string `long:"session-token" env:"SESSION_TOKEN" description:"AWS session token"`
 				HostedZoneID    string `long:"hosted-zone-id" env:"HOSTED_ZONE_ID" description:"AWS hosted zone id"`
@@ -442,7 +442,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 			config.DNSProvider = &route53.Provider{
 				Region:             opts.SSL.DNS.Route53.Region,
 				Profile:            opts.SSL.DNS.Route53.Profile,
-				AccessKeyId:        opts.SSL.DNS.Route53.AccessKeyId,
+				AccessKeyId:        opts.SSL.DNS.Route53.AccessKeyID,
 				SecretAccessKey:    opts.SSL.DNS.Route53.SecretAccessKey,
 				SessionToken:       opts.SSL.DNS.Route53.SessionToken,
 				HostedZoneID:       opts.SSL.DNS.Route53.HostedZoneID,

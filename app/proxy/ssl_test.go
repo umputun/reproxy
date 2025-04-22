@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -43,7 +44,7 @@ func TestSSL_Redirect(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, 307, resp.StatusCode)
-	assert.Equal(t, "https://localhost:443/blah?param=1", resp.Header.Get("Location"))
+	assert.Equal(t, "https://localhost/blah?param=1", resp.Header.Get("Location"))
 }
 
 func TestSSL_ACME_HTTPChallengeRouter(t *testing.T) {
@@ -61,11 +62,21 @@ func TestSSL_ACME_HTTPChallengeRouter(t *testing.T) {
 		}),
 	)
 
+	// prepare a port for HTTP challenges
+	httpListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	_, httpPortStr, err := net.SplitHostPort(httpListener.Addr().String())
+	require.NoError(t, err)
+	httpPort, err := strconv.Atoi(httpPortStr)
+	require.NoError(t, err)
+	httpListener.Close() // close it since we only needed it to get a port
+
 	p := Http{
 		SSLConfig: SSLConfig{
 			ACMELocation:  dir,
 			FQDNs:         []string{"example.com", "localhost"},
 			ACMEDirectory: cas.URL(),
+			RedirHTTPPort: httpPort, // use high-numbered port for ACME HTTP challenge
 		},
 	}
 
@@ -86,7 +97,7 @@ func TestSSL_ACME_HTTPChallengeRouter(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, 307, resp.StatusCode)
-	assert.Equal(t, "https://localhost:443/blah?param=1", resp.Header.Get("Location"))
+	assert.Equal(t, "https://localhost/blah?param=1", resp.Header.Get("Location"))
 
 	// acquire new cert from CA and check it with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -197,8 +208,8 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 		// signal that the DNS server is ready to accept connections
 		close(dnsReady)
 		// set a timeout for the DNS server
-		err := dnsMock.ActivateAndServe()
-		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+		dnsErr := dnsMock.ActivateAndServe()
+		if dnsErr != nil && !strings.Contains(dnsErr.Error(), "use of closed network connection") {
 			t.Logf("DNS server error: %v", err)
 		}
 	}()
@@ -211,11 +222,21 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 
 	t.Log("dns server started at", dnsMock.Addr)
 
+	// prepare a port for HTTP challenges
+	httpListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	_, httpPortStr, err := net.SplitHostPort(httpListener.Addr().String())
+	require.NoError(t, err)
+	httpPort, err := strconv.Atoi(httpPortStr)
+	require.NoError(t, err)
+	httpListener.Close() // close it since we only needed it to get a port
+
 	p := Http{
 		SSLConfig: SSLConfig{
 			ACMELocation:  dir,
 			FQDNs:         []string{"example.com", "localhost"},
 			ACMEDirectory: cas.URL(),
+			RedirHTTPPort: httpPort, // use high-numbered port for ACME HTTP challenge
 			DNSProvider: &dnsProviderMock{
 				AppendRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
 					assert.Equal(t, "example.com.", zone)

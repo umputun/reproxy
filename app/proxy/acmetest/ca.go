@@ -403,8 +403,12 @@ func (s *ACMEServer) certCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/pem-certificate-chain")
-	pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: cert})
-	pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: s.rootCert})
+	if err := pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: cert}); err != nil {
+		s.t.Logf("failed to encode certificate: %v", err)
+	}
+	if err := pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: s.rootCert}); err != nil {
+		s.t.Logf("failed to encode root certificate: %v", err)
+	}
 }
 
 // POST /challenge - verify a challenge
@@ -449,11 +453,11 @@ func (s *ACMEServer) challengeCtrl(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	switch {
-	case challengeType == "http-01":
+	switch challengeType {
+	case "http-01":
 		s.verifyHTTP01Challenge(w, token, domain)
 		o.HTTP01Accepted = true
-	case challengeType == "dns-01":
+	case "dns-01":
 		s.verifyDNS01Challenge(w, domain)
 		o.DNS01Accepted = true
 	default:

@@ -64,7 +64,14 @@ func (h *Http) httpChallengeRouter(m AutocertManager) http.Handler {
 func (h *Http) redirectHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		server := strings.Split(r.Host, ":")[0]
-		newURL := fmt.Sprintf("https://%s:443%s", server, r.URL.Path)
+		// use standard HTTPS port by default
+		httpsPort := 443
+		// no need to specify the port if it's the standard HTTPS port
+		portSuffix := fmt.Sprintf(":%d", httpsPort)
+		if httpsPort == 443 {
+			portSuffix = ""
+		}
+		newURL := fmt.Sprintf("https://%s%s%s", server, portSuffix, r.URL.Path)
 		if r.URL.RawQuery != "" {
 			newURL += "?" + r.URL.RawQuery
 		}
@@ -111,7 +118,7 @@ func (h *Http) makeAutocertManager() AutocertManager {
 		KeySource:          certmagic.DefaultKeyGenerator,
 		Storage:            &certmagic.FileStorage{Path: h.SSLConfig.ACMELocation},
 		OnDemand: &certmagic.OnDemandConfig{
-			DecisionFunc: func(ctx context.Context, name string) error {
+			DecisionFunc: func(_ context.Context, name string) error {
 				if _, ok := fqdns[name]; ok {
 					return nil
 				}
@@ -122,18 +129,29 @@ func (h *Http) makeAutocertManager() AutocertManager {
 	}
 	var cache *certmagic.Cache
 	cache = certmagic.NewCache(certmagic.CacheOptions{
-		GetConfigForCert: func(cert certmagic.Certificate) (*certmagic.Config, error) {
+		GetConfigForCert: func(_ certmagic.Certificate) (*certmagic.Config, error) {
 			return certmagic.New(cache, magicTmpl), nil
 		},
 		Logger: logger,
 	})
 	magic := certmagic.New(cache, magicTmpl)
-	acme := certmagic.NewACMEIssuer(magic, certmagic.ACMEIssuer{
+
+	// configure the ACMEIssuer
+	acmeIssuer := certmagic.ACMEIssuer{
 		CA:     h.SSLConfig.ACMEDirectory,
 		Email:  h.SSLConfig.ACMEEmail,
 		Agreed: true,
 		Logger: logger,
-	})
+	}
+
+	// use RedirHTTPPort if specified for the HTTP challenge
+	// this allows ACME HTTP challenges to work in environments
+	// where binding to port 80 isn't possible
+	if h.SSLConfig.RedirHTTPPort != 0 {
+		acmeIssuer.AltHTTPPort = h.SSLConfig.RedirHTTPPort
+	}
+
+	acme := certmagic.NewACMEIssuer(magic, acmeIssuer)
 	if h.SSLConfig.DNSProvider != nil {
 		acme.DNS01Solver = &certmagic.DNS01Solver{
 			DNSManager: certmagic.DNSManager{
