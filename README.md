@@ -163,6 +163,30 @@ In case if rules set as a part of docker compose environment, destination with t
 
 SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s). In `auto` and `static` SSL mode, Reproxy will automatically add the `X-Forwarded-Proto` and `X-Forwarded-Port` headers. These headers are useful for services behind the proxy to know the original protocol (http or https) and port number used by the client.
 
+### ACME Challenges
+
+Reproxy supports two types of ACME challenges for SSL certificate validation:
+
+1. **HTTP-01 Challenge** (default): Validates domain ownership by serving a token at a specific HTTP URL. Requires port 80 to be publicly accessible.
+
+2. **DNS-01 Challenge**: Validates domain ownership by creating DNS TXT records. This method:
+   - Does not require port 80 to be accessible
+   - Works with wildcard certificates
+   - Requires a supported DNS provider configuration
+
+To use DNS-01 validation, set up a supported DNS provider via the appropriate environment variables. The implementation uses [certmagic](https://github.com/caddyserver/certmagic) for DNS provider integration.
+
+Example with Cloudflare as DNS provider:
+```
+export CLOUDFLARE_API_TOKEN=your_api_token
+reproxy --ssl.type=auto --ssl.acme-email=admin@example.com --ssl.fqdn=example.com
+```
+
+The DNS-01 challenge is especially useful when:
+- Your server doesn't have port 80 exposed publicly
+- You need wildcard certificates (e.g., *.example.com)
+- You're behind restrictive firewalls
+
 ## Headers 
 
 Reproxy allows to sanitize (remove) incoming headers by passing `--drop-header` parameter (can be repeated). This parameter can be useful to make sure some of the headers, set internally by the services, can't be set/faked by the end user. For example if some of the services, responsible for the auth, sets `X-Auth-User` and `X-Auth-Token` it is likely makes sense to drop those headers from the incoming requests by passing `--drop-header=X-Auth-User --drop-header=X-Auth-Token` parameter or via environment `DROP_HEADERS=X-Auth-User,X-Auth-Token`
