@@ -174,7 +174,22 @@ Reproxy supports two types of ACME challenges for SSL certificate validation:
    - Works with wildcard certificates
    - Requires a supported DNS provider configuration
 
-To use DNS-01 validation, set up a supported DNS provider via the appropriate environment variables. The implementation uses [certmagic](https://github.com/caddyserver/certmagic) for DNS provider integration.
+#### Challenge Selection
+
+Reproxy automatically determines which challenge method to use based on your configuration:
+
+- **HTTP-01** (default): Used when no DNS provider is configured
+- **DNS-01**: Used when a DNS provider is configured
+
+You don't need to explicitly select a challenge type - just configure a DNS provider if you want to use DNS-01 challenges.
+
+#### Currently Supported DNS Providers
+
+Reproxy currently includes support for the following DNS providers:
+
+- **Cloudflare**: Configure with `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_EMAIL` + `CLOUDFLARE_API_KEY`
+- **Route53 (AWS)**: Configure with AWS credentials
+- **Gandi**: Configure with `GANDI_API_TOKEN`
 
 Example with Cloudflare as DNS provider:
 ```
