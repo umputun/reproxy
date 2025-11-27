@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/caddyserver/certmagic/internal/atomicfile"
 )
 
 // FileStorage facilitates forming file paths derived from a root
@@ -82,12 +83,30 @@ func (s *FileStorage) Store(_ context.Context, key string, value []byte) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filename, value, 0600)
+	fp, err := atomicfile.New(filename, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = fp.Write(value)
+	if err != nil {
+		// cancel the write
+		fp.Cancel()
+		return err
+	}
+	// close, thereby flushing the write
+	return fp.Close()
 }
 
 // Load retrieves the value at key.
 func (s *FileStorage) Load(_ context.Context, key string) ([]byte, error) {
-	return os.ReadFile(s.Filename(key))
+	// i believe it's possible for the read call to error but still return bytes, in event of something like a shortread?
+	// therefore, i think it's appropriate to not return any bytes to avoid downstream users of the package erroniously believing that
+	// bytes read + error is a valid response (it should not be)
+	xs, err := os.ReadFile(s.Filename(key))
+	if err != nil {
+		return nil, err
+	}
+	return xs, nil
 }
 
 // Delete deletes the value at key.
@@ -193,7 +212,7 @@ func (s *FileStorage) Lock(ctx context.Context, name string) error {
 					// the previous acquirer either crashed or had some sort of failure that
 					// caused them to be unable to fully acquire or retain the lock, therefore
 					// we should treat it as if the lockfile did not exist
-					log.Printf("[INFO][%s] %s: Empty lockfile (%v) - likely previous process crashed or storage medium failure; treating as stale", s, filename, err2)
+					defaultLogger.Sugar().Infof("[%s] %s: Empty lockfile (%v) - likely previous process crashed or storage medium failure; treating as stale", s, filename, err2)
 				}
 			} else if err2 != nil {
 				return fmt.Errorf("decoding lockfile contents: %w", err2)
@@ -215,8 +234,7 @@ func (s *FileStorage) Lock(ctx context.Context, name string) error {
 			// either have potential to cause infinite loops, as in caddyserver/caddy#4448,
 			// or must give up on perfect mutual exclusivity; however, these cases are rare,
 			// so we prefer the simpler solution that avoids infinite loops)
-			log.Printf("[INFO][%s] Lock for '%s' is stale (created: %s, last update: %s); removing then retrying: %s",
-				s, name, meta.Created, meta.Updated, filename)
+			defaultLogger.Sugar().Infof("[%s] Lock for '%s' is stale (created: %s, last update: %s); removing then retrying: %s", s, name, meta.Created, meta.Updated, filename)
 			if err = os.Remove(filename); err != nil { // hopefully we can replace the lock file quickly!
 				if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("unable to delete stale lockfile; deadlocked: %w", err)
@@ -291,7 +309,7 @@ func keepLockfileFresh(filename string) {
 		if err := recover(); err != nil {
 			buf := make([]byte, stackTraceBufferSize)
 			buf = buf[:runtime.Stack(buf, false)]
-			log.Printf("panic: active locking: %v\n%s", err, buf)
+			defaultLogger.Sugar().Errorf("active locking: %v\n%s", err, buf)
 		}
 	}()
 
@@ -299,7 +317,7 @@ func keepLockfileFresh(filename string) {
 		time.Sleep(lockFreshnessInterval)
 		done, err := updateLockfileFreshness(filename)
 		if err != nil {
-			log.Printf("[ERROR] Keeping lock file fresh: %v - terminating lock maintenance (lockfile: %s)", err, filename)
+			defaultLogger.Sugar().Errorf("Keeping lock file fresh: %v - terminating lock maintenance (lockfile: %s)", err, filename)
 			return
 		}
 		if done {

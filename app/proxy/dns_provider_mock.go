@@ -16,22 +16,22 @@ var _ dnsProvider = &dnsProviderMock{}
 
 // dnsProviderMock is a mock implementation of dnsProvider.
 //
-// 	func TestSomethingThatUsesdnsProvider(t *testing.T) {
+//	func TestSomethingThatUsesdnsProvider(t *testing.T) {
 //
-// 		// make and configure a mocked dnsProvider
-// 		mockeddnsProvider := &dnsProviderMock{
-// 			AppendRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-// 				panic("mock out the AppendRecords method")
-// 			},
-// 			DeleteRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-// 				panic("mock out the DeleteRecords method")
-// 			},
-// 		}
+//		// make and configure a mocked dnsProvider
+//		mockeddnsProvider := &dnsProviderMock{
+//			AppendRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
+//				panic("mock out the AppendRecords method")
+//			},
+//			DeleteRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
+//				panic("mock out the DeleteRecords method")
+//			},
+//		}
 //
-// 		// use mockeddnsProvider in code that requires dnsProvider
-// 		// and then make assertions.
+//		// use mockeddnsProvider in code that requires dnsProvider
+//		// and then make assertions.
 //
-// 	}
+//	}
 type dnsProviderMock struct {
 	// AppendRecordsFunc mocks the AppendRecords method.
 	AppendRecordsFunc func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error)
@@ -86,7 +86,8 @@ func (mock *dnsProviderMock) AppendRecords(ctx context.Context, zone string, rec
 
 // AppendRecordsCalls gets all the calls that were made to AppendRecords.
 // Check the length with:
-//     len(mockeddnsProvider.AppendRecordsCalls())
+//
+//	len(mockeddnsProvider.AppendRecordsCalls())
 func (mock *dnsProviderMock) AppendRecordsCalls() []struct {
 	Ctx  context.Context
 	Zone string
@@ -125,7 +126,8 @@ func (mock *dnsProviderMock) DeleteRecords(ctx context.Context, zone string, rec
 
 // DeleteRecordsCalls gets all the calls that were made to DeleteRecords.
 // Check the length with:
-//     len(mockeddnsProvider.DeleteRecordsCalls())
+//
+//	len(mockeddnsProvider.DeleteRecordsCalls())
 func (mock *dnsProviderMock) DeleteRecordsCalls() []struct {
 	Ctx  context.Context
 	Zone string

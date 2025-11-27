@@ -2,6 +2,7 @@ package consulcatalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -57,7 +58,7 @@ func New(client ConsulClient, checkInterval time.Duration) *ConsulCatalog {
 func (cc *ConsulCatalog) Events(ctx context.Context) (res <-chan discovery.ProviderID) {
 	eventsCh := make(chan discovery.ProviderID)
 	go func() {
-		if err := cc.events(ctx, eventsCh); err != context.Canceled {
+		if err := cc.events(ctx, eventsCh); !errors.Is(err, context.Canceled) {
 			log.Printf("[ERROR] unexpected consulcatalog events error: %s", err)
 		}
 	}()
@@ -76,7 +77,7 @@ func (cc *ConsulCatalog) events(ctx context.Context, eventsCh chan<- discovery.P
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("consul catalog events interrupted: %w", ctx.Err())
 		case <-ticker.C:
 		}
 	}

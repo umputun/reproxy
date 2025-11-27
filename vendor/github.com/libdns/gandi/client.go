@@ -11,11 +11,11 @@ import (
 	"github.com/libdns/libdns"
 )
 
-func (p *Provider) setRecord(ctx context.Context, zone string, record libdns.Record, domain gandiDomain) error {
+func (p *Provider) setRecord(ctx context.Context, zone string, rr libdns.RR, domain gandiDomain) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, record.Name, record.Type), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, rr.Name, rr.Type), nil)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (p *Provider) setRecord(ctx context.Context, zone string, record libdns.Rec
 	// we check if the new value does not already exists and append it if not
 	var exists bool
 	for _, val := range oldGandiRecord.RRSetValues {
-		if val == record.Value {
+		if val == rr.Data {
 			exists = true
 			break
 		}
@@ -39,14 +39,14 @@ func (p *Provider) setRecord(ctx context.Context, zone string, record libdns.Rec
 
 	recValues := oldGandiRecord.RRSetValues
 	if !exists {
-		recValues = append(recValues, record.Value)
+		recValues = append(recValues, rr.Data)
 	}
 
 	// we just create a new record, if an existing record was found, we just append the new value to the existing ones
 	newGandiRecord := gandiRecord{
-		RRSetTTL:    int(record.TTL.Seconds()),
-		RRSetType:   record.Type,
-		RRSetName:   record.Name,
+		RRSetTTL:    int(rr.TTL.Seconds()),
+		RRSetType:   rr.Type,
+		RRSetName:   rr.Name,
 		RRSetValues: recValues,
 	}
 
@@ -56,7 +56,7 @@ func (p *Provider) setRecord(ctx context.Context, zone string, record libdns.Rec
 	}
 
 	// we update existing record or create a new record if it does not exist yet
-	req, err = http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, record.Name, record.Type), bytes.NewReader(raw))
+	req, err = http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, rr.Name, rr.Type), bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
@@ -68,11 +68,11 @@ func (p *Provider) setRecord(ctx context.Context, zone string, record libdns.Rec
 	return err
 }
 
-func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.Record, domain gandiDomain) error {
+func (p *Provider) deleteRecord(ctx context.Context, zone string, rr libdns.RR, domain gandiDomain) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, record.Name, record.Type), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, rr.Name, rr.Type), nil)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.
 		// if it contains multiple values, the best is to update the record instead of deleting all the values
 		newRRSetValues := []string{}
 		for _, val := range rec.RRSetValues {
-			if val != record.Value {
+			if val != rr.Data {
 				newRRSetValues = append(newRRSetValues, val)
 			}
 		}
@@ -102,15 +102,15 @@ func (p *Provider) deleteRecord(ctx context.Context, zone string, record libdns.
 			return err
 		}
 
-		req, requestErr = http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, record.Name, record.Type), bytes.NewReader(raw))
+		req, requestErr = http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, rr.Name, rr.Type), bytes.NewReader(raw))
 	} else {
 		// if there is only one entry, we make sure that the value to delete is matching the one we found
 		// otherwise we may delete the wrong record
-		if strings.Trim(rec.RRSetValues[0], "\"") != record.Value {
+		if strings.Trim(rec.RRSetValues[0], "\"") != rr.Data {
 			return fmt.Errorf("LiveDNS returned a %v (%v)", http.StatusNotFound, "Can't find such a DNS value")
 		}
 
-		req, requestErr = http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, record.Name, record.Type), nil)
+		req, requestErr = http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, rr.Name, rr.Type), nil)
 	}
 
 	// we check if NewRequestWithContext threw an error

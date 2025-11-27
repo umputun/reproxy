@@ -163,7 +163,8 @@ func main() {
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	p.SubcommandsOptional = true
 	if _, err := p.Parse(); err != nil {
-		if err.(*flags.Error).Type != flags.ErrHelp {
+		var flagsErr *flags.Error
+		if errors.As(err, &flagsErr) && flagsErr.Type != flags.ErrHelp {
 			log.Printf("[ERROR] cli error: %v", err)
 		}
 		os.Exit(2)
@@ -306,7 +307,10 @@ func run() error {
 		log.Printf("[WARN] proxy server closed, %v", err) // nolint gocritic
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("proxy server failed: %w", err)
+	}
+	return nil
 }
 
 // makeBasicAuth returns a list of allowed basic auth users and password hashes.
@@ -446,7 +450,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 				SecretAccessKey:    opts.SSL.DNS.Route53.SecretAccessKey,
 				SessionToken:       opts.SSL.DNS.Route53.SessionToken,
 				HostedZoneID:       opts.SSL.DNS.Route53.HostedZoneID,
-				WaitForPropagation: true,
+				WaitForRoute53Sync: true,
 			}
 		case "gandi":
 			config.DNSProvider = &gandi.Provider{
@@ -570,7 +574,11 @@ func sizeParse(inp string) (uint64, error) {
 			return uint64(float64(val) * math.Pow(float64(1024), float64(i+1))), nil
 		}
 	}
-	return strconv.ParseUint(inp, 10, 64)
+	res, err := strconv.ParseUint(inp, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse size %s: %w", inp, err)
+	}
+	return res, nil
 }
 
 // splitAtCommas split s at commas, ignoring commas in strings.

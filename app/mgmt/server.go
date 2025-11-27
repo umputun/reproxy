@@ -3,6 +3,7 @@ package mgmt
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -58,7 +59,10 @@ func (s *Server) Run(ctx context.Context) error {
 		log.Printf("[WARN] mgmt server terminated, %v", err)
 	}()
 
-	return httpServer.ListenAndServe()
+	if err := httpServer.ListenAndServe(); err != nil {
+		return fmt.Errorf("mgmt server failed: %w", err)
+	}
+	return nil
 }
 
 // routesCtrl - GET /routes, returns the list of all routes

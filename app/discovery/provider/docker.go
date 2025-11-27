@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -55,7 +56,7 @@ type containerInfo struct {
 func (d *Docker) Events(ctx context.Context) (res <-chan discovery.ProviderID) {
 	eventsCh := make(chan discovery.ProviderID)
 	go func() {
-		if err := d.events(ctx, eventsCh); err != context.Canceled {
+		if err := d.events(ctx, eventsCh); !errors.Is(err, context.Canceled) {
 			log.Printf("[ERROR] unexpected docker client exit reason: %s", err)
 		}
 	}()
@@ -280,7 +281,7 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("docker events interrupted: %w", ctx.Err())
 		case <-ticker.C:
 			update()
 		}
