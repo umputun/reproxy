@@ -58,6 +58,9 @@ type Http struct { // nolint golint
 
 	KeepHost bool
 
+	UpstreamMaxIdleConns    int
+	UpstreamMaxConnsPerHost int
+
 	dnsResolvers []string // used to mock DNS resolvers for testing
 }
 
@@ -247,7 +250,8 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				KeepAlive: h.Timeouts.KeepAlive,
 			}).DialContext,
 			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
+			MaxIdleConns:          h.UpstreamMaxIdleConns,
+			MaxConnsPerHost:       h.UpstreamMaxConnsPerHost,
 			IdleConnTimeout:       h.Timeouts.IdleConn,
 			TLSHandshakeTimeout:   h.Timeouts.TLSHandshake,
 			ExpectContinueTimeout: h.Timeouts.ExpectContinue,
