@@ -87,6 +87,7 @@ type dnsProvider interface{ certmagic.DNSProvider }
 type AutocertManager interface {
 	GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
 	HTTPHandler(http.Handler) http.Handler
+	CheckDomain(ctx context.Context, name string) error
 }
 
 func (h *Http) makeAutocertManager() AutocertManager {
@@ -119,8 +120,15 @@ func (h *Http) makeAutocertManager() AutocertManager {
 		Storage:            &certmagic.FileStorage{Path: h.SSLConfig.ACMELocation},
 		OnDemand: &certmagic.OnDemandConfig{
 			DecisionFunc: func(_ context.Context, name string) error {
+				// check static FQDNs first (for explicit configuration)
 				if _, ok := fqdns[name]; ok {
 					return nil
+				}
+				// check dynamic servers from discovery providers
+				for _, srv := range h.Servers() {
+					if srv == name {
+						return nil
+					}
 				}
 				return fmt.Errorf("not allowed domain %q", name)
 			},
@@ -191,6 +199,17 @@ func (c cmmanager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate,
 // HTTPHandler returns http handler for the autocert manager
 func (c cmmanager) HTTPHandler(next http.Handler) http.Handler {
 	return c.acme.HTTPChallengeHandler(next)
+}
+
+// CheckDomain checks if the domain is allowed by the autocert manager
+func (c cmmanager) CheckDomain(ctx context.Context, name string) error {
+	if c.magic.OnDemand == nil || c.magic.OnDemand.DecisionFunc == nil {
+		return nil
+	}
+	if err := c.magic.OnDemand.DecisionFunc(ctx, name); err != nil {
+		return fmt.Errorf("domain check failed: %w", err)
+	}
+	return nil
 }
 
 // makeHTTPSAutoCertServer makes https server with autocert mode (LE support)

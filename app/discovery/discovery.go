@@ -390,7 +390,7 @@ func (s *Service) mergeLists() (res []URLMapper) {
 	for _, p := range s.providers {
 		lst, err := p.List()
 		if err != nil {
-			log.Printf("[DEBUG] can't get list for %s, %v", p, err)
+			log.Printf("[DEBUG] can't get list for %T, %v", p, err)
 			continue
 		}
 		for i := range lst {

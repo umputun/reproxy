@@ -285,3 +285,59 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 		assert.NotNil(t, result.cert)
 	}
 }
+
+func TestSSL_DynamicFQDNs(t *testing.T) {
+	// test that autocert manager accepts domains dynamically added to Servers() after startup.
+	// this verifies the fix for issue #207: reproxy should update allowed FQDNs dynamically
+	// without requiring restart when new services are discovered.
+
+	dir, err := os.MkdirTemp("", "acme")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// use a slice that can be modified to simulate dynamic server discovery
+	var servers []string
+	var serversMu sync.Mutex
+
+	getServers := func() []string {
+		serversMu.Lock()
+		defer serversMu.Unlock()
+		return append([]string{}, servers...) // return a copy
+	}
+
+	setServers := func(s []string) {
+		serversMu.Lock()
+		defer serversMu.Unlock()
+		servers = s
+	}
+
+	// start with initial server
+	setServers([]string{"initial.example.com"})
+
+	matcher := &MatcherMock{
+		ServersFunc: getServers,
+	}
+
+	// simulate what Run() does: populate FQDNs from Servers() at startup
+	p := Http{
+		Matcher: matcher,
+		SSLConfig: SSLConfig{
+			ACMELocation: dir,
+			FQDNs:        getServers(), // populated from Servers() at startup, like Run() does
+		},
+	}
+
+	m := p.makeAutocertManager()
+
+	// verify initial domain is allowed
+	err = m.CheckDomain(context.Background(), "initial.example.com")
+	require.NoError(t, err, "initial domain should be allowed")
+
+	// add a new domain dynamically (simulating docker container start)
+	setServers([]string{"initial.example.com", "new.example.com"})
+
+	// verify new domain is allowed after dynamic update
+	// this is the key assertion - currently fails because DecisionFunc uses static map
+	err = m.CheckDomain(context.Background(), "new.example.com")
+	require.NoError(t, err, "dynamically added domain should be allowed")
+}
