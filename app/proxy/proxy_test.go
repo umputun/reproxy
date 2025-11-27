@@ -820,9 +820,13 @@ func TestHttp_withBasicAuth(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
 
-	client := http.Client{}
+	// wait for server to be ready
+	client := http.Client{Timeout: 100 * time.Millisecond}
+	require.Eventually(t, func() bool {
+		_, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/")
+		return err == nil
+	}, time.Second, 10*time.Millisecond, "server did not start")
 
 	t.Run("no auth", func(t *testing.T) {
 		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
