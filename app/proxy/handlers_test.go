@@ -275,6 +275,48 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 	}
 }
 
+func Test_gzipHandler(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		handler := gzipHandler(false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("test response"))
+		}))
+		req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
+		wr := httptest.NewRecorder()
+		handler.ServeHTTP(wr, req)
+		assert.Equal(t, http.StatusOK, wr.Code)
+		assert.Equal(t, "test response", wr.Body.String())
+		assert.Empty(t, wr.Header().Get("Content-Encoding"))
+	})
+
+	t.Run("enabled with gzip accept", func(t *testing.T) {
+		handler := gzipHandler(true)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// write enough data to trigger compression
+			data := make([]byte, 1024)
+			for i := range data {
+				data[i] = 'a'
+			}
+			_, _ = w.Write(data)
+		}))
+		req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
+		req.Header.Set("Accept-Encoding", "gzip")
+		wr := httptest.NewRecorder()
+		handler.ServeHTTP(wr, req)
+		assert.Equal(t, http.StatusOK, wr.Code)
+		assert.Equal(t, "gzip", wr.Header().Get("Content-Encoding"))
+	})
+
+	t.Run("enabled without gzip accept", func(t *testing.T) {
+		handler := gzipHandler(true)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("test response"))
+		}))
+		req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
+		wr := httptest.NewRecorder()
+		handler.ServeHTTP(wr, req)
+		assert.Equal(t, http.StatusOK, wr.Code)
+		assert.Empty(t, wr.Header().Get("Content-Encoding"))
+	})
+}
+
 func TestHeaders_CSPParsing(t *testing.T) {
 	tbl := []struct {
 		name     string

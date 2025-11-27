@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/umputun/reproxy/app/proxy"
 	"github.com/umputun/reproxy/lib"
 )
 
@@ -409,4 +410,154 @@ func Test_makeBasicAuth(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res, 3)
 	assert.Equal(t, []string{"test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW", "test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12", "bad bad"}, res)
+}
+
+func Test_makeSSLConfig(t *testing.T) {
+	setupLogger()
+
+	t.Run("ssl type none", func(t *testing.T) {
+		opts.SSL.Type = "none"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.Equal(t, proxy.SSLNone, cfg.SSLMode)
+	})
+
+	t.Run("ssl type static without cert", func(t *testing.T) {
+		opts.SSL.Type = "static"
+		opts.SSL.Cert = ""
+		opts.SSL.Key = "some.key"
+		_, err := makeSSLConfig()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "path to cert.pem is required")
+	})
+
+	t.Run("ssl type static without key", func(t *testing.T) {
+		opts.SSL.Type = "static"
+		opts.SSL.Cert = "some.crt"
+		opts.SSL.Key = ""
+		_, err := makeSSLConfig()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "path to key.pem is required")
+	})
+
+	t.Run("ssl type static valid", func(t *testing.T) {
+		opts.SSL.Type = "static"
+		opts.SSL.Cert = "proxy/testdata/localhost.crt"
+		opts.SSL.Key = "proxy/testdata/localhost.key"
+		opts.SSL.RedirHTTPPort = 8080
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.Equal(t, proxy.SSLStatic, cfg.SSLMode)
+		assert.Equal(t, "proxy/testdata/localhost.crt", cfg.Cert)
+		assert.Equal(t, "proxy/testdata/localhost.key", cfg.Key)
+		assert.Equal(t, 8080, cfg.RedirHTTPPort)
+	})
+
+	t.Run("ssl type auto", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.ACMEDirectory = "https://acme.example.com"
+		opts.SSL.ACMELocation = "/var/acme"
+		opts.SSL.ACMEEmail = "admin@example.com"
+		opts.SSL.FQDNs = []string{"example.com", "www.example.com"}
+		opts.SSL.DNS.Type = "none"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.Equal(t, proxy.SSLAuto, cfg.SSLMode)
+		assert.Equal(t, "https://acme.example.com", cfg.ACMEDirectory)
+		assert.Equal(t, "/var/acme", cfg.ACMELocation)
+		assert.Equal(t, "admin@example.com", cfg.ACMEEmail)
+		assert.Equal(t, []string{"example.com", "www.example.com"}, cfg.FQDNs)
+		assert.Nil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with cloudflare dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "cloudflare"
+		opts.SSL.DNS.Cloudflare.APIToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with route53 dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "route53"
+		opts.SSL.DNS.Route53.Region = "us-east-1"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with gandi dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "gandi"
+		opts.SSL.DNS.Gandi.BearerToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type invalid", func(t *testing.T) {
+		opts.SSL.Type = "invalid"
+		_, err := makeSSLConfig()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid value")
+	})
+
+	// reset to default
+	opts.SSL.Type = "none"
+	opts.SSL.DNS.Type = "none"
+}
+
+func Test_makeLBSelector(t *testing.T) {
+	setupLogger()
+
+	t.Run("random selector", func(t *testing.T) {
+		opts.LBType = "random"
+		sel := makeLBSelector()
+		assert.IsType(t, &proxy.RandomSelector{}, sel)
+	})
+
+	t.Run("failover selector", func(t *testing.T) {
+		opts.LBType = "failover"
+		sel := makeLBSelector()
+		assert.IsType(t, &proxy.FailoverSelector{}, sel)
+	})
+
+	t.Run("roundrobin selector", func(t *testing.T) {
+		opts.LBType = "roundrobin"
+		sel := makeLBSelector()
+		assert.IsType(t, &proxy.RoundRobinSelector{}, sel)
+	})
+
+	t.Run("default selector", func(t *testing.T) {
+		opts.LBType = "unknown"
+		sel := makeLBSelector()
+		assert.IsType(t, &proxy.FailoverSelector{}, sel)
+	})
+
+	// reset
+	opts.LBType = "random"
+}
+
+func Test_fqdns(t *testing.T) {
+	setupLogger()
+
+	tbl := []struct {
+		inp []string
+		res []string
+	}{
+		{[]string{"example.com"}, []string{"example.com"}},
+		{[]string{" example.com "}, []string{"example.com"}},
+		{[]string{"  example.com  ", " www.example.com\t"}, []string{"example.com", "www.example.com"}},
+		{[]string{}, nil},
+		{nil, nil},
+	}
+
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			result := fqdns(tt.inp)
+			assert.Equal(t, tt.res, result)
+		})
+	}
 }
