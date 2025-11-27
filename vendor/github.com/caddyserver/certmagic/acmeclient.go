@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -26,9 +27,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mholt/acmez/v2"
-	"github.com/mholt/acmez/v2/acme"
+	"github.com/mholt/acmez/v3"
+	"github.com/mholt/acmez/v3/acme"
 	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 // acmeClient holds state necessary to perform ACME operations
@@ -50,77 +52,107 @@ func (iss *ACMEIssuer) newACMEClientWithAccount(ctx context.Context, useTestCA, 
 		return nil, err
 	}
 
-	// look up or create the ACME account
-	var account acme.Account
-	if iss.AccountKeyPEM != "" {
-		account, err = iss.GetAccount(ctx, []byte(iss.AccountKeyPEM))
-	} else {
-		account, err = iss.getAccount(ctx, client.Directory, iss.getEmail())
-	}
+	// we try loading the account from storage before a potential
+	// lock, and after obtaining the lock as well, to ensure we don't
+	// repeat work done by another instance or goroutine
+	account, err := iss.getAccountToUse(ctx, client.Directory)
 	if err != nil {
-		return nil, fmt.Errorf("getting ACME account: %v", err)
+		return nil, err
 	}
 
 	// register account if it is new
 	if account.Status == "" {
-		if iss.NewAccountFunc != nil {
-			// obtain lock here, since NewAccountFunc calls happen concurrently and they typically read and change the issuer
-			iss.mu.Lock()
-			account, err = iss.NewAccountFunc(ctx, iss, account)
-			iss.mu.Unlock()
-			if err != nil {
-				return nil, fmt.Errorf("account pre-registration callback: %v", err)
+		iss.Logger.Info("ACME account has empty status; registering account with ACME server",
+			zap.Strings("contact", account.Contact),
+			zap.String("location", account.Location))
+
+		// synchronize this so the account is only created once
+		acctLockKey := accountRegLockKey(account)
+		err = acquireLock(ctx, iss.config.Storage, acctLockKey)
+		if err != nil {
+			return nil, fmt.Errorf("locking account registration: %v", err)
+		}
+		defer func() {
+			if err := releaseLock(ctx, iss.config.Storage, acctLockKey); err != nil {
+				iss.Logger.Error("failed to unlock account registration lock", zap.Error(err))
 			}
+		}()
+
+		// if we're not the only one waiting for this account, then by this point it should already be registered and in storage; reload it
+		account, err = iss.getAccountToUse(ctx, client.Directory)
+		if err != nil {
+			return nil, err
 		}
 
-		// agree to terms
-		if interactive {
-			if !iss.isAgreed() {
-				var termsURL string
-				dir, err := client.GetDirectory(ctx)
+		// if we are the only or first one waiting for this account, then proceed to register it while we have the lock
+		if account.Status == "" {
+			if iss.NewAccountFunc != nil {
+				// obtain lock here, since NewAccountFunc calls happen concurrently and they typically read and change the issuer
+				iss.mu.Lock()
+				account, err = iss.NewAccountFunc(ctx, iss, account)
+				iss.mu.Unlock()
 				if err != nil {
-					return nil, fmt.Errorf("getting directory: %w", err)
+					return nil, fmt.Errorf("account pre-registration callback: %v", err)
 				}
-				if dir.Meta != nil {
-					termsURL = dir.Meta.TermsOfService
-				}
-				if termsURL != "" {
-					agreed := iss.askUserAgreement(termsURL)
-					if !agreed {
-						return nil, fmt.Errorf("user must agree to CA terms")
+			}
+
+			// agree to terms
+			if interactive {
+				if !iss.isAgreed() {
+					var termsURL string
+					dir, err := client.GetDirectory(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("getting directory: %w", err)
 					}
-					iss.mu.Lock()
-					iss.agreed = agreed
-					iss.mu.Unlock()
+					if dir.Meta != nil {
+						termsURL = dir.Meta.TermsOfService
+					}
+					if termsURL != "" {
+						agreed := iss.askUserAgreement(termsURL)
+						if !agreed {
+							return nil, fmt.Errorf("user must agree to CA terms")
+						}
+						iss.mu.Lock()
+						iss.agreed = agreed
+						iss.mu.Unlock()
+					}
 				}
+			} else {
+				// can't prompt a user who isn't there; they should
+				// have reviewed the terms beforehand
+				iss.mu.Lock()
+				iss.agreed = true
+				iss.mu.Unlock()
+			}
+			account.TermsOfServiceAgreed = iss.isAgreed()
+
+			// associate account with external binding, if configured
+			if iss.ExternalAccount != nil {
+				err := account.SetExternalAccountBinding(ctx, client.Client, *iss.ExternalAccount)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			// create account
+			account, err = client.NewAccount(ctx, account)
+			if err != nil {
+				return nil, fmt.Errorf("registering account %v with server: %w", account.Contact, err)
+			}
+			iss.Logger.Info("new ACME account registered",
+				zap.Strings("contact", account.Contact),
+				zap.String("status", account.Status))
+
+			// persist the account to storage
+			err = iss.saveAccount(ctx, client.Directory, account)
+			if err != nil {
+				return nil, fmt.Errorf("could not save account %v: %v", account.Contact, err)
 			}
 		} else {
-			// can't prompt a user who isn't there; they should
-			// have reviewed the terms beforehand
-			iss.mu.Lock()
-			iss.agreed = true
-			iss.mu.Unlock()
-		}
-		account.TermsOfServiceAgreed = iss.isAgreed()
-
-		// associate account with external binding, if configured
-		if iss.ExternalAccount != nil {
-			err := account.SetExternalAccountBinding(ctx, client.Client, *iss.ExternalAccount)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		// create account
-		account, err = client.NewAccount(ctx, account)
-		if err != nil {
-			return nil, fmt.Errorf("registering account %v with server: %w", account.Contact, err)
-		}
-
-		// persist the account to storage
-		err = iss.saveAccount(ctx, client.Directory, account)
-		if err != nil {
-			return nil, fmt.Errorf("could not save account %v: %v", account.Contact, err)
+			iss.Logger.Info("account has already been registered; reloaded",
+				zap.Strings("contact", account.Contact),
+				zap.String("status", account.Status),
+				zap.String("location", account.Location))
 		}
 	}
 
@@ -159,26 +191,34 @@ func (iss *ACMEIssuer) newACMEClient(useTestCA bool) (*acmez.Client, error) {
 	if iss.DNS01Solver == nil {
 		// enable HTTP-01 challenge
 		if !iss.DisableHTTPChallenge {
-			client.ChallengeSolvers[acme.ChallengeTypeHTTP01] = distributedSolver{
-				storage:                iss.config.Storage,
-				storageKeyIssuerPrefix: iss.storageKeyCAPrefix(client.Directory),
-				solver: &httpSolver{
-					handler: iss.HTTPChallengeHandler(http.NewServeMux()),
-					address: net.JoinHostPort(iss.ListenHost, strconv.Itoa(iss.getHTTPPort())),
-				},
+			var solver acmez.Solver = &httpSolver{
+				handler: iss.HTTPChallengeHandler(http.NewServeMux()),
+				address: net.JoinHostPort(iss.ListenHost, strconv.Itoa(iss.getHTTPPort())),
 			}
+			if !iss.DisableDistributedSolvers {
+				solver = distributedSolver{
+					storage:                iss.config.Storage,
+					storageKeyIssuerPrefix: iss.storageKeyCAPrefix(client.Directory),
+					solver:                 solver,
+				}
+			}
+			client.ChallengeSolvers[acme.ChallengeTypeHTTP01] = solver
 		}
 
 		// enable TLS-ALPN-01 challenge
 		if !iss.DisableTLSALPNChallenge {
-			client.ChallengeSolvers[acme.ChallengeTypeTLSALPN01] = distributedSolver{
-				storage:                iss.config.Storage,
-				storageKeyIssuerPrefix: iss.storageKeyCAPrefix(client.Directory),
-				solver: &tlsALPNSolver{
-					config:  iss.config,
-					address: net.JoinHostPort(iss.ListenHost, strconv.Itoa(iss.getTLSALPNPort())),
-				},
+			var solver acmez.Solver = &tlsALPNSolver{
+				config:  iss.config,
+				address: net.JoinHostPort(iss.ListenHost, strconv.Itoa(iss.getTLSALPNPort())),
 			}
+			if !iss.DisableDistributedSolvers {
+				solver = distributedSolver{
+					storage:                iss.config.Storage,
+					storageKeyIssuerPrefix: iss.storageKeyCAPrefix(client.Directory),
+					solver:                 solver,
+				}
+			}
+			client.ChallengeSolvers[acme.ChallengeTypeTLSALPN01] = solver
 		}
 	} else {
 		// use DNS challenge exclusively
@@ -230,7 +270,7 @@ func (iss *ACMEIssuer) newBasicACMEClient() (*acmez.Client, error) {
 			Directory:  caURL,
 			UserAgent:  buildUAString(),
 			HTTPClient: iss.httpClient,
-			Logger:     iss.Logger.Named("acme_client"),
+			Logger:     slog.New(zapslog.NewHandler(iss.Logger.Named("acme_client").Core())),
 		},
 	}, nil
 }

@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/acmez/v2/acme"
+	"github.com/mholt/acmez/v3/acme"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ocsp"
 )
@@ -111,7 +111,7 @@ func (certCache *Cache) RenewManagedCertificates(ctx context.Context) error {
 		}
 
 		// the list of names on this cert should never be empty... programmer error?
-		if cert.Names == nil || len(cert.Names) == 0 {
+		if len(cert.Names) == 0 {
 			log.Warn("certificate has no names; removing from cache", zap.String("cert_key", certKey))
 			deleteQueue = append(deleteQueue, cert)
 			continue
@@ -125,18 +125,12 @@ func (certCache *Cache) RenewManagedCertificates(ctx context.Context) error {
 				zap.Error(err))
 			continue
 		}
-		if cfg == nil {
-			// this is bad if this happens, probably a programmer error (oops)
-			log.Error("no configuration associated with certificate; unable to manage",
-				zap.Strings("identifiers", cert.Names))
-			continue
-		}
 		if cfg.OnDemand != nil {
 			continue
 		}
 
 		// ACME-specific: see if if ACME Renewal Info (ARI) window needs refreshing
-		if cert.ari.NeedsRefresh() {
+		if !cfg.DisableARI && cert.ari.NeedsRefresh() {
 			configs[cert.hash] = cfg
 			ariQueue = append(ariQueue, cert)
 		}
@@ -419,16 +413,16 @@ func (certCache *Cache) updateOCSPStaples(ctx context.Context) {
 // than that of a certificate that is already loaded, along with the value from
 // storage.
 func (cfg *Config) storageHasNewerARI(ctx context.Context, cert Certificate) (bool, acme.RenewalInfo, error) {
-	storedCertData, err := cfg.loadStoredACMECertificateMetadata(ctx, cert)
-	if err != nil || storedCertData.RenewalInfo == nil {
+	storedCert, err := cfg.loadStoredACMECertificateMetadata(ctx, cert)
+	if err != nil || storedCert.RenewalInfo == nil || storedCert.RenewalInfo.RetryAfter == nil {
 		return false, acme.RenewalInfo{}, err
 	}
 	// prefer stored info if it has a window and the loaded one doesn't,
 	// or if the one in storage has a later RetryAfter (though I suppose
 	// it's not guaranteed, typically those will move forward in time)
-	if (!cert.ari.HasWindow() && storedCertData.RenewalInfo.HasWindow()) ||
-		storedCertData.RenewalInfo.RetryAfter.After(*cert.ari.RetryAfter) {
-		return true, *storedCertData.RenewalInfo, nil
+	if (!cert.ari.HasWindow() && storedCert.RenewalInfo.HasWindow()) ||
+		(cert.ari.RetryAfter == nil || storedCert.RenewalInfo.RetryAfter.After(*cert.ari.RetryAfter)) {
+		return true, *storedCert.RenewalInfo, nil
 	}
 	return false, acme.RenewalInfo{}, nil
 }
@@ -459,6 +453,9 @@ func (cfg *Config) loadStoredACMECertificateMetadata(ctx context.Context, cert C
 // updated in the cache. The certificate with the updated ARI is returned. If true is
 // returned, the ARI window or selected time has changed, and the caller should check if
 // the cert needs to be renewed now, even if there is an error.
+//
+// This will always try to ARI without checking if it needs to be refreshed. Call
+// NeedsRefresh() on the RenewalInfo first, and only call this if that returns true.
 func (cfg *Config) updateARI(ctx context.Context, cert Certificate, logger *zap.Logger) (updatedCert Certificate, changed bool, err error) {
 	logger = logger.With(
 		zap.Strings("identifiers", cert.Names),
@@ -468,6 +465,17 @@ func (cfg *Config) updateARI(ctx context.Context, cert Certificate, logger *zap.
 
 	updatedCert = cert
 	oldARI := cert.ari
+
+	// synchronize ARI fetching; see #297
+	lockName := "ari_" + cert.ari.UniqueIdentifier
+	if err := acquireLock(ctx, cfg.Storage, lockName); err != nil {
+		return cert, false, fmt.Errorf("unable to obtain ARI lock: %v", err)
+	}
+	defer func() {
+		if err := releaseLock(ctx, cfg.Storage, lockName); err != nil {
+			logger.Error("unable to release ARI lock", zap.Error(err))
+		}
+	}()
 
 	// see if the stored value has been refreshed already by another instance
 	gotNewARI, newARI, err := cfg.storageHasNewerARI(ctx, cert)
@@ -493,7 +501,19 @@ func (cfg *Config) updateARI(ctx context.Context, cert Certificate, logger *zap.
 	if err == nil && gotNewARI {
 		// great, storage has a newer one we can use
 		cfg.certCache.mu.Lock()
-		updatedCert = cfg.certCache.cache[cert.hash]
+		var ok bool
+		updatedCert, ok = cfg.certCache.cache[cert.hash]
+		if !ok {
+			// cert is no longer in the cache... why? what's the right thing to do here?
+			cfg.certCache.mu.Unlock()
+			updatedCert = cert       // return input cert, not an empty one
+			updatedCert.ari = newARI // might as well give it the new ARI for the benefit of our caller, but it won't be updated in the cache or in storage
+			logger.Warn("loaded newer ARI from storage, but certificate is no longer in cache; newer ARI will be returned to caller, but not persisted in the cache",
+				zap.Time("selected_time", newARI.SelectedTime),
+				zap.Timep("next_update", newARI.RetryAfter),
+				zap.String("explanation_url", newARI.ExplanationURL))
+			return
+		}
 		updatedCert.ari = newARI
 		cfg.certCache.cache[cert.hash] = updatedCert
 		cfg.certCache.mu.Unlock()
@@ -509,7 +529,7 @@ func (cfg *Config) updateARI(ctx context.Context, cert Certificate, logger *zap.
 
 	// of the issuers configured, hopefully one of them is the ACME CA we got the cert from
 	for _, iss := range cfg.Issuers {
-		if ariGetter, ok := iss.(RenewalInfoGetter); ok {
+		if ariGetter, ok := iss.(RenewalInfoGetter); ok && iss.IssuerKey() == cert.issuerKey {
 			newARI, err = ariGetter.GetRenewalInfo(ctx, cert) // be sure to use existing newARI variable so we can compare against old value in the defer
 			if err != nil {
 				// could be anything, but a common error might simply be the "wrong" ACME CA
@@ -535,7 +555,21 @@ func (cfg *Config) updateARI(ctx context.Context, cert Certificate, logger *zap.
 
 			// be sure we get the cert from the cache while inside a lock to avoid logical races
 			cfg.certCache.mu.Lock()
-			updatedCert = cfg.certCache.cache[cert.hash]
+			updatedCert, ok = cfg.certCache.cache[cert.hash]
+			if !ok {
+				// cert is no longer in the cache; this can happen for several reasons (past expiration,
+				// rejected by on-demand permission module, random eviction due to full cache, etc), but
+				// it probably means we don't have use of this ARI update now, so while we can return it
+				// to the caller, we don't persist it anywhere beyond that...
+				cfg.certCache.mu.Unlock()
+				updatedCert = cert       // return input cert, not an empty one
+				updatedCert.ari = newARI // might as well give it the new ARI for the benefit of our caller, but it won't be updated in the cache or in storage
+				logger.Warn("obtained ARI update, but certificate no longer in cache; ARI update will be returned to caller, but not stored",
+					zap.Time("selected_time", newARI.SelectedTime),
+					zap.Timep("next_update", newARI.RetryAfter),
+					zap.String("explanation_url", newARI.ExplanationURL))
+				return
+			}
 			updatedCert.ari = newARI
 			cfg.certCache.cache[cert.hash] = updatedCert
 			cfg.certCache.mu.Unlock()
@@ -567,7 +601,7 @@ func (cfg *Config) updateARI(ctx context.Context, cert Certificate, logger *zap.
 				return
 			}
 
-			logger.Info("updated ACME renewal information",
+			logger.Info("updated and stored ACME renewal information",
 				zap.Time("selected_time", newARI.SelectedTime),
 				zap.Timep("next_update", newARI.RetryAfter),
 				zap.String("explanation_url", newARI.ExplanationURL))
@@ -615,11 +649,11 @@ func CleanStorage(ctx context.Context, storage Storage, opts CleanStorageOptions
 	opts.Logger = opts.Logger.With(zap.Any("storage", storage))
 
 	// storage cleaning should be globally exclusive
-	if err := storage.Lock(ctx, lockName); err != nil {
+	if err := acquireLock(ctx, storage, lockName); err != nil {
 		return fmt.Errorf("unable to acquire %s lock: %v", lockName, err)
 	}
 	defer func() {
-		if err := storage.Unlock(ctx, lockName); err != nil {
+		if err := releaseLock(ctx, storage, lockName); err != nil {
 			opts.Logger.Error("unable to release lock", zap.Error(err))
 			return
 		}

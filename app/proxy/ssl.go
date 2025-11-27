@@ -181,7 +181,11 @@ type cmmanager struct {
 
 // GetCertificate returns certificate for the autocert manager
 func (c cmmanager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return c.magic.GetCertificate(hello)
+	cert, err := c.magic.GetCertificate(hello)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get certificate: %w", err)
+	}
+	return cert, nil
 }
 
 // HTTPHandler returns http handler for the autocert manager

@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -26,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/acmez/v2/acme"
+	"github.com/mholt/acmez/v3/acme"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ocsp"
 )
@@ -87,6 +88,14 @@ func (cert Certificate) NeedsRenewal(cfg *Config) bool {
 // call it again to see if the cert in storage still needs renewal -- you probably don't want
 // to log the second time for checking the cert in storage which is mainly for synchronization.
 func (cfg *Config) certNeedsRenewal(leaf *x509.Certificate, ari acme.RenewalInfo, emitLogs bool) bool {
+	// though this should never happen, safeguard to avoid panics which happened before (since patched; but just in case)
+	if leaf == nil {
+		if emitLogs {
+			cfg.Logger.Error("cannot check if nil leaf cert needs renewal")
+		}
+		return false
+	}
+
 	expiration := expiresAt(leaf)
 
 	var logger *zap.Logger
@@ -103,53 +112,54 @@ func (cfg *Config) certNeedsRenewal(leaf *x509.Certificate, ari acme.RenewalInfo
 		logger = zap.NewNop()
 	}
 
-	// first check ARI: if it says it's time to renew, it's time to renew
-	// (notice that we don't strictly require an ARI window to also exist; we presume
-	// that if a time has been selected, a window does or did exist, even if it didn't
-	// get stored/encoded for some reason - but also: this allows administrators to
-	// manually or explicitly schedule a renewal time indepedently of ARI which could
-	// be useful)
-	selectedTime := ari.SelectedTime
+	if !cfg.DisableARI {
+		// first check ARI: if it says it's time to renew, it's time to renew
+		// (notice that we don't strictly require an ARI window to also exist; we presume
+		// that if a time has been selected, a window does or did exist, even if it didn't
+		// get stored/encoded for some reason - but also: this allows administrators to
+		// manually or explicitly schedule a renewal time independently of ARI which could
+		// be useful)
+		selectedTime := ari.SelectedTime
 
-	// if, for some reason a random time in the window hasn't been selected yet, but an ARI
-	// window does exist, we can always improvise one... even if this is called repeatedly,
-	// a random time is a random time, whether you generate it once or more :D
-	// (code borrowed from our acme package)
-	if selectedTime.IsZero() &&
-		(!ari.SuggestedWindow.Start.IsZero() && !ari.SuggestedWindow.End.IsZero()) {
-		start, end := ari.SuggestedWindow.Start.Unix()+1, ari.SuggestedWindow.End.Unix()
-		selectedTime = time.Unix(rand.Int63n(end-start)+start, 0).UTC()
-		logger.Warn("no renewal time had been selected with ARI; chose an ephemeral one for now",
-			zap.Time("ephemeral_selected_time", selectedTime))
-	}
-
-	// if a renewal time has been selected, start with that
-	if !selectedTime.IsZero() {
-		// ARI spec recommends an algorithm that renews after the randomly-selected
-		// time OR just before it if the next waking time would be after it; this
-		// cutoff can actually be before the start of the renewal window, but the spec
-		// author says that's OK: https://github.com/aarongable/draft-acme-ari/issues/71
-		cutoff := ari.SelectedTime.Add(-cfg.certCache.options.RenewCheckInterval)
-		if time.Now().After(cutoff) {
-			logger.Info("certificate needs renewal based on ARI window",
-				zap.Time("selected_time", selectedTime),
-				zap.Time("renewal_cutoff", cutoff))
-			return true
+		// if, for some reason a random time in the window hasn't been selected yet, but an ARI
+		// window does exist, we can always improvise one... even if this is called repeatedly,
+		// a random time is a random time, whether you generate it once or more :D
+		// (code borrowed from our acme package)
+		if selectedTime.IsZero() &&
+			(!ari.SuggestedWindow.Start.IsZero() && !ari.SuggestedWindow.End.IsZero()) {
+			start, end := ari.SuggestedWindow.Start.Unix()+1, ari.SuggestedWindow.End.Unix()
+			selectedTime = time.Unix(rand.Int63n(end-start)+start, 0).UTC()
+			logger.Warn("no renewal time had been selected with ARI; chose an ephemeral one for now",
+				zap.Time("ephemeral_selected_time", selectedTime))
 		}
 
-		// according to ARI, we are not ready to renew; however, we do not rely solely on
-		// ARI calculations... what if there is a bug in our implementation, or in the
-		// server's, or the stored metadata? for redundancy, give credence to the expiration
-		// date; ignore ARI if we are past a "dangerously close" limit, to avoid any
-		// possibility of a bug in ARI compromising a site's uptime: we should always always
-		// always give heed to actual validity period
-		if currentlyInRenewalWindow(leaf.NotBefore, expiration, 1.0/20.0) {
-			logger.Warn("certificate is in emergency renewal window; superceding ARI",
-				zap.Duration("remaining", time.Until(expiration)),
-				zap.Time("renewal_cutoff", cutoff))
-			return true
-		}
+		// if a renewal time has been selected, start with that
+		if !selectedTime.IsZero() {
+			// ARI spec recommends an algorithm that renews after the randomly-selected
+			// time OR just before it if the next waking time would be after it; this
+			// cutoff can actually be before the start of the renewal window, but the spec
+			// author says that's OK: https://github.com/aarongable/draft-acme-ari/issues/71
+			cutoff := ari.SelectedTime.Add(-cfg.certCache.options.RenewCheckInterval)
+			if time.Now().After(cutoff) {
+				logger.Info("certificate needs renewal based on ARI window",
+					zap.Time("selected_time", selectedTime),
+					zap.Time("renewal_cutoff", cutoff))
+				return true
+			}
 
+			// according to ARI, we are not ready to renew; however, we do not rely solely on
+			// ARI calculations... what if there is a bug in our implementation, or in the
+			// server's, or the stored metadata? for redundancy, give credence to the expiration
+			// date; ignore ARI if we are past a "dangerously close" limit, to avoid any
+			// possibility of a bug in ARI compromising a site's uptime: we should always always
+			// always give heed to actual validity period
+			if currentlyInRenewalWindow(leaf.NotBefore, expiration, 1.0/20.0) {
+				logger.Warn("certificate is in emergency renewal window; superseding ARI",
+					zap.Duration("remaining", time.Until(expiration)),
+					zap.Time("renewal_cutoff", cutoff))
+				return true
+			}
+		}
 	}
 
 	// the normal check, in the absence of ARI, is to determine if we're near enough (or past)
@@ -185,6 +195,14 @@ func (cert Certificate) Expired() bool {
 		return false
 	}
 	return time.Now().After(expiresAt(cert.Leaf))
+}
+
+// Lifetime returns the duration of the certificate's validity.
+func (cert Certificate) Lifetime() time.Duration {
+	if cert.Leaf == nil || cert.Leaf.NotAfter.IsZero() {
+		return 0
+	}
+	return expiresAt(cert.Leaf).Sub(cert.Leaf.NotBefore)
 }
 
 // currentlyInRenewalWindow returns true if the current time is within
@@ -329,7 +347,11 @@ func (cfg *Config) CacheUnmanagedTLSCertificate(ctx context.Context, tlsCert tls
 	}
 	err = stapleOCSP(ctx, cfg.OCSP, cfg.Storage, &cert, nil)
 	if err != nil {
-		cfg.Logger.Warn("stapling OCSP", zap.Error(err))
+		if errors.Is(err, ErrNoOCSPServerSpecified) {
+			cfg.Logger.Debug("stapling OCSP", zap.Error(err))
+		} else {
+			cfg.Logger.Warn("stapling OCSP", zap.Error(err))
+		}
 	}
 	cfg.emit(ctx, "cached_unmanaged_cert", map[string]any{"sans": cert.Names})
 	cert.Tags = tags
@@ -350,6 +372,37 @@ func (cfg *Config) CacheUnmanagedCertificatePEMBytes(ctx context.Context, certBy
 	cert.Tags = tags
 	cfg.certCache.cacheCertificate(cert)
 	cfg.emit(ctx, "cached_unmanaged_cert", map[string]any{"sans": cert.Names})
+	return cert.hash, nil
+}
+
+// CacheUnmanagedCertificatePEMBytesAsReplacement is the same as CacheUnmanagedCertificatePEMBytes,
+// but it also removes any other loaded certificates for the SANs on the certificate being cached.
+// This has the effect of using this certificate exclusively and immediately for its SANs. The SANs
+// for which the certificate should apply may optionally be passed in as well. By default, a cert
+// is used for any of its SANs.
+//
+// This method is safe for concurrent use.
+//
+// EXPERIMENTAL: Subject to change/removal.
+func (cfg *Config) CacheUnmanagedCertificatePEMBytesAsReplacement(ctx context.Context, certBytes, keyBytes []byte, tags, sans []string) (string, error) {
+	cert, err := cfg.makeCertificateWithOCSP(ctx, certBytes, keyBytes)
+	if err != nil {
+		return "", err
+	}
+	cert.Tags = tags
+	if len(sans) > 0 {
+		cert.Names = sans
+	}
+	cfg.certCache.mu.Lock()
+	for _, san := range cert.Names {
+		existingCerts := cfg.certCache.getAllMatchingCerts(san)
+		for _, existingCert := range existingCerts {
+			cfg.certCache.removeCertificate(existingCert)
+		}
+	}
+	cfg.certCache.unsyncedCacheCertificate(cert)
+	cfg.certCache.mu.Unlock()
+	cfg.emit(ctx, "cached_unmanaged_cert", map[string]any{"sans": cert.Names, "replacement": true})
 	return cert.hash, nil
 }
 
@@ -377,7 +430,9 @@ func (cfg Config) makeCertificateWithOCSP(ctx context.Context, certPEMBlock, key
 		return cert, err
 	}
 	err = stapleOCSP(ctx, cfg.OCSP, cfg.Storage, &cert, certPEMBlock)
-	if err != nil {
+	if errors.Is(err, ErrNoOCSPServerSpecified) {
+		cfg.Logger.Debug("stapling OCSP", zap.Error(err), zap.Strings("identifiers", cert.Names))
+	} else {
 		cfg.Logger.Warn("stapling OCSP", zap.Error(err), zap.Strings("identifiers", cert.Names))
 	}
 	return cert, nil
@@ -552,6 +607,7 @@ func SubjectIsInternal(subj string) bool {
 	return subj == "localhost" ||
 		strings.HasSuffix(subj, ".localhost") ||
 		strings.HasSuffix(subj, ".local") ||
+		strings.HasSuffix(subj, ".internal") ||
 		strings.HasSuffix(subj, ".home.arpa") ||
 		isInternalIP(subj)
 }

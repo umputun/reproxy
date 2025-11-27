@@ -80,7 +80,10 @@ func (c *Conductor) Run(ctx context.Context) error {
 		}
 	}()
 
-	return httpServer.ListenAndServe()
+	if err := httpServer.ListenAndServe(); err != nil {
+		return fmt.Errorf("plugin conductor server failed: %w", err)
+	}
+	return nil
 }
 
 // Middleware hits all registered, alive-only plugins and modifies the original request accordingly
@@ -208,7 +211,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 
 	client, err := c.RPCDialer.Dial("tcp", p.Address)
 	if err != nil {
-		return fmt.Errorf("can't reach plugin %+v: %v", p, err)
+		return fmt.Errorf("can't reach plugin %+v: %w", p, err)
 	}
 
 	for _, l := range p.Methods {

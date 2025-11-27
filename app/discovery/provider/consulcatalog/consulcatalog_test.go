@@ -97,7 +97,7 @@ func TestConsulCatalog_List(t *testing.T) {
 
 	res, err := cc.List()
 	require.NoError(t, err)
-	require.Equal(t, 6, len(res))
+	require.Len(t, res, 6)
 
 	// sort slice for exclude random item positions after sorting by SrtMatch in List function
 	sort.Slice(res, func(i, j int) bool {
@@ -233,7 +233,7 @@ func TestConsulCatalog_updateServices(t *testing.T) {
 	}
 
 	cc.updateServices([]consulService{{ServiceID: "1"}, {ServiceID: "2"}, {ServiceID: "3"}})
-	require.Equal(t, 3, len(cc.list))
+	require.Len(t, cc.list, 3)
 
 	_, ok := cc.list["1"]
 	assert.True(t, ok)
@@ -273,7 +273,7 @@ func TestConsulCatalog_checkUpdates_not_changed(t *testing.T) {
 	err := cc.checkUpdates(nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, 0, len(cc.list))
+	assert.Empty(t, cc.list)
 }
 
 func TestConsulCatalog_checkUpdates_changed(t *testing.T) {
@@ -294,7 +294,7 @@ func TestConsulCatalog_checkUpdates_changed(t *testing.T) {
 	err := cc.checkUpdates(ch)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, len(cc.list))
+	assert.Len(t, cc.list, 1)
 	_, ok := cc.list["1"]
 	assert.True(t, ok)
 
@@ -337,5 +337,5 @@ func TestConsulCatalog_Events(t *testing.T) {
 
 	list, err := cc.List()
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(list))
+	assert.Len(t, list, 1)
 }

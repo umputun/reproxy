@@ -25,7 +25,7 @@ import (
 func Test_healthHandlerDeadlock(t *testing.T) {
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.True(t, strings.HasSuffix(r.RequestURI, "/ping"))
+		assert.True(t, strings.HasSuffix(r.RequestURI, "/ping"))
 		time.Sleep(time.Millisecond * time.Duration(rand.Intn(5)))
 		if rand.Intn(10) == 5 {
 			w.WriteHeader(400)
@@ -119,10 +119,10 @@ func TestHttp_healthHandler(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	require.NoError(t, err)
 	assert.Equal(t, "failed", res["status"])
-	assert.Equal(t, 4., res["services"])
-	assert.Equal(t, 1., res["passed"])
-	assert.Equal(t, 2., res["failed"])
-	assert.Equal(t, 2, len(res["errors"].([]interface{})))
+	assert.InDelta(t, 4., res["services"], 0.001)
+	assert.InDelta(t, 1., res["passed"], 0.001)
+	assert.InDelta(t, 2., res["failed"], 0.001)
+	assert.Len(t, res["errors"].([]interface{}), 2)
 	assert.Contains(t, res["errors"].([]interface{})[0], "400 Bad Request")
 	assert.Equal(t, 3, count, "3 pings for non-assets routes")
 }

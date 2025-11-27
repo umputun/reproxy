@@ -51,17 +51,17 @@ func TestConductor_registrationHandler(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		assert.Equal(t, 2, len(c.plugins), "two plugins registered")
+		assert.Len(t, c.plugins, 2, "two plugins registered")
 		assert.Equal(t, "Test1.Mw1", c.plugins[0].Method)
 		assert.Equal(t, "127.0.0.1:0001", c.plugins[0].Address)
-		assert.Equal(t, true, c.plugins[0].Alive)
+		assert.True(t, c.plugins[0].Alive)
 
 		assert.Equal(t, "127.0.0.1:0001", c.plugins[1].Address)
 		assert.Equal(t, "Test1.Mw2", c.plugins[1].Method)
-		assert.Equal(t, true, c.plugins[1].Alive)
+		assert.True(t, c.plugins[1].Alive)
 
-		assert.Equal(t, 0, len(rpcClient.CallCalls()))
-		assert.Equal(t, 1, len(dialer.DialCalls()))
+		assert.Empty(t, rpcClient.CallCalls())
+		assert.Len(t, dialer.DialCalls(), 1)
 	}
 
 	{ // same registration
@@ -73,9 +73,9 @@ func TestConductor_registrationHandler(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, 2, len(c.plugins), "two plugins registered")
-		assert.Equal(t, 0, len(rpcClient.CallCalls()))
-		assert.Equal(t, 1, len(dialer.DialCalls()))
+		assert.Len(t, c.plugins, 2, "two plugins registered")
+		assert.Empty(t, rpcClient.CallCalls())
+		assert.Len(t, dialer.DialCalls(), 1)
 	}
 
 	{ // address changed
@@ -87,17 +87,17 @@ func TestConductor_registrationHandler(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, 2, len(c.plugins), "two plugins registered")
+		assert.Len(t, c.plugins, 2, "two plugins registered")
 		assert.Equal(t, "Test1.Mw1", c.plugins[0].Method)
 		assert.Equal(t, "127.0.0.2:8002", c.plugins[0].Address)
-		assert.Equal(t, true, c.plugins[0].Alive)
+		assert.True(t, c.plugins[0].Alive)
 
 		assert.Equal(t, "127.0.0.2:8002", c.plugins[1].Address)
 		assert.Equal(t, "Test1.Mw2", c.plugins[1].Method)
-		assert.Equal(t, true, c.plugins[1].Alive)
+		assert.True(t, c.plugins[1].Alive)
 
-		assert.Equal(t, 0, len(rpcClient.CallCalls()))
-		assert.Equal(t, 2, len(dialer.DialCalls()))
+		assert.Empty(t, rpcClient.CallCalls())
+		assert.Len(t, dialer.DialCalls(), 2)
 	}
 
 	{ // address changed
@@ -109,13 +109,13 @@ func TestConductor_registrationHandler(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, 2+3, len(c.plugins), "3 more plugins registered")
+		assert.Len(t, c.plugins, 2+3, "3 more plugins registered")
 		assert.Equal(t, "Test2.Mw11", c.plugins[2].Method)
 		assert.Equal(t, "127.0.0.3:8003", c.plugins[2].Address)
-		assert.Equal(t, true, c.plugins[2].Alive)
+		assert.True(t, c.plugins[2].Alive)
 
-		assert.Equal(t, 0, len(rpcClient.CallCalls()))
-		assert.Equal(t, 3, len(dialer.DialCalls()))
+		assert.Empty(t, rpcClient.CallCalls())
+		assert.Len(t, dialer.DialCalls(), 3)
 	}
 
 	{ // bad registration
@@ -146,14 +146,14 @@ func TestConductor_registrationHandler(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, 3, len(c.plugins), "3 plugins left, 2 removed")
+		assert.Len(t, c.plugins, 3, "3 plugins left, 2 removed")
 
 		assert.Equal(t, "Test2.Mw11", c.plugins[0].Method)
 		assert.Equal(t, "127.0.0.3:8003", c.plugins[0].Address)
-		assert.Equal(t, true, c.plugins[0].Alive)
+		assert.True(t, c.plugins[0].Alive)
 
-		assert.Equal(t, 0, len(rpcClient.CallCalls()))
-		assert.Equal(t, 3, len(dialer.DialCalls()))
+		assert.Empty(t, rpcClient.CallCalls())
+		assert.Len(t, dialer.DialCalls(), 3)
 	}
 
 	{ // bad unregister
@@ -162,7 +162,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Equal(t, 3, len(c.plugins), "still 3 plugins left, 2 removed")
+		assert.Len(t, c.plugins, 3, "still 3 plugins left, 2 removed")
 	}
 }
 
@@ -259,7 +259,7 @@ func TestConductor_Middleware(t *testing.T) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, 3, len(c.plugins), "3 plugins registered")
+	assert.Len(t, c.plugins, 3, "3 plugins registered")
 	c.plugins[2].Alive = false // set 3rd to dead
 
 	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
@@ -286,7 +286,7 @@ func TestConductor_Middleware(t *testing.T) {
 	}))
 	h.ServeHTTP(w, rr)
 	assert.Equal(t, 200, w.Result().StatusCode)
-	assert.Equal(t, "", w.Result().Header.Get("k1"))
+	assert.Empty(t, w.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", w.Result().Header.Get("k2"))
 	assert.Equal(t, "v21", rr.Header.Get("k21"))
 	assert.Equal(t, "v11", w.Result().Header.Get("k11"))
@@ -340,7 +340,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, 1, len(c.plugins), "one plugin registered")
+	assert.Len(t, c.plugins, 1, "one plugin registered")
 
 	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
 	require.NoError(t, err)
@@ -364,7 +364,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	}))
 	h.ServeHTTP(w, rr)
 	assert.Equal(t, 404, w.Result().StatusCode)
-	assert.Equal(t, "", rr.Header.Get("k1")) // header not set by plugin on error
+	assert.Empty(t, rr.Header.Get("k1")) // header not set by plugin on error
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
 }
@@ -407,7 +407,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, 1, len(c.plugins), "one plugin registered")
+	assert.Len(t, c.plugins, 1, "one plugin registered")
 
 	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
 	require.NoError(t, err)
@@ -417,7 +417,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	}))
 	h.ServeHTTP(w, rr)
 	assert.Equal(t, 500, w.Result().StatusCode)
-	assert.Equal(t, "", rr.Header.Get("k1")) // header not set by plugin on error
+	assert.Empty(t, rr.Header.Get("k1")) // header not set by plugin on error
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
 }

@@ -46,7 +46,7 @@ func Test_Main(t *testing.T) {
 	go func() {
 		<-done
 		e := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-		require.NoError(t, e)
+		assert.NoError(t, e)
 	}()
 
 	finished := make(chan struct{})
@@ -69,7 +69,7 @@ func Test_Main(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "pong", string(body))
 	}
 	{
@@ -79,7 +79,7 @@ func Test_Main(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 	}
 	{
@@ -89,7 +89,7 @@ func Test_Main(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, string(body), `echo echo 123`)
 	}
 	{
@@ -99,7 +99,7 @@ func Test_Main(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "oh my! 502 - Bad Gateway", string(body))
 	}
 }
@@ -122,7 +122,7 @@ func Test_MainWithSSL(t *testing.T) {
 	go func() {
 		<-done
 		e := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-		require.NoError(t, e)
+		assert.NoError(t, e)
 	}()
 
 	finished := make(chan struct{})
@@ -151,7 +151,7 @@ func Test_MainWithSSL(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "pong", string(body))
 	}
 
@@ -161,7 +161,7 @@ func Test_MainWithSSL(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 	}
 }
@@ -185,7 +185,7 @@ func Test_MainWithPlugin(t *testing.T) {
 	go func() {
 		<-done
 		e := syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-		require.NoError(t, e)
+		assert.NoError(t, e)
 	}()
 
 	finished := make(chan struct{})
@@ -205,7 +205,7 @@ func Test_MainWithPlugin(t *testing.T) {
 	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"}}
 	go func() {
 		if err := plugin.Do(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", conductorPort), &TestPlugin{}); err != nil {
-			require.NotEqual(t, "proxy server closed, http: Server closed", err.Error())
+			assert.NotEqual(t, "proxy server closed, http: Server closed", err.Error())
 		}
 	}()
 
@@ -218,7 +218,7 @@ func Test_MainWithPlugin(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		t.Logf("body: %s", string(body))
 		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
 		assert.Contains(t, string(body), `"Inh": "val"`)
@@ -256,9 +256,9 @@ func Test_listenAddress(t *testing.T) {
 
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			assert.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
+			require.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
 			if tt.env != "" {
-				assert.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
+				require.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
 			}
 			assert.Equal(t, tt.res, listenAddress(tt.addr, tt.sslType))
 		})
@@ -286,9 +286,9 @@ func Test_redirHTTPPort(t *testing.T) {
 
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			assert.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
+			require.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
 			if tt.env != "" {
-				assert.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
+				require.NoError(t, os.Setenv("REPROXY_IN_DOCKER", tt.env))
 			}
 			assert.Equal(t, tt.res, redirHTTPPort(tt.port))
 		})
@@ -407,6 +407,6 @@ func Test_makeBasicAuth(t *testing.T) {
 
 	res, err := makeBasicAuth(fh.Name())
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(res))
+	assert.Len(t, res, 3)
 	assert.Equal(t, []string{"test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW", "test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12", "bad bad"}, res)
 }

@@ -128,6 +128,8 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		return len(res[i].Server) > len(res[j].Server)
 	})
 
-	err = fh.Close()
-	return res, err
+	if err = fh.Close(); err != nil {
+		return res, fmt.Errorf("failed to close file: %w", err)
+	}
+	return res, nil
 }

@@ -3,6 +3,7 @@ package mgmt
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -104,5 +105,9 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if !ok {
 		return nil, nil, errors.New("hijack not supported")
 	}
-	return h.Hijack()
+	conn, buf, err := h.Hijack()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to hijack connection: %w", err)
+	}
+	return conn, buf, nil
 }

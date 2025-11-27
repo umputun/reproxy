@@ -38,11 +38,11 @@ func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record
 	var libRecords []libdns.Record
 	for _, rec := range gandiRecords {
 		for _, val := range rec.RRSetValues {
-			rec := libdns.Record{
-				Type:  rec.RRSetType,
-				Name:  rec.RRSetName,
-				TTL:   time.Duration(rec.RRSetTTL) * time.Second,
-				Value: val,
+			rec := libdns.RR{
+				Type: rec.RRSetType,
+				Name: rec.RRSetName,
+				TTL:  time.Duration(rec.RRSetTTL) * time.Second,
+				Data: val,
 			}
 
 			libRecords = append(libRecords, rec)
@@ -61,7 +61,7 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 	}
 
 	for _, rec := range records {
-		err := p.setRecord(ctx, zone, rec, domain)
+		err := p.setRecord(ctx, zone, rec.RR(), domain)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +78,7 @@ func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []lib
 	}
 
 	for _, rec := range records {
-		err := p.deleteRecord(ctx, zone, rec, domain)
+		err := p.deleteRecord(ctx, zone, rec.RR(), domain)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 	}
 
 	for _, rec := range records {
-		err := p.setRecord(ctx, zone, rec, domain)
+		err := p.setRecord(ctx, zone, rec.RR(), domain)
 		if err != nil {
 			return nil, err
 		}

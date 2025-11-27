@@ -159,7 +159,10 @@ func (h *Http) Run(ctx context.Context) error {
 		log.Printf("[INFO] activate http proxy server on %s", h.Address)
 		httpServer = h.makeHTTPServer(h.Address, handler)
 		httpServer.ErrorLog = log.ToStdLogger(log.Default(), "WARN")
-		return httpServer.ListenAndServe()
+		if err := httpServer.ListenAndServe(); err != nil {
+			return fmt.Errorf("http proxy server failed: %w", err)
+		}
+		return nil
 	case SSLStatic:
 		log.Printf("[INFO] activate https server in 'static' mode on %s", h.Address)
 
@@ -174,7 +177,10 @@ func (h *Http) Run(ctx context.Context) error {
 			err := httpServer.ListenAndServe()
 			log.Printf("[WARN] http redirect server terminated, %s", err)
 		}()
-		return httpsServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key)
+		if err := httpsServer.ListenAndServeTLS(h.SSLConfig.Cert, h.SSLConfig.Key); err != nil {
+			return fmt.Errorf("https static server failed: %w", err)
+		}
+		return nil
 	case SSLAuto:
 		log.Printf("[INFO] activate https server in 'auto' mode on %s", h.Address)
 		log.Printf("[DEBUG] FQDNs %v", h.SSLConfig.FQDNs)
@@ -192,7 +198,10 @@ func (h *Http) Run(ctx context.Context) error {
 			log.Printf("[WARN] http challenge server terminated, %s", err)
 		}()
 
-		return httpsServer.ListenAndServeTLS("", "")
+		if err := httpsServer.ListenAndServeTLS("", ""); err != nil {
+			return fmt.Errorf("https auto server failed: %w", err)
+		}
+		return nil
 	}
 	return fmt.Errorf("unknown SSL type %v", h.SSLConfig.SSLMode)
 }
@@ -329,30 +338,30 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		}
 		matches := h.Match(server, r.URL.EscapedPath()) // get all matches for the server:path pair
 		match, ok := getMatch(matches, h.LBSelector)
-		if ok {
-			ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info
-			ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
-			ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set match info for plugin conductor
-
-			if matches.MatchType == discovery.MTProxy {
-				uu, err := url.Parse(match.Destination)
-				if err != nil {
-					log.Printf("[WARN] can't parse destination %s, %v", match.Destination, err)
-					h.Reporter.Report(w, http.StatusBadGateway)
-					return
-				}
-				ctx = context.WithValue(ctx, ctxURL, uu) // set destination url in request's context
-				var keepHost bool
-				if match.Mapper.KeepHost == nil {
-					keepHost = h.KeepHost
-				} else {
-					keepHost = *match.Mapper.KeepHost
-				}
-				ctx = context.WithValue(ctx, ctxKeepHost, keepHost) // set keep host in request's context
-			}
-			r = r.WithContext(ctx)
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
 		}
-		next.ServeHTTP(w, r)
+
+		ctx := context.WithValue(r.Context(), ctxMatch, match)        // set match info
+		ctx = context.WithValue(ctx, ctxMatchType, matches.MatchType) // set match type
+		ctx = context.WithValue(ctx, plugin.CtxMatch, match)          // set match info for plugin conductor
+
+		if matches.MatchType == discovery.MTProxy {
+			uu, err := url.Parse(match.Destination)
+			if err != nil {
+				log.Printf("[WARN] can't parse destination %s, %v", match.Destination, err)
+				h.Reporter.Report(w, http.StatusBadGateway)
+				return
+			}
+			ctx = context.WithValue(ctx, ctxURL, uu) // set destination url in request's context
+			keepHost := h.KeepHost
+			if match.Mapper.KeepHost != nil {
+				keepHost = *match.Mapper.KeepHost
+			}
+			ctx = context.WithValue(ctx, ctxKeepHost, keepHost) // set keep host in request's context
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -386,10 +395,17 @@ func (h *Http) fileServer(assetsWebRoot, assetsLocation string, spa bool, notFou
 	if notFound != nil {
 		notFoundReader = bytes.NewReader(notFound)
 	}
+	var fs http.Handler
+	var err error
 	if spa {
-		return R.NewFileServer(assetsWebRoot, assetsLocation, R.FsOptCustom404(notFoundReader), R.FsOptSPA)
+		fs, err = R.NewFileServer(assetsWebRoot, assetsLocation, R.FsOptCustom404(notFoundReader), R.FsOptSPA)
+	} else {
+		fs, err = R.NewFileServer(assetsWebRoot, assetsLocation, R.FsOptCustom404(notFoundReader))
 	}
-	return R.NewFileServer(assetsWebRoot, assetsLocation, R.FsOptCustom404(notFoundReader))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file server: %w", err)
+	}
+	return fs, nil
 }
 
 func (h *Http) isAssetRequest(r *http.Request) bool {

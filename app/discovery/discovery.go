@@ -127,7 +127,7 @@ func (s *Service) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("discovery service interrupted: %w", ctx.Err())
 		case ev := <-ch:
 			log.Printf("[DEBUG] new update event received, %s", ev)
 			evRecv = true
@@ -548,7 +548,7 @@ func (m URLMapper) ping() (string, error) {
 		return errMsg, fmt.Errorf("%s %s: %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)
 	}
 
-	return "", err
+	return "", nil
 }
 
 // Contains checks if the input string (e) in the given slice

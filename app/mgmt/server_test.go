@@ -84,8 +84,8 @@ func TestServer_controllers(t *testing.T) {
 		err = json.NewDecoder(resp.Body).Decode(&data)
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, len(data["srv1"]))
-		assert.Equal(t, 2, len(data["srv2"]))
+		assert.Len(t, data["srv1"], 1)
+		assert.Len(t, data["srv2"], 2)
 
 		assert.Contains(t, fmt.Sprintf("%v", data["srv1"][0]), `destination:/blah/$1`, data["srv1"][0])
 		assert.Contains(t, fmt.Sprintf("%v", data["srv1"][0]), `route:/api/(.*)`, data["srv1"][0])

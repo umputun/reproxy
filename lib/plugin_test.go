@@ -38,7 +38,7 @@ func TestPlugin_Do(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	err = p.Do(ctx, "http://"+u.Host, new(TestingHandler))
-	assert.EqualError(t, err, "context deadline exceeded")
+	require.EqualError(t, err, "context done: context deadline exceeded")
 	assert.Equal(t, int32(1), atomic.LoadInt32(&postCalls))
 	assert.Equal(t, int32(1), atomic.LoadInt32(&deleteCalls))
 }
@@ -56,7 +56,7 @@ func TestPlugin_DoFailed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err = p.Do(ctx, "http://"+u.Host, new(TestingHandler))
-	assert.EqualError(t, err, "context canceled")
+	assert.EqualError(t, err, "context done: context canceled")
 }
 
 // TestingHandler is an example of middleware handler altering headers and stastus

@@ -17,6 +17,10 @@ linters:
     - unconvert
     - unparam
     - unused
+    - nestif
+    - testifylint
+    - wrapcheck
+    - errorlint
   settings:
     goconst:
       min-len: 2

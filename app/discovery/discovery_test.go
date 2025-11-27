@@ -59,20 +59,20 @@ func TestService_Run(t *testing.T) {
 
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	mappers := svc.Mappers()
-	assert.Equal(t, 3, len(mappers))
+	assert.Len(t, mappers, 3)
 	assert.Equal(t, PIDocker, mappers[0].ProviderID)
 	assert.Equal(t, "localhost", mappers[0].Server)
 	assert.Equal(t, "/api/svc3/xyz", mappers[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.3:8080/blah3/xyz", mappers[0].Dst)
 	assert.Equal(t, []string{"127.0.0.1"}, mappers[0].OnlyFromIPs)
 
-	assert.Equal(t, 1, len(p1.EventsCalls()))
-	assert.Equal(t, 1, len(p2.EventsCalls()))
+	assert.Len(t, p1.EventsCalls(), 1)
+	assert.Len(t, p2.EventsCalls(), 1)
 
-	assert.Equal(t, 1, len(p1.ListCalls()))
-	assert.Equal(t, 1, len(p2.ListCalls()))
+	assert.Len(t, p1.ListCalls(), 1)
+	assert.Len(t, p2.ListCalls(), 1)
 }
 
 func TestService_Match(t *testing.T) {
@@ -125,8 +125,8 @@ func TestService_Match(t *testing.T) {
 
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 12, len(svc.Mappers()))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Len(t, svc.Mappers(), 12)
 
 	tbl := []struct {
 		server, src string
@@ -166,7 +166,7 @@ func TestService_Match(t *testing.T) {
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
-			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			require.Len(t, res.Routes, len(tt.res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
@@ -212,7 +212,7 @@ func TestService_MatchServerRegex(t *testing.T) {
 
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	tbl := []struct {
 		name        string
@@ -266,7 +266,7 @@ func TestService_MatchServerRegex(t *testing.T) {
 	for i, tt := range tbl {
 		t.Run(strconv.Itoa(i)+"-"+tt.server, func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
-			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			require.Len(t, res.Routes, len(tt.res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
@@ -296,7 +296,7 @@ func TestService_MatchServerRegexInvalidateCache(t *testing.T) {
 
 	go func() {
 		err := svc.Run(ctx)
-		require.Error(t, err)
+		assert.Error(t, err)
 	}()
 
 	res <- PIFile
@@ -314,7 +314,7 @@ func TestService_MatchServerRegexInvalidateCache(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	match = svc.Match("test-server", "/")
-	assert.Len(t, match.Routes, 0)
+	assert.Empty(t, match.Routes)
 }
 
 func TestService_MatchConflictRegex(t *testing.T) {
@@ -339,8 +339,8 @@ func TestService_MatchConflictRegex(t *testing.T) {
 
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.Mappers()))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Len(t, svc.Mappers(), 3)
 
 	tbl := []struct {
 		server, src string
@@ -360,7 +360,7 @@ func TestService_MatchConflictRegex(t *testing.T) {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
-			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			require.Len(t, res.Routes, len(tt.res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
@@ -408,8 +408,8 @@ func TestService_Match192(t *testing.T) {
 
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.Mappers()))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Len(t, svc.Mappers(), 3)
 
 	tbl := []struct {
 		server, src string
@@ -427,7 +427,7 @@ func TestService_Match192(t *testing.T) {
 		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
-			require.Equal(t, len(tt.res.Routes), len(res.Routes), res.Routes)
+			require.Len(t, res.Routes, len(tt.res.Routes), res.Routes)
 			for i := 0; i < len(res.Routes); i++ {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
@@ -469,8 +469,8 @@ func TestService_Servers(t *testing.T) {
 	svc := NewService([]Provider{p1, p2}, time.Millisecond*100)
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
-	assert.Equal(t, 3, len(svc.mappers))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Len(t, svc.mappers, 3)
 
 	servers := svc.Servers()
 	assert.Equal(t, []string{"m.example.com", "xx.reproxy.io"}, servers)
@@ -601,18 +601,18 @@ func TestService_ScheduleHealthCheck(t *testing.T) {
 
 	err := svc.Run(ctx)
 	require.Error(t, err)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	mappers := svc.Mappers()
-	assert.Equal(t, 3, len(mappers))
+	assert.Len(t, mappers, 3)
 	assert.Equal(t, wantMappers, mappers)
 
 	svc.ScheduleHealthCheck(context.Background(), time.Microsecond*2)
 	time.Sleep(time.Millisecond * 10)
 
 	mappers = svc.Mappers()
-	assert.Equal(t, false, mappers[0].dead)
-	assert.Equal(t, true, mappers[1].dead)
-	assert.Equal(t, false, mappers[2].dead)
+	assert.False(t, mappers[0].dead)
+	assert.True(t, mappers[1].dead)
+	assert.False(t, mappers[2].dead)
 }
 
 func Test_ping(t *testing.T) {
@@ -709,8 +709,8 @@ func TestCheckHealth(t *testing.T) {
 	t.Logf("mappers: %v", mappers)
 
 	res := svc.CheckHealth()
-	assert.Equal(t, 3, len(res))
-	assert.Error(t, res[failPingULR])
+	assert.Len(t, res, 3)
+	require.Error(t, res[failPingULR])
 	assert.NoError(t, res[ts.URL])
 	assert.NoError(t, res[ts2.URL])
 }

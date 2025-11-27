@@ -35,8 +35,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/acmez/v2"
-	"github.com/mholt/acmez/v2/acme"
+	"github.com/mholt/acmez/v3"
+	"github.com/mholt/acmez/v3/acme"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ocsp"
 	"golang.org/x/net/idna"
@@ -148,6 +148,10 @@ type Config struct {
 	// wildcard certificate.
 	// EXPERIMENTAL: Subject to change or removal.
 	SubjectTransformer func(ctx context.Context, domain string) string
+
+	// Disables both ARI fetching and the use of ARI for renewal decisions.
+	// TEMPORARY: Will likely be removed in the future.
+	DisableARI bool
 
 	// Set a logger to enable logging. If not set,
 	// a default logger will be created.
@@ -370,9 +374,11 @@ func (cfg *Config) manageAll(ctx context.Context, domainNames []string, async bo
 	}
 
 	for _, domainName := range domainNames {
+		domainName = normalizedName(domainName)
+
 		// if on-demand is configured, defer obtain and renew operations
 		if cfg.OnDemand != nil {
-			cfg.OnDemand.hostAllowlist[normalizedName(domainName)] = struct{}{}
+			cfg.OnDemand.hostAllowlist[domainName] = struct{}{}
 			continue
 		}
 
@@ -449,7 +455,7 @@ func (cfg *Config) manageOne(ctx context.Context, domainName string, async bool)
 
 		// ensure ARI is updated before we check whether the cert needs renewing
 		// (we ignore the second return value because we already check if needs renewing anyway)
-		if cert.ari.NeedsRefresh() {
+		if !cfg.DisableARI && cert.ari.NeedsRefresh() {
 			cert, _, err = cfg.updateARI(ctx, cert, cfg.Logger)
 			if err != nil {
 				cfg.Logger.Error("updating ARI upon managing", zap.Error(err))
@@ -482,6 +488,33 @@ func (cfg *Config) manageOne(ctx context.Context, domainName string, async bool)
 		return nil
 	}
 	return renew()
+}
+
+// renewLockLease extends the lease duration on an existing lock if the storage
+// backend supports it. The lease duration is calculated based on the retry attempt
+// number and includes the certificate obtain timeout. This prevents locks from
+// expiring during long-running certificate operations with retries.
+func (cfg *Config) renewLockLease(ctx context.Context, storage Storage, lockKey string, attempt int) error {
+	l, ok := storage.(LockLeaseRenewer)
+	if !ok {
+		return nil
+	}
+
+	leaseDuration := maxRetryDuration
+	if attempt < len(retryIntervals) && attempt >= 0 {
+		leaseDuration = retryIntervals[attempt]
+	}
+	leaseDuration = leaseDuration + DefaultACME.CertObtainTimeout
+	log := cfg.Logger.Named("renewLockLease")
+	log.Debug("renewing lock lease", zap.String("lockKey", lockKey), zap.Int("attempt", attempt))
+
+	err := l.RenewLockLease(ctx, lockKey, leaseDuration)
+	if err == nil {
+		locksMu.Lock()
+		locks[lockKey] = storage
+		locksMu.Unlock()
+	}
+	return err
 }
 
 // ObtainCertSync generates a new private key and obtains a certificate for
@@ -540,6 +573,15 @@ func (cfg *Config) obtainCert(ctx context.Context, name string, interactive bool
 	log.Info("lock acquired", zap.String("identifier", name))
 
 	f := func(ctx context.Context) error {
+		// renew lease on the lock if the certificate store supports it
+		attempt, ok := ctx.Value(AttemptsCtxKey).(*int)
+		if ok {
+			err = cfg.renewLockLease(ctx, cfg.Storage, lockKey, *attempt)
+			if err != nil {
+				return fmt.Errorf("unable to renew lock lease '%s': %v", lockKey, err)
+			}
+		}
+
 		// check if obtain is still needed -- might have been obtained during lock
 		if cfg.storageHasCertResourcesAnyIssuer(ctx, name) {
 			log.Info("certificate already exists in storage", zap.String("identifier", name))
@@ -799,6 +841,16 @@ func (cfg *Config) renewCert(ctx context.Context, name string, force, interactiv
 	log.Info("lock acquired", zap.String("identifier", name))
 
 	f := func(ctx context.Context) error {
+		// renew lease on the certificate store lock if the store implementation supports it;
+		// prevents the lock from being acquired by another process/instance while we're renewing
+		attempt, ok := ctx.Value(AttemptsCtxKey).(*int)
+		if ok {
+			err = cfg.renewLockLease(ctx, cfg.Storage, lockKey, *attempt)
+			if err != nil {
+				return fmt.Errorf("unable to renew lock lease '%s': %v", lockKey, err)
+			}
+		}
+
 		// prepare for renewal (load PEM cert, key, and meta)
 		certRes, err := cfg.loadCertResourceAnyIssuer(ctx, name)
 		if err != nil {
@@ -868,7 +920,7 @@ func (cfg *Config) renewCert(ctx context.Context, name string, force, interactiv
 			// are compliant, so their CSR requirements just needlessly add friction, complexity,
 			// and inefficiency for clients. CommonName has been deprecated for 25+ years.
 			useCSR := csr
-			if _, ok := issuer.(*ZeroSSLIssuer); ok {
+			if issuer.IssuerKey() == "zerossl" {
 				useCSR, err = cfg.generateCSR(privateKey, []string{name}, true)
 				if err != nil {
 					return err
@@ -886,11 +938,13 @@ func (cfg *Config) renewCert(ctx context.Context, name string, force, interactiv
 			// if we're renewing with the same ACME CA as before, have the ACME
 			// client tell the server we are replacing a certificate (but doing
 			// this on the wrong CA, or when the CA doesn't recognize the certID,
-			// can fail the order)
-			if acmeData, err := certRes.getACMEData(); err == nil && acmeData.CA != "" {
-				if acmeIss, ok := issuer.(*ACMEIssuer); ok {
-					if acmeIss.CA == acmeData.CA {
-						ctx = context.WithValue(ctx, ctxKeyARIReplaces, leaf)
+			// can fail the order) -- TODO: change this check to whether we're using the same ACME account, not CA
+			if !cfg.DisableARI {
+				if acmeData, err := certRes.getACMEData(); err == nil && acmeData.CA != "" {
+					if acmeIss, ok := issuer.(*ACMEIssuer); ok {
+						if acmeIss.CA == acmeData.CA {
+							ctx = context.WithValue(ctx, ctxKeyARIReplaces, leaf)
+						}
 					}
 				}
 			}
@@ -982,23 +1036,25 @@ func (cfg *Config) generateCSR(privateKey crypto.PrivateKey, sans []string, useC
 	csrTemplate := new(x509.CertificateRequest)
 
 	for _, name := range sans {
+		// identifiers should be converted to punycode before going into the CSR
+		normalizedName, err := idna.ToASCII(name)
+		if err != nil {
+			return nil, fmt.Errorf("converting identifier '%s' to ASCII: %v", name, err)
+		}
+
 		// TODO: This is a temporary hack to support ZeroSSL API...
-		if useCN && csrTemplate.Subject.CommonName == "" && len(name) <= 64 {
-			csrTemplate.Subject.CommonName = name
+		if useCN && csrTemplate.Subject.CommonName == "" && len(normalizedName) <= 64 {
+			csrTemplate.Subject.CommonName = normalizedName
 			continue
 		}
-		if ip := net.ParseIP(name); ip != nil {
+
+		if ip := net.ParseIP(normalizedName); ip != nil {
 			csrTemplate.IPAddresses = append(csrTemplate.IPAddresses, ip)
-		} else if strings.Contains(name, "@") {
-			csrTemplate.EmailAddresses = append(csrTemplate.EmailAddresses, name)
-		} else if u, err := url.Parse(name); err == nil && strings.Contains(name, "/") {
+		} else if strings.Contains(normalizedName, "@") {
+			csrTemplate.EmailAddresses = append(csrTemplate.EmailAddresses, normalizedName)
+		} else if u, err := url.Parse(normalizedName); err == nil && strings.Contains(normalizedName, "/") {
 			csrTemplate.URIs = append(csrTemplate.URIs, u)
 		} else {
-			// convert IDNs to ASCII according to RFC 5280 section 7
-			normalizedName, err := idna.ToASCII(name)
-			if err != nil {
-				return nil, fmt.Errorf("converting identifier '%s' to ASCII: %v", name, err)
-			}
 			csrTemplate.DNSNames = append(csrTemplate.DNSNames, normalizedName)
 		}
 	}
@@ -1006,6 +1062,16 @@ func (cfg *Config) generateCSR(privateKey crypto.PrivateKey, sans []string, useC
 	if cfg.MustStaple {
 		csrTemplate.ExtraExtensions = append(csrTemplate.ExtraExtensions, mustStapleExtension)
 	}
+
+	// IP addresses aren't printed here because I'm too lazy to marshal them as strings, but
+	// we at least print the incoming SANs so it should be obvious what became IPs
+	cfg.Logger.Debug("created CSR",
+		zap.Strings("identifiers", sans),
+		zap.Strings("san_dns_names", csrTemplate.DNSNames),
+		zap.Strings("san_emails", csrTemplate.EmailAddresses),
+		zap.String("common_name", csrTemplate.Subject.CommonName),
+		zap.Int("extra_extensions", len(csrTemplate.ExtraExtensions)),
+	)
 
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrTemplate, privateKey)
 	if err != nil {
@@ -1092,20 +1158,29 @@ func (cfg *Config) TLSConfig() *tls.Config {
 	}
 }
 
-// getChallengeInfo loads the challenge info from either the internal challenge memory
+// getACMEChallengeInfo loads the challenge info from either the internal challenge memory
 // or the external storage (implying distributed solving). The second return value
 // indicates whether challenge info was loaded from external storage. If true, the
 // challenge is being solved in a distributed fashion; if false, from internal memory.
 // If no matching challenge information can be found, an error is returned.
-func (cfg *Config) getChallengeInfo(ctx context.Context, identifier string) (Challenge, bool, error) {
+func (cfg *Config) getACMEChallengeInfo(ctx context.Context, identifier string, allowDistributed bool) (Challenge, bool, error) {
 	// first, check if our process initiated this challenge; if so, just return it
 	chalData, ok := GetACMEChallenge(identifier)
 	if ok {
 		return chalData, false, nil
 	}
 
+	// if distributed solving is disabled, and we don't have it in memory, return an error
+	if !allowDistributed {
+		return Challenge{}, false, fmt.Errorf("distributed solving disabled and no challenge information found internally for identifier: %s", identifier)
+	}
+
 	// otherwise, perhaps another instance in the cluster initiated it; check
-	// the configured storage to retrieve challenge data
+	// the configured storage to retrieve challenge data (requires storage)
+
+	if cfg.Storage == nil {
+		return Challenge{}, false, errors.New("challenge was not initiated internally and no storage is configured for distributed solving")
+	}
 
 	var chalInfo acme.Challenge
 	var chalInfoBytes []byte
@@ -1244,8 +1319,10 @@ func (cfg *Config) managedCertNeedsRenewal(certRes CertificateResource, emitLogs
 		return 0, nil, true
 	}
 	var ari acme.RenewalInfo
-	if ariPtr, err := certRes.getARI(); err == nil && ariPtr != nil {
-		ari = *ariPtr
+	if !cfg.DisableARI {
+		if ariPtr, err := certRes.getARI(); err == nil && ariPtr != nil {
+			ari = *ariPtr
+		}
 	}
 	remaining := time.Until(expiresAt(certChain[0]))
 	return remaining, certChain[0], cfg.certNeedsRenewal(certChain[0], ari, emitLogs)
