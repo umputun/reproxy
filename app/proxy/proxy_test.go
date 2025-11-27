@@ -35,11 +35,11 @@ func TestHttp_Do(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
-		require.Empty(t, r.Header.Get("X-Forwarded-Proto")) // ssl auto only
-		require.Empty(t, r.Header.Get("X-Forwarded-Port"))
-		require.NotEmpty(t, r.Header.Get("X-Forwarded-URL"), "X-Forwarded-URL header must be set")
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
+		assert.Empty(t, r.Header.Get("X-Forwarded-Proto")) // ssl auto only
+		assert.Empty(t, r.Header.Get("X-Forwarded-Port"))
+		assert.NotEmpty(t, r.Header.Get("X-Forwarded-URL"), "X-Forwarded-URL header must be set")
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -136,10 +136,10 @@ func TestHttp_DoWithSSL(t *testing.T) {
 	ds := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
-		require.Equal(t, "https", r.Header.Get("X-Forwarded-Proto")) // ssl auto only
-		require.Equal(t, "443", r.Header.Get("X-Forwarded-Port"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Forwarded-For"))
+		assert.Equal(t, "https", r.Header.Get("X-Forwarded-Proto")) // ssl auto only
+		assert.Equal(t, "443", r.Header.Get("X-Forwarded-Port"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -239,7 +239,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -276,7 +276,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	})
 
@@ -290,8 +290,8 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "test html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	})
 
@@ -329,7 +329,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -366,7 +366,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	})
 
@@ -380,8 +380,8 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "test html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	})
 
@@ -422,7 +422,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -459,7 +459,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	})
 
@@ -473,8 +473,8 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "test html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	})
 
@@ -488,8 +488,8 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "index html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	})
 
@@ -516,7 +516,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -554,8 +554,8 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "index html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	})
 
@@ -571,7 +571,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "response /567/something", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	})
 
@@ -585,8 +585,8 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "test html", string(body))
-		assert.Equal(t, "", resp.Header.Get("App-Method"))
-		assert.Equal(t, "", resp.Header.Get("h1"))
+		assert.Empty(t, resp.Header.Get("App-Method"))
+		assert.Empty(t, resp.Header.Get("h1"))
 		assert.Equal(t, "public, max-age=43200", resp.Header.Get("Cache-Control"))
 	})
 
@@ -665,7 +665,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -729,7 +729,7 @@ func TestHttp_health(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -781,7 +781,7 @@ func TestHttp_health(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	body, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, `{"status": "ok", "services": 2}`, string(body))
+	assert.JSONEq(t, `{"status": "ok", "services": 2}`, string(body))
 }
 
 func TestHttp_withBasicAuth(t *testing.T) {
@@ -798,7 +798,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 		w.Header().Add("h1", "v1")
-		require.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
+		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
 
@@ -989,7 +989,7 @@ func TestHttp_matchHandler(t *testing.T) {
 
 				v := r.Context().Value(ctxURL)
 				if v == nil {
-					require.False(t, tt.ok)
+					assert.False(t, tt.ok)
 					return
 				}
 				assert.Equal(t, tt.res, v.(*url.URL).String())

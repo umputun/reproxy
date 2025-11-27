@@ -20,8 +20,8 @@ func Test_headersHandler(t *testing.T) {
 	wr := httptest.NewRecorder()
 	handler := headersHandler([]string{"k1:v1", "k2:v2"}, []string{"r1", "r2"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
-		assert.Equal(t, "", r.Header.Get("r1"), "r1 header dropped")
-		assert.Equal(t, "", r.Header.Get("r2"), "r2 header dropped")
+		assert.Empty(t, r.Header.Get("r1"), "r1 header dropped")
+		assert.Empty(t, r.Header.Get("r2"), "r2 header dropped")
 		assert.Equal(t, "rv3", r.Header.Get("r3"), "r3 kept")
 	}))
 	req, err := http.NewRequest("GET", "http://example.com", http.NoBody)
@@ -115,9 +115,9 @@ func Test_signatureHandler(t *testing.T) {
 		require.NoError(t, err)
 		handler.ServeHTTP(wr, req)
 		assert.Equal(t, http.StatusOK, wr.Result().StatusCode)
-		assert.Equal(t, "", wr.Result().Header.Get("App-Name"), wr.Result().Header)
-		assert.Equal(t, "", wr.Result().Header.Get("Author"), wr.Result().Header)
-		assert.Equal(t, "", wr.Result().Header.Get("App-Version"), wr.Result().Header)
+		assert.Empty(t, wr.Result().Header.Get("App-Name"), wr.Result().Header)
+		assert.Empty(t, wr.Result().Header.Get("Author"), wr.Result().Header)
+		assert.Empty(t, wr.Result().Header.Get("App-Version"), wr.Result().Header)
 	})
 }
 
@@ -135,11 +135,13 @@ func Test_limiterSystemHandler(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			client := http.Client{}
 			resp, err := client.Do(req)
-			require.NoError(t, err)
-			resp.Body.Close()
+			assert.NoError(t, err)
+			if resp != nil {
+				resp.Body.Close()
+			}
 		}()
 	}
 	wg.Wait()
@@ -160,11 +162,13 @@ func Test_limiterClientHandlerNoMatches(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			client := http.Client{}
 			resp, err := client.Do(req)
-			require.NoError(t, err)
-			resp.Body.Close()
+			assert.NoError(t, err)
+			if resp != nil {
+				resp.Body.Close()
+			}
 		}()
 	}
 	wg.Wait()
@@ -196,7 +200,7 @@ func Test_limiterClientHandlerWithMatches(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			req, err := http.NewRequest("POST", ts.URL, bytes.NewBufferString("123456"))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			m := discovery.MatchedRoute{Mapper: discovery.URLMapper{Dst: strconv.Itoa(id % 2)}}
 			ctx := context.WithValue(context.Background(), ctxMatchType, discovery.MTProxy)
 			ctx = context.WithValue(ctx, ctxMatch, m)
@@ -204,7 +208,7 @@ func Test_limiterClientHandlerWithMatches(t *testing.T) {
 
 			client := http.Client{}
 			resp, err := client.Do(req)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			resp.Body.Close()
 		}(i)
 	}
@@ -318,7 +322,7 @@ func TestHeaders_CSPParsing(t *testing.T) {
 
 			if len(tt.expected) == 0 {
 				// for malformed headers, check they weren't set
-				assert.Equal(t, 0, len(wr.Header()))
+				assert.Empty(t, wr.Header())
 				return
 			}
 

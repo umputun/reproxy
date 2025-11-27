@@ -37,7 +37,7 @@ func TestStatic_List(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-			require.Equal(t, 1, len(res))
+			require.Len(t, res, 1)
 			assert.Equal(t, tt.server, res[0].Server)
 			assert.Equal(t, tt.src, res[0].SrcMatch.String())
 			assert.Equal(t, tt.dst, res[0].Dst)

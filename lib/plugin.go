@@ -32,7 +32,7 @@ func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (er
 	defer cancel()
 
 	if err = rpc.RegisterName(p.Name, rcvr); err != nil {
-		return fmt.Errorf("can't register plugin %s: %v", p.Name, err)
+		return fmt.Errorf("can't register plugin %s: %w", p.Name, err)
 	}
 	log.Printf("[INFO] register rpc %s:%s", p.Name, p.Address)
 
@@ -60,7 +60,7 @@ func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (er
 func (p *Plugin) listen(ctx context.Context) error {
 	listener, err := net.Listen("tcp", p.Address)
 	if err != nil {
-		return fmt.Errorf("can't listen on %s: %v", p.Address, err)
+		return fmt.Errorf("can't listen on %s: %w", p.Address, err)
 	}
 
 	go func() {
@@ -76,9 +76,9 @@ func (p *Plugin) listen(ctx context.Context) error {
 		if err != nil {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return fmt.Errorf("context done: %w", ctx.Err())
 			default:
-				return fmt.Errorf("accept failed for %s: %v", p.Name, err)
+				return fmt.Errorf("accept failed for %s: %w", p.Name, err)
 			}
 		}
 		go rpc.ServeConn(conn)
@@ -93,15 +93,15 @@ func (p *Plugin) send(client *http.Client, conductor, method string) error {
 
 	data, err := json.Marshal(p)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal plugin: %w", err)
 	}
 	req, err := http.NewRequest(method, conductor, bytes.NewReader(data))
 	if err != nil {
-		return err
+		return fmt.Errorf("create request: %w", err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close() // nolint
 

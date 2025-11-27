@@ -11,14 +11,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: set up go 1.24
-        uses: actions/setup-go@v5
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          docker system prune -af
+
+      - name: set up go 1.25
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.25"
         id: go
 
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: build and test
         run: |
@@ -38,14 +45,14 @@ jobs:
           TZ: "America/Chicago"
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.1
+          version: latest
 
       - name: golangci-lint on example directory
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.1
+          version: latest
           args: --config ../../.golangci.yml
           working-directory: examples/plugin
 

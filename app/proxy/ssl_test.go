@@ -240,11 +240,12 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 			DNSProvider: &dnsProviderMock{
 				AppendRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
 					assert.Equal(t, "example.com.", zone)
-					assert.Equal(t, 1, len(recs))
-					assert.Equal(t, "_acme-challenge", recs[0].Name)
-					assert.Equal(t, "TXT", recs[0].Type)
-					assert.NotEmpty(t, recs[0].Value)
-					setToken(recs[0].Value)
+					assert.Len(t, recs, 1)
+					rr := recs[0].RR()
+					assert.Equal(t, "_acme-challenge", rr.Name)
+					assert.Equal(t, "TXT", rr.Type)
+					assert.NotEmpty(t, rr.Data)
+					setToken(rr.Data)
 					return recs, nil
 				},
 				DeleteRecordsFunc: func(ctx context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {

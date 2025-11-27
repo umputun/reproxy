@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -58,7 +59,7 @@ func TestDocker_List(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 4, len(res))
+	require.Len(t, res, 4)
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
@@ -152,7 +153,7 @@ func TestDocker_ListMulti(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 8, len(res))
+	require.Len(t, res, 8)
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
@@ -186,10 +187,10 @@ func TestDocker_ListMulti(t *testing.T) {
 	assert.Equal(t, "example.com", res[5].Server)
 
 	assert.Equal(t, "^/ky/", res[6].SrcMatch.String())
-	assert.Equal(t, true, *res[6].KeepHost)
+	assert.True(t, *res[6].KeepHost)
 
 	assert.Equal(t, "^/kn/", res[7].SrcMatch.String())
-	assert.Equal(t, false, *res[7].KeepHost)
+	assert.False(t, *res[7].KeepHost)
 }
 
 func TestDocker_ListMultiFallBack(t *testing.T) {
@@ -219,7 +220,7 @@ func TestDocker_ListMultiFallBack(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 6, len(res), "4 proxy, 2 assets")
+	require.Len(t, res, 6, "4 proxy, 2 assets")
 
 	assert.Equal(t, "^/feed/echo-msk/source/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "https://master.feed-master.com/feed/echo-msk/source/@1", res[0].Dst)
@@ -270,7 +271,7 @@ func TestDocker_ListWithAutoAPI(t *testing.T) {
 	d := Docker{DockerClient: dclient, AutoAPI: true, APIPrefix: "/api"}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 3, len(res))
+	require.Len(t, res, 3)
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
@@ -304,7 +305,7 @@ func TestDocker_ListPriority(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Equal(t, 2, len(res))
+	require.Len(t, res, 2)
 	assert.Equal(t, discovery.MTProxy, res[0].MatchType)
 	assert.Equal(t, discovery.MTStatic, res[1].MatchType)
 }
@@ -339,7 +340,7 @@ func TestDocker_refresh(t *testing.T) {
 	}
 
 	go func() {
-		if err := d.events(ctx, events); err != context.Canceled {
+		if err := d.events(ctx, events); !errors.Is(err, context.Canceled) {
 			log.Fatal(err)
 		}
 	}()
@@ -369,11 +370,11 @@ func TestDocker_refresh(t *testing.T) {
 
 func TestDockerClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, `/v1.24/containers/json`, r.URL.Path)
+		assert.Equal(t, `/v1.24/containers/json`, r.URL.Path)
 
 		// obtained using curl --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json
 		resp, err := os.ReadFile("testdata/containers.json")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		w.Write(resp)
 	}))
 

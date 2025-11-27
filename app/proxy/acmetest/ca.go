@@ -141,7 +141,9 @@ func (s *ACMEServer) discoveryCtrl(w http.ResponseWriter, _ *http.Request) {
 		"newAccount": s.acmeURL("/new-account"),
 		"newOrder":   s.acmeURL("/new-order"),
 	}
-	require.NoError(s.t, rest.EncodeJSON(w, 200, resp))
+	if err := rest.EncodeJSON(w, 200, resp); err != nil {
+		s.t.Errorf("failed to encode directory response: %v", err)
+	}
 }
 
 // HEAD /new-nonce - get a new nonce
@@ -153,7 +155,9 @@ func (s *ACMEServer) newNonceCtrl(w http.ResponseWriter, _ *http.Request) {
 // POST /new-account - create a new account
 func (s *ACMEServer) newAccountCtrl(w http.ResponseWriter, _ *http.Request) {
 	resp := rest.JSON{"id": "account-id", "status": "valid"}
-	require.NoError(s.t, rest.EncodeJSON(w, 201, resp))
+	if err := rest.EncodeJSON(w, 201, resp); err != nil {
+		s.t.Errorf("failed to encode new account response: %v", err)
+	}
 }
 
 // POST /new-order - create a new order
@@ -202,7 +206,9 @@ func (s *ACMEServer) newOrderCtrl(w http.ResponseWriter, r *http.Request) {
 		"finalize":       s.acmeURL("/finalize/%s", orderID),
 	}
 
-	require.NoError(s.t, rest.EncodeJSON(w, 201, resp))
+	if err := rest.EncodeJSON(w, 201, resp); err != nil {
+		s.t.Errorf("failed to encode new order response: %v", err)
+	}
 }
 
 // GET /orders/{id} - get order details
@@ -229,7 +235,9 @@ func (s *ACMEServer) handleOrder(w http.ResponseWriter, r *http.Request) {
 		resp["status"] = "ready"
 	}
 
-	require.NoError(s.t, rest.EncodeJSON(w, 200, o))
+	if err := rest.EncodeJSON(w, 200, o); err != nil {
+		s.t.Errorf("encode order response: %v", err)
+	}
 }
 
 // POST /authorizations/{order-id} - get authorization details
@@ -306,7 +314,9 @@ func (s *ACMEServer) handleAuthorization(w http.ResponseWriter, r *http.Request)
 
 	authz.Challenges = []challenge{http01Challenge, dns01Challenge}
 
-	require.NoError(s.t, rest.EncodeJSON(w, 200, authz))
+	if err := rest.EncodeJSON(w, 200, authz); err != nil {
+		s.t.Errorf("encode authz response: %v", err)
+	}
 }
 
 // POST /finalize/{order-id} - finalize an order
@@ -384,9 +394,11 @@ func (s *ACMEServer) finalizeCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.issuedCerts[orderID] = cert
-	require.NoError(s.t, rest.EncodeJSON(w, 200, rest.JSON{
+	if err := rest.EncodeJSON(w, 200, rest.JSON{
 		"certificate": s.acmeURL("/cert/%s", orderID),
-	}))
+	}); err != nil {
+		s.t.Errorf("encode finalize response: %v", err)
+	}
 }
 
 // POST /cert/{orderID} - get a certificate
@@ -465,7 +477,9 @@ func (s *ACMEServer) challengeCtrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.orders[orderID] = o
-	require.NoError(s.t, rest.EncodeJSON(w, 200, rest.JSON{"status": "valid"}))
+	if err := rest.EncodeJSON(w, 200, rest.JSON{"status": "valid"}); err != nil {
+		s.t.Errorf("encode challenge response: %v", err)
+	}
 }
 
 // requires the server to be locked

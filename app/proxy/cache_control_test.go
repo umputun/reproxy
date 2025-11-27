@@ -35,7 +35,7 @@ func TestCacheControl_MiddlewareDisabled(t *testing.T) {
 	h.ServeHTTP(w, req)
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "", resp.Header.Get("Cache-Control"))
+	assert.Empty(t, resp.Header.Get("Cache-Control"))
 }
 
 func TestCacheControl_MiddlewareMime(t *testing.T) {
@@ -120,7 +120,7 @@ func TestMakeCacheControl(t *testing.T) {
 			for mime, age := range tt.mimeAges {
 				assert.Equal(t, age, res.maxAges[mime])
 			}
-			assert.Equal(t, len(tt.mimeAges), len(res.maxAges))
+			assert.Len(t, res.maxAges, len(tt.mimeAges))
 		})
 	}
 

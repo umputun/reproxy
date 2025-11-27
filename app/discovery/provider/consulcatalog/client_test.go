@@ -28,9 +28,9 @@ func TestClient_getServiceNames(t *testing.T) {
 
 	names, err := cl.getServiceNames()
 	require.NoError(t, err)
-	require.Equal(t, 2, len(names))
-	assert.Equal(t, names[0], "s3")
-	assert.Equal(t, names[1], "s4")
+	require.Len(t, names, 2)
+	assert.Equal(t, "s3", names[0])
+	assert.Equal(t, "s4", names[1])
 }
 
 func TestClient_getServiceNames_error_send_request(t *testing.T) {
@@ -97,13 +97,13 @@ func TestClient_getServices(t *testing.T) {
 
 	services, err := cl.getServices("service1")
 	require.NoError(t, err)
-	require.Equal(t, 3, len(services))
+	require.Len(t, services, 3)
 
 	assert.Equal(t, "s1", services[0].ServiceID)
 	assert.Equal(t, "n1", services[0].ServiceName)
 	assert.Equal(t, "a1", services[0].ServiceAddress)
 	assert.Equal(t, 1000, services[0].ServicePort)
-	assert.Equal(t, 0, len(services[0].Labels))
+	assert.Empty(t, services[0].Labels)
 
 	var v string
 	var ok bool
@@ -112,19 +112,19 @@ func TestClient_getServices(t *testing.T) {
 	assert.Equal(t, "n2", services[1].ServiceName)
 	assert.Equal(t, "a2", services[1].ServiceAddress)
 	assert.Equal(t, 2000, services[1].ServicePort)
-	assert.Equal(t, 1, len(services[1].Labels))
+	assert.Len(t, services[1].Labels, 1)
 	v, ok = services[1].Labels["reproxy.enabled"]
 	assert.True(t, ok)
-	assert.Equal(t, "", v)
+	assert.Empty(t, v)
 
 	assert.Equal(t, "s3", services[2].ServiceID)
 	assert.Equal(t, "n3", services[2].ServiceName)
 	assert.Equal(t, "a3", services[2].ServiceAddress)
 	assert.Equal(t, 3000, services[2].ServicePort)
-	assert.Equal(t, 5, len(services[2].Labels))
+	assert.Len(t, services[2].Labels, 5)
 	v, ok = services[2].Labels["reproxy.foo"]
 	assert.True(t, ok)
-	assert.Equal(t, "", v)
+	assert.Empty(t, v)
 	v, ok = services[2].Labels["reproxy.a"]
 	assert.True(t, ok)
 	assert.Equal(t, "1", v)
@@ -133,10 +133,10 @@ func TestClient_getServices(t *testing.T) {
 	assert.Equal(t, "bar", v)
 	v, ok = services[2].Labels["reproxy.baz"]
 	assert.True(t, ok)
-	assert.Equal(t, "", v)
+	assert.Empty(t, v)
 	v, ok = services[2].Labels["reproxy.=bad"]
 	assert.True(t, ok)
-	assert.Equal(t, "", v)
+	assert.Empty(t, v)
 }
 
 func TestClient_getServices_request_error(t *testing.T) {
@@ -204,7 +204,7 @@ func TestClient_Get(t *testing.T) {
 
 	res, err := cl.Get()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(res))
+	require.Len(t, res, 1)
 
 	assert.Equal(t, "s1", res[0].ServiceID)
 	assert.Equal(t, "n1", res[0].ServiceName)
