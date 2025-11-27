@@ -146,6 +146,11 @@ var opts struct {
 		User   int `long:"user" env:"USER"  default:"0" description:"limit req/sec per user and per proxy destination"`
 	} `group:"throttle" namespace:"throttle" env-namespace:"THROTTLE"`
 
+	Upstream struct {
+		MaxIdleConns    int `long:"max-idle-conns" env:"MAX_IDLE_CONNS" default:"100" description:"max idle connections total"`
+		MaxConnsPerHost int `long:"max-conns" env:"MAX_CONNS" default:"0" description:"max connections per upstream host (0=unlimited)"`
+	} `group:"upstream" namespace:"upstream" env-namespace:"UPSTREAM"`
+
 	Plugin struct {
 		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
 		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
@@ -291,15 +296,17 @@ func run() error {
 			ExpectContinue: opts.Timeouts.ExpectContinue,
 			ResponseHeader: opts.Timeouts.ResponseHeader,
 		},
-		Metrics:          makeMetrics(ctx, svc),
-		Reporter:         errReporter,
-		PluginConductor:  makePluginConductor(ctx),
-		ThrottleSystem:   opts.Throttle.System * 3,
-		ThrottleUser:     opts.Throttle.User,
-		BasicAuthEnabled: len(basicAuthAllowed) > 0,
-		BasicAuthAllowed: basicAuthAllowed,
-		KeepHost:         opts.KeepHost,
-		OnlyFrom:         makeOnlyFromMiddleware(),
+		Metrics:                 makeMetrics(ctx, svc),
+		Reporter:                errReporter,
+		PluginConductor:         makePluginConductor(ctx),
+		ThrottleSystem:          opts.Throttle.System * 3,
+		ThrottleUser:            opts.Throttle.User,
+		BasicAuthEnabled:        len(basicAuthAllowed) > 0,
+		BasicAuthAllowed:        basicAuthAllowed,
+		KeepHost:                opts.KeepHost,
+		OnlyFrom:                makeOnlyFromMiddleware(),
+		UpstreamMaxIdleConns:    opts.Upstream.MaxIdleConns,
+		UpstreamMaxConnsPerHost: opts.Upstream.MaxConnsPerHost,
 	}
 
 	err = px.Run(ctx)

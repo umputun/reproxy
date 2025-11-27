@@ -1029,3 +1029,84 @@ func TestHttp_discoveredServers(t *testing.T) {
 	res := h.discoveredServers(context.Background(), time.Millisecond)
 	assert.Equal(t, []string{"s1", "s2", "s3"}, res)
 }
+
+func TestHttp_UpstreamConfig(t *testing.T) {
+	port := rand.Intn(10000) + 40000
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+	defer ds.Close()
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{
+			"localhost,^/api/(.*)," + ds.URL + "/test/$1,",
+		}},
+	}, time.Millisecond*10)
+
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	t.Run("with default upstream values", func(t *testing.T) {
+		h := Http{
+			Timeouts:                Timeouts{ResponseHeader: 200 * time.Millisecond},
+			Address:                 fmt.Sprintf("127.0.0.1:%d", port),
+			AccessLog:               io.Discard,
+			Matcher:                 svc,
+			Metrics:                 mgmt.NewMetrics(),
+			Reporter:                &ErrorReporter{Nice: true},
+			UpstreamMaxIdleConns:    100, // default value
+			UpstreamMaxConnsPerHost: 0,   // unlimited, default
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+
+		go func() {
+			_ = h.Run(ctx)
+		}()
+		time.Sleep(10 * time.Millisecond)
+
+		resp, err := http.Get("http://localhost:" + strconv.Itoa(port) + "/api/something")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /test/something", string(body))
+	})
+
+	t.Run("with custom upstream values", func(t *testing.T) {
+		port2 := rand.Intn(10000) + 40000
+		h := Http{
+			Timeouts:                Timeouts{ResponseHeader: 200 * time.Millisecond},
+			Address:                 fmt.Sprintf("127.0.0.1:%d", port2),
+			AccessLog:               io.Discard,
+			Matcher:                 svc,
+			Metrics:                 mgmt.NewMetrics(),
+			Reporter:                &ErrorReporter{Nice: true},
+			UpstreamMaxIdleConns:    50,
+			UpstreamMaxConnsPerHost: 10,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+
+		go func() {
+			_ = h.Run(ctx)
+		}()
+		time.Sleep(10 * time.Millisecond)
+
+		resp, err := http.Get("http://localhost:" + strconv.Itoa(port2) + "/api/something")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /test/something", string(body))
+	})
+}

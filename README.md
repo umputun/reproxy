@@ -333,6 +333,15 @@ Reproxy allows to define system level max req/sec value for the overall system a
 
 User activity limited for both matched and unmatched routes. All unmatched routes considered as a "single destination group" and get a common limiter which is `rate*3`. It means if 10 (req/sec) defined with `--throttle.user=10` the end user will be able to perform up to 30 request pers second for either static assets or unmatched routes. For matched routes this limiter maintained per destination (route), i.e. request proxied to s1.example.com/api will allow 10 r/s and the request proxied to s2.example.com will allow another 10 r/s.
 
+## Upstream connection limits
+
+Reproxy allows configuring upstream connection pool settings to control how many connections are maintained to backend servers:
+
+- `--upstream.max-idle-conns` - Maximum number of idle connections across all upstream hosts. Default: 100.
+- `--upstream.max-conns` - Maximum number of connections per upstream host (0 = unlimited). Default: 0.
+
+Setting `--upstream.max-conns` limits concurrent connections to each backend, which is useful when upstream servers have limited capacity or to prevent connection exhaustion.
+
 ## Basic auth
 
 Reproxy supports basic auth for all requests. This is useful for protecting endpoints during the development and testing, before allowing unrestricted access to them. This functionality is disabled by default and not granular enough to allow for per-route auth. I.e. enabled basic auth will affect all requests.
@@ -504,6 +513,10 @@ health-check:
 throttle:
       --throttle.system=            throttle overall activity' (default: 0) [$THROTTLE_SYSTEM]
       --throttle.user=              limit req/sec per user and per proxy destination (default: 0) [$THROTTLE_USER]
+
+upstream:
+      --upstream.max-idle-conns=    max idle connections total (default: 100) [$UPSTREAM_MAX_IDLE_CONNS]
+      --upstream.max-conns=         max connections per upstream host (0=unlimited) (default: 0) [$UPSTREAM_MAX_CONNS]
 
 plugin:
       --plugin.enabled              enable plugin support [$PLUGIN_ENABLED]
