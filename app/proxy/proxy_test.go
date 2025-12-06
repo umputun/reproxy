@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -751,7 +752,7 @@ func TestHttp_health(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	client := http.Client{}
 
@@ -882,12 +883,10 @@ func TestHttp_toHttp(t *testing.T) {
 
 	h := Http{}
 	for _, tt := range tbl {
-		tt := tt
 		t.Run(tt.addr, func(t *testing.T) {
 			assert.Equal(t, tt.res, h.toHTTP(tt.addr, tt.port))
 		})
 	}
-
 }
 
 func TestHttp_isAssetRequest(t *testing.T) {
@@ -1071,7 +1070,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 		go func() {
 			_ = h.Run(ctx)
 		}()
-		time.Sleep(10 * time.Millisecond)
+		waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 		resp, err := http.Get("http://localhost:" + strconv.Itoa(port) + "/api/something")
 		require.NoError(t, err)
@@ -1102,7 +1101,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 		go func() {
 			_ = h.Run(ctx)
 		}()
-		time.Sleep(10 * time.Millisecond)
+		waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port2))
 
 		resp, err := http.Get("http://localhost:" + strconv.Itoa(port2) + "/api/something")
 		require.NoError(t, err)
@@ -1113,4 +1112,17 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "response /test/something", string(body))
 	})
+}
+
+// waitForServer waits until the server at the given address is ready to accept connections
+func waitForServer(t *testing.T, addr string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		conn, err := net.DialTimeout("tcp", addr, 10*time.Millisecond)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	}, time.Second, 10*time.Millisecond, "server at %s did not become ready", addr)
 }
