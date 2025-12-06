@@ -42,6 +42,8 @@ github.com/didip/tollbooth/v7 v7.0.2 h1:WYEfusYI6g64cN0qbZgekDrYfuYBZjUZd5+RlWi6
 github.com/didip/tollbooth/v7 v7.0.2/go.mod h1:RtRYfEmFGX70+ike5kSndSvLtQ3+F2EAmTI4Un/VXNc=
 github.com/digitalocean/godo v1.148.0 h1:th91q+6bZY+Slgs9eZxBupa2+aUUYn1qT7gPICFmtPA=
 github.com/digitalocean/godo v1.148.0/go.mod h1:tYeiWY5ZXVpU48YaFv0M5irUFHXGorZpDNm7zzdWMzM=
+github.com/dnsimple/dnsimple-go/v7 v7.0.0 h1:RpYqKUqIOzd9XJXevmqvklGMpeT+WLTUS2aM7tNU3ic=
+github.com/dnsimple/dnsimple-go/v7 v7.0.0/go.mod h1:1K25c9nTJmavoTJiSEUzloUdhQ2XZhYBfkRuPAFlGtI=
 github.com/fatih/color v1.16.0 h1:zmkK9Ngbjj+K0yRhTVONQh1p/HknKYSlNT+vZCzyokM=
 github.com/fatih/color v1.16.0/go.mod h1:fL2Sau1YI5c0pdGEVCbKQbLXB6edEj1ZgiY4NijnWvE=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
@@ -73,6 +75,8 @@ github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/jarcoal/httpmock v1.4.1 h1:0Ju+VCFuARfFlhVXFc2HxlcQkfB+Xq12/EotHko+x2A=
 github.com/jarcoal/httpmock v1.4.1/go.mod h1:ftW1xULwo+j0R0JJkJIIi7UKigZUXCLLanykgjwBXL0=
+github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
+github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
 github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
 github.com/klauspost/cpuid/v2 v2.3.0 h1:S4CRMLnYUhGeDFDqkGriYKdfoFlDnMtqTiI/sFzhA9Y=
@@ -87,6 +91,10 @@ github.com/libdns/cloudflare v0.2.2 h1:XWHv+C1dDcApqazlh08Q6pjytYLgR2a+Y3xrXFu0v
 github.com/libdns/cloudflare v0.2.2/go.mod h1:w9uTmRCDlAoafAsTPnn2nJ0XHK/eaUMh86DUk8BWi60=
 github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31 h1:raIuvxYVJtZ60hREOOL3MS2AS3xA0W2G3grPQ4rGTeo=
 github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31/go.mod h1:hde/tjNiPFe1lLaf2TtaCAYgJ9j/SGLhaQMpgZlF6e0=
+github.com/libdns/dnsimple v0.4.2 h1:v4kFiq+4a5Xc1KVanI0xfrqpgXZzmsqGBcaQjVGn5sk=
+github.com/libdns/dnsimple v0.4.2/go.mod h1:6mOTsiuhL+5wKIjjGL0OuAANOivXZJiIvPEaQuEc7iQ=
+github.com/libdns/duckdns v0.3.0 h1:YsNlEDrA/F6dOjOCPewS9wqA9OKE5Rduk5eVpAPdcQA=
+github.com/libdns/duckdns v0.3.0/go.mod h1:vYP8yqVE55XmLSj0LM3T2i4GO0tCyepXggsJvMwGwws=
 github.com/libdns/gandi v1.1.0 h1:gBBbx23xejvOpbUX7HRqCYsROYag5+OUMGhQXzAkol4=
 github.com/libdns/gandi v1.1.0/go.mod h1:HAbs4cfjYUX28d25Iyn9rq4oNLoVLpJ6YSkRFLbo9IE=
 github.com/libdns/godaddy v1.1.0 h1:mxB107yFulEGApacljrCfaR4faR/9d9SyrGmjD2VubU=
@@ -99,6 +107,8 @@ github.com/libdns/linode v0.5.0 h1:BYWhIfK+M7Qh/naDzL2FX2oTWBv6VbRRPiypIFe9yT8=
 github.com/libdns/linode v0.5.0/go.mod h1:s6utuPHV0ZtERlsDPvAZbo2X86xq2AJQ+dsIQTFyxls=
 github.com/libdns/namecheap v1.0.0 h1:cZK8w4Y1AJQCtL5bjqnFpYBnI1k/mzJhljcKAP5vPd8=
 github.com/libdns/namecheap v1.0.0/go.mod h1:v57RUzOgOGVnI9wY3uqPEanSrKx2I1YgR24uep/ys9Y=
+github.com/libdns/porkbun v1.1.0 h1:X763NqXjW26VEl7GvBtF/3CGeuGt9JqoQ35mwIlx40E=
+github.com/libdns/porkbun v1.1.0/go.mod h1:JL6NfXkkSlLr24AI5Fv0t3/Oa6PXOSOerVsOmr8+URs=
 github.com/libdns/route53 v1.6.0 h1:1fZcoCIxagfftw9GBhIqZ2rumEiB0K58n11X7ko2DOg=
 github.com/libdns/route53 v1.6.0/go.mod h1:7QGcw/2J0VxcVwHsPYpuo1I6IJLHy77bbOvi1BVK3eE=
 github.com/libdns/scaleway v0.2.3 h1:krZpbQyl4cyuB6sVLHLfEQ63K1Z+PDiQcFcJBU3Kyp4=
@@ -129,6 +139,8 @@ github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjR
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
 github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34 h1:48+VFHsyVcAHIN2v1Ao9v1/RkjJS5AwctFucBrfYNIA=
 github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34/go.mod h1:zFWiHphneiey3s8HOtAEnGrRlWivNaxW5T6d5Xfco7g=
+github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=
+github.com/shopspring/decimal v1.4.0/go.mod h1:gawqmDU56v4yIKSwfBSFip1HdCCXN8/+DMd9qYNcwME=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/umputun/go-flags v1.5.1 h1:vRauoXV3Ultt1HrxivSxowbintgZLJE+EcBy5ta3/mY=

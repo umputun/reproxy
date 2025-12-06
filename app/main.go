@@ -18,11 +18,14 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/libdns/cloudflare"
 	"github.com/libdns/digitalocean"
+	"github.com/libdns/dnsimple"
+	"github.com/libdns/duckdns"
 	"github.com/libdns/gandi"
 	"github.com/libdns/godaddy"
 	"github.com/libdns/hetzner"
 	"github.com/libdns/linode"
 	"github.com/libdns/namecheap"
+	"github.com/libdns/porkbun"
 	"github.com/libdns/route53"
 	"github.com/libdns/scaleway"
 	"github.com/umputun/go-flags"
@@ -58,7 +61,7 @@ var opts struct {
 		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 		DNS           struct {
-			Type       string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" choice:"digitalocean" choice:"hetzner" choice:"linode" choice:"godaddy" choice:"namecheap" choice:"scaleway" default:"none"` // nolint
+			Type       string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" choice:"digitalocean" choice:"hetzner" choice:"linode" choice:"godaddy" choice:"namecheap" choice:"scaleway" choice:"porkbun" choice:"dnsimple" choice:"duckdns" default:"none"` // nolint
 			TTL        time.Duration `long:"ttl" env:"TTL" default:"2m" description:"DNS record TTL"`
 			Cloudflare struct {
 				APIToken string `long:"api-token" env:"API_TOKEN" description:"cloudflare api token"`
@@ -96,6 +99,17 @@ var opts struct {
 				SecretKey      string `long:"secret-key" env:"SECRET_KEY" description:"scaleway secret key"`
 				OrganizationID string `long:"organization-id" env:"ORGANIZATION_ID" description:"scaleway organization id"`
 			} `group:"scaleway" namespace:"scaleway" env-namespace:"SCALEWAY"`
+			Porkbun struct {
+				APIKey       string `long:"api-key" env:"API_KEY" description:"porkbun api key"`
+				APISecretKey string `long:"api-secret-key" env:"API_SECRET_KEY" description:"porkbun api secret key"`
+			} `group:"porkbun" namespace:"porkbun" env-namespace:"PORKBUN"`
+			DNSimple struct {
+				APIAccessToken string `long:"api-access-token" env:"API_ACCESS_TOKEN" description:"dnsimple api access token"`
+				AccountID      string `long:"account-id" env:"ACCOUNT_ID" description:"dnsimple account id"`
+			} `group:"dnsimple" namespace:"dnsimple" env-namespace:"DNSIMPLE"`
+			DuckDNS struct {
+				APIToken string `long:"api-token" env:"API_TOKEN" description:"duckdns api token"`
+			} `group:"duckdns" namespace:"duckdns" env-namespace:"DUCKDNS"`
 		} `group:"dns" namespace:"dns" env-namespace:"DNS"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
@@ -511,6 +525,18 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 				SecretKey:      opts.SSL.DNS.Scaleway.SecretKey,
 				OrganizationID: opts.SSL.DNS.Scaleway.OrganizationID,
 			}
+		case "porkbun":
+			config.DNSProvider = &porkbun.Provider{
+				APIKey:       opts.SSL.DNS.Porkbun.APIKey,
+				APISecretKey: opts.SSL.DNS.Porkbun.APISecretKey,
+			}
+		case "dnsimple":
+			config.DNSProvider = &dnsimple.Provider{
+				APIAccessToken: opts.SSL.DNS.DNSimple.APIAccessToken,
+				AccountID:      opts.SSL.DNS.DNSimple.AccountID,
+			}
+		case "duckdns":
+			config.DNSProvider = &duckdns.Provider{APIToken: opts.SSL.DNS.DuckDNS.APIToken}
 		}
 	default:
 		return config, fmt.Errorf("invalid value %q for SSL_TYPE, allowed values are: none, static or auto", opts.SSL.Type)
