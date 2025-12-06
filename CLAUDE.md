@@ -93,3 +93,19 @@ Providers are processed in order: static → file → docker → consul-catalog.
 Reproxy auto-detects docker environment via `REPROXY_IN_DOCKER` env var and adjusts default ports:
 - Docker: `0.0.0.0:8080` (http) / `0.0.0.0:8443` (https)
 - Non-docker: `127.0.0.1:80` (http) / `127.0.0.1:443` (https)
+
+## Adding DNS-01 Challenge Providers
+
+DNS providers for ACME DNS-01 challenges use the libdns ecosystem (github.com/libdns). To add a new provider:
+
+1. **Import** the libdns provider package in `app/main.go`
+2. **Add choice** to `DNS.Type` field tag: `choice:"newprovider"`
+3. **Add config struct** inside `DNS struct` with provider-specific fields (usually just `APIToken`)
+4. **Add switch case** in `makeSSLConfig()` creating the provider instance
+5. **Add test** in `main_test.go` following existing pattern (set opts, call makeSSLConfig, assert NotNil)
+6. **Update README** DNS provider section
+
+**Important considerations:**
+- libdns providers themselves are tiny (~20-70KB), but some pull in large cloud SDKs (AWS ~5MB, Azure/Google similar)
+- "Lightweight" providers (DigitalOcean, Hetzner, Linode) use HTTP APIs with minimal deps
+- Check libdns version compatibility - some providers lag behind API changes (e.g., vultr v1.0.0 incompatible with libdns v1.1.x)
