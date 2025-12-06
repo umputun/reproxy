@@ -26,7 +26,7 @@ type Plugin struct {
 // rvcr is provided struct implemented at least one RPC methods with the signature like this:
 // func(req lib.Request, res *lib.Response) (err error)
 // see [examples/plugin]() for more info
-func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (err error) {
+func (p *Plugin) Do(ctx context.Context, conductor string, rcvr any) (err error) {
 
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -39,18 +39,18 @@ func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (er
 	client := http.Client{Timeout: time.Second}
 	time.AfterFunc(time.Millisecond*50, func() {
 		// registration http call delayed to let listener time to start
-		err = repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
+		regErr := repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
 			return p.send(&client, conductor, "POST")
 		})
-		if err != nil {
-			log.Printf("[ERROR] can't register with reproxy for %s: %v", p.Name, err)
+		if regErr != nil {
+			log.Printf("[ERROR] can't register with reproxy for %s: %v", p.Name, regErr)
 			cancel()
 		}
 	})
 
 	defer func() {
 		if e := p.send(&client, conductor, "DELETE"); e != nil {
-			log.Printf("[WARN] can't unregister with reproxy for %s: %v", p.Name, err)
+			log.Printf("[WARN] can't unregister with reproxy for %s: %v", p.Name, e)
 		}
 	}()
 
