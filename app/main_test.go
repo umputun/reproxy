@@ -35,13 +35,12 @@ func Test_Main(t *testing.T) {
 
 	port := 40000 + int(rand.Int31n(10000))
 	os.Args = []string{"test", "--static.enabled",
-		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
+		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--mgmt.enabled",
 		"--error.enabled", "--error.template=proxy/testdata/errtmpl.html",
-		"--timeout.resp-header=30s",
 	}
 	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
@@ -75,14 +74,14 @@ func Test_Main(t *testing.T) {
 		assert.Equal(t, "pong", string(body))
 	}
 	{
-		client := http.Client{Timeout: 30 * time.Second}
-		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc1", port))
+		client := http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc1/test", port))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
+		assert.Contains(t, string(body), `echo echo 123`)
 	}
 	{
 		client := http.Client{Timeout: 10 * time.Second}
@@ -112,7 +111,7 @@ func Test_MainWithSSL(t *testing.T) {
 	port := 40000 + int(rand.Int31n(10000))
 	httpPort := 50000 + int(rand.Int31n(10000)) // use a high port for HTTP redirect
 	os.Args = []string{"test", "--static.enabled",
-		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
+		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
@@ -158,13 +157,13 @@ func Test_MainWithSSL(t *testing.T) {
 	}
 
 	{
-		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/svc1", port))
+		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/svc1/test", port))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
+		assert.Contains(t, string(body), `echo echo 123`)
 	}
 }
 
@@ -174,7 +173,7 @@ func Test_MainWithPlugin(t *testing.T) {
 	proxyPort := rand.Intn(10000) + 40000
 	conductorPort := rand.Intn(10000) + 40000
 	os.Args = []string{"test", "--static.enabled",
-		"--static.rule=*,/svc1, https://httpbin.org/get,https://feedmaster.umputun.com/ping",
+		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
@@ -215,15 +214,15 @@ func Test_MainWithPlugin(t *testing.T) {
 
 	client := http.Client{Timeout: 10 * time.Second}
 	{
-		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc1", proxyPort))
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc1/test", proxyPort))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		assert.Equal(t, 200, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		t.Logf("body: %s", string(body))
-		assert.Contains(t, string(body), `"Host": "httpbin.org"`)
-		assert.Contains(t, string(body), `"Inh": "val"`)
+		assert.Contains(t, string(body), `echo echo 123`)
+		assert.Contains(t, string(body), `"Inh":"val"`)
 		assert.Equal(t, "val1", resp.Header.Get("key1"))
 		assert.Equal(t, "val2", resp.Header.Get("key2"))
 	}
