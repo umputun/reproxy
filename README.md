@@ -195,6 +195,12 @@ Reproxy currently includes support for the following DNS providers:
 - **DigitalOcean**: `--ssl.dns.type=digitalocean --ssl.dns.digitalocean.api-token=TOKEN`
 - **Hetzner**: `--ssl.dns.type=hetzner --ssl.dns.hetzner.api-token=TOKEN`
 - **Linode**: `--ssl.dns.type=linode --ssl.dns.linode.api-token=TOKEN`
+- **GoDaddy**: `--ssl.dns.type=godaddy --ssl.dns.godaddy.api-token=TOKEN`
+- **Namecheap**: `--ssl.dns.type=namecheap --ssl.dns.namecheap.api-key=KEY --ssl.dns.namecheap.user=USER`
+- **Scaleway**: `--ssl.dns.type=scaleway --ssl.dns.scaleway.secret-key=KEY --ssl.dns.scaleway.organization-id=ID`
+- **Porkbun**: `--ssl.dns.type=porkbun --ssl.dns.porkbun.api-key=KEY --ssl.dns.porkbun.api-secret-key=SECRET`
+- **DNSimple**: `--ssl.dns.type=dnsimple --ssl.dns.dnsimple.api-access-token=TOKEN --ssl.dns.dnsimple.account-id=ID`
+- **DuckDNS**: `--ssl.dns.type=duckdns --ssl.dns.duckdns.api-token=TOKEN`
 
 Example with Cloudflare as DNS provider:
 ```
