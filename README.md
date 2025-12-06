@@ -189,9 +189,12 @@ You don't need to explicitly select a challenge type - just configure a DNS prov
 
 Reproxy currently includes support for the following DNS providers:
 
-- **Cloudflare**: Configure with `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_EMAIL` + `CLOUDFLARE_API_KEY`
-- **Route53 (AWS)**: Configure with AWS credentials
-- **Gandi**: Configure with `GANDI_API_TOKEN`
+- **Cloudflare**: `--ssl.dns.type=cloudflare --ssl.dns.cloudflare.api-token=TOKEN`
+- **Route53 (AWS)**: `--ssl.dns.type=route53 --ssl.dns.route53.region=REGION --ssl.dns.route53.hosted-zone-id=ID`
+- **Gandi**: `--ssl.dns.type=gandi --ssl.dns.gandi.bearer-token=TOKEN`
+- **DigitalOcean**: `--ssl.dns.type=digitalocean --ssl.dns.digitalocean.api-token=TOKEN`
+- **Hetzner**: `--ssl.dns.type=hetzner --ssl.dns.hetzner.api-token=TOKEN`
+- **Linode**: `--ssl.dns.type=linode --ssl.dns.linode.api-token=TOKEN`
 
 Example with Cloudflare as DNS provider:
 ```

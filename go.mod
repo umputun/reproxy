@@ -10,8 +10,11 @@ require (
 	github.com/go-pkgz/rest v1.20.4
 	github.com/gorilla/handlers v1.5.2
 	github.com/libdns/cloudflare v0.2.2
+	github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31
 	github.com/libdns/gandi v1.1.0
+	github.com/libdns/hetzner v1.0.0
 	github.com/libdns/libdns v1.1.1
+	github.com/libdns/linode v0.5.0
 	github.com/libdns/route53 v1.6.0
 	github.com/miekg/dns v1.1.68
 	github.com/prometheus/client_golang v1.23.2
@@ -43,9 +46,15 @@ require (
 	github.com/caddyserver/zerossl v0.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/digitalocean/godo v1.148.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-pkgz/expirable-cache/v3 v3.1.0 // indirect
+	github.com/go-resty/resty/v2 v2.16.5 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/linode/linodego v1.56.0 // indirect
 	github.com/mholt/acmez/v3 v3.1.4 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -58,9 +67,12 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/time v0.6.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 )

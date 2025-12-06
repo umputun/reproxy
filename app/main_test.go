@@ -497,6 +497,33 @@ func Test_makeSSLConfig(t *testing.T) {
 		assert.NotNil(t, cfg.DNSProvider)
 	})
 
+	t.Run("ssl type auto with digitalocean dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "digitalocean"
+		opts.SSL.DNS.DigitalOcean.APIToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with hetzner dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "hetzner"
+		opts.SSL.DNS.Hetzner.APIToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with linode dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "linode"
+		opts.SSL.DNS.Linode.APIToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
 	t.Run("ssl type invalid", func(t *testing.T) {
 		opts.SSL.Type = "invalid"
 		_, err := makeSSLConfig()
