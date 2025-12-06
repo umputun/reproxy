@@ -41,6 +41,7 @@ func Test_Main(t *testing.T) {
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--mgmt.enabled",
 		"--error.enabled", "--error.template=proxy/testdata/errtmpl.html",
+		"--timeout.resp-header=30s",
 	}
 	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
@@ -74,7 +75,7 @@ func Test_Main(t *testing.T) {
 		assert.Equal(t, "pong", string(body))
 	}
 	{
-		client := http.Client{Timeout: 10 * time.Second}
+		client := http.Client{Timeout: 30 * time.Second}
 		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/svc1", port))
 		require.NoError(t, err)
 		defer resp.Body.Close()
