@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -177,7 +178,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		}
 
 		// docker server label may have multiple, comma separated servers
-		for _, srv := range strings.Split(server, ",") {
+		for srv := range strings.SplitSeq(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
 				KeepHost: keepHost, OnlyFromIPs: onlyFrom}
@@ -211,11 +212,8 @@ func (d *Docker) matchedPort(c containerInfo, n int) (port int, err error) {
 		if err != nil {
 			return 0, fmt.Errorf("invalid reproxy port %s: %w", portLabel, err)
 		}
-		for _, p := range c.Ports {
-			// set port to reproxy.N.port if matched with one of exposed
-			if p == rp {
-				return rp, nil
-			}
+		if slices.Contains(c.Ports, rp) {
+			return rp, nil
 		}
 		return 0, fmt.Errorf("reproxy port %s not exposed", portLabel)
 	}
@@ -306,7 +304,7 @@ func (d *Docker) listContainers(allowLogging bool) (res []containerInfo, err err
 			continue
 		}
 
-		if discovery.Contains(c.Name, d.Excludes) || strings.EqualFold(c.Name, "reproxy") {
+		if slices.Contains(d.Excludes, c.Name) || strings.EqualFold(c.Name, "reproxy") {
 			if allowLogging {
 				log.Printf("[DEBUG] container %s excluded", c.Name)
 			}

@@ -105,7 +105,7 @@ func (s *ACMEServer) genRoot() {
 // URL returns the URL of the server.
 func (s *ACMEServer) URL() string { return s.url }
 
-func (s *ACMEServer) acmeURL(format string, args ...interface{}) string {
+func (s *ACMEServer) acmeURL(format string, args ...any) string {
 	return fmt.Sprintf(s.url+format, args...)
 }
 
@@ -528,7 +528,7 @@ func (s *ACMEServer) verifyDNS01Challenge(w http.ResponseWriter, domain string) 
 	}
 }
 
-func (s *ACMEServer) error(w http.ResponseWriter, code int, format string, args ...interface{}) {
+func (s *ACMEServer) error(w http.ResponseWriter, code int, format string, args ...any) {
 	http.Error(w, fmt.Sprintf(format, args...), code)
 }
 

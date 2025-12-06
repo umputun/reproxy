@@ -131,7 +131,7 @@ func Test_limiterSystemHandler(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	var wg sync.WaitGroup
 	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		go func() {
 			defer wg.Done()
 			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
@@ -158,7 +158,7 @@ func Test_limiterClientHandlerNoMatches(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	var wg sync.WaitGroup
 	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		go func() {
 			defer wg.Done()
 			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
@@ -196,7 +196,7 @@ func Test_limiterClientHandlerWithMatches(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		go func(id int) {
 			defer wg.Done()
 			req, err := http.NewRequest("POST", ts.URL, bytes.NewBufferString("123456"))

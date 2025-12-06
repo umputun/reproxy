@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -125,10 +126,8 @@ func (h *Http) makeAutocertManager() AutocertManager {
 					return nil
 				}
 				// check dynamic servers from discovery providers
-				for _, srv := range h.Servers() {
-					if srv == name {
-						return nil
-					}
+				if slices.Contains(h.Servers(), name) {
+					return nil
 				}
 				return fmt.Errorf("not allowed domain %q", name)
 			},

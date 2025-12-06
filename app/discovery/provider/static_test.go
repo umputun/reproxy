@@ -29,7 +29,6 @@ func TestStatic_List(t *testing.T) {
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			s := Static{Rules: []string{tt.rule}}
 			res, err := s.List()

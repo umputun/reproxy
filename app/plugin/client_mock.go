@@ -17,7 +17,7 @@ var _ RPCClient = &RPCClientMock{}
 //
 //		// make and configure a mocked RPCClient
 //		mockedRPCClient := &RPCClientMock{
-//			CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
+//			CallFunc: func(serviceMethod string, args any, reply any) error {
 //				panic("mock out the Call method")
 //			},
 //		}
@@ -28,7 +28,7 @@ var _ RPCClient = &RPCClientMock{}
 //	}
 type RPCClientMock struct {
 	// CallFunc mocks the Call method.
-	CallFunc func(serviceMethod string, args interface{}, reply interface{}) error
+	CallFunc func(serviceMethod string, args any, reply any) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -37,23 +37,23 @@ type RPCClientMock struct {
 			// ServiceMethod is the serviceMethod argument value.
 			ServiceMethod string
 			// Args is the args argument value.
-			Args interface{}
+			Args any
 			// Reply is the reply argument value.
-			Reply interface{}
+			Reply any
 		}
 	}
 	lockCall sync.RWMutex
 }
 
 // Call calls CallFunc.
-func (mock *RPCClientMock) Call(serviceMethod string, args interface{}, reply interface{}) error {
+func (mock *RPCClientMock) Call(serviceMethod string, args any, reply any) error {
 	if mock.CallFunc == nil {
 		panic("RPCClientMock.CallFunc: method is nil but RPCClient.Call was just called")
 	}
 	callInfo := struct {
 		ServiceMethod string
-		Args          interface{}
-		Reply         interface{}
+		Args          any
+		Reply         any
 	}{
 		ServiceMethod: serviceMethod,
 		Args:          args,
@@ -71,13 +71,13 @@ func (mock *RPCClientMock) Call(serviceMethod string, args interface{}, reply in
 //	len(mockedRPCClient.CallCalls())
 func (mock *RPCClientMock) CallCalls() []struct {
 	ServiceMethod string
-	Args          interface{}
-	Reply         interface{}
+	Args          any
+	Reply         any
 } {
 	var calls []struct {
 		ServiceMethod string
-		Args          interface{}
-		Reply         interface{}
+		Args          any
+		Reply         any
 	}
 	mock.lockCall.RLock()
 	calls = mock.calls.Call

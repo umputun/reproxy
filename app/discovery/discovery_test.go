@@ -357,7 +357,6 @@ func TestService_MatchConflictRegex(t *testing.T) {
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Len(t, res.Routes, len(tt.res.Routes), res.Routes)
@@ -424,7 +423,6 @@ func TestService_Match192(t *testing.T) {
 	}
 
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.Match(tt.server, tt.src)
 			require.Len(t, res.Routes, len(tt.res.Routes), res.Routes)
@@ -508,7 +506,6 @@ func TestService_extendRule(t *testing.T) {
 
 	svc := &Service{}
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.extendMapper(tt.inp)
 			assert.Equal(t, tt.out, res)
@@ -557,7 +554,6 @@ func TestService_redirects(t *testing.T) {
 
 	svc := &Service{}
 	for i, tt := range tbl {
-		tt := tt
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res := svc.redirects(tt.inp)
 			assert.Equal(t, tt.out, res)

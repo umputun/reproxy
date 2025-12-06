@@ -24,7 +24,7 @@ import (
 func TestConductor_registrationHandler(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
-		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
+		CallFunc: func(serviceMethod string, args any, reply any) error {
 			return nil
 		},
 	}
@@ -192,7 +192,7 @@ func TestConductor_registrationHandlerInternalError(t *testing.T) {
 func TestConductor_Middleware(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
-		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
+		CallFunc: func(serviceMethod string, args any, reply any) error {
 
 			if serviceMethod == "Test1.Mw1" {
 				req := args.(lib.Request)
@@ -297,7 +297,7 @@ func TestConductor_Middleware(t *testing.T) {
 func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
-		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
+		CallFunc: func(serviceMethod string, args any, reply any) error {
 			if serviceMethod == "Test1.Mw1" {
 				req := args.(lib.Request)
 				assert.Equal(t, "route123", req.Route)
@@ -372,7 +372,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 
 	rpcClient := &RPCClientMock{
-		CallFunc: func(serviceMethod string, args interface{}, reply interface{}) error {
+		CallFunc: func(serviceMethod string, args any, reply any) error {
 			if serviceMethod == "Test1.Mw1" {
 				return errors.New("something failed")
 			}
