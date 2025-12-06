@@ -1,4 +1,4 @@
-FROM goreleaser/goreleaser:v1.26.1 as build
+FROM goreleaser/goreleaser:v2.13.0 AS build
 
 WORKDIR /build
 ADD . /build
@@ -8,7 +8,7 @@ RUN apk add -u gnupg
 RUN \
     export GNUPGHOME="$PWD/releaser-gpg" && export GNUPGHOME && mkdir -p "$GNUPGHOME" && chmod 0700 "$GNUPGHOME" && \
     cat reproxy.signing-key.gpg | gpg --batch --allow-secret-key-import --import && \
-    goreleaser --snapshot --skip-publish --clean
+    goreleaser --snapshot --skip=publish --clean
 
 FROM alpine
 COPY --from=build /build/dist/ /dist/
