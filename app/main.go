@@ -19,9 +19,12 @@ import (
 	"github.com/libdns/cloudflare"
 	"github.com/libdns/digitalocean"
 	"github.com/libdns/gandi"
+	"github.com/libdns/godaddy"
 	"github.com/libdns/hetzner"
 	"github.com/libdns/linode"
+	"github.com/libdns/namecheap"
 	"github.com/libdns/route53"
+	"github.com/libdns/scaleway"
 	"github.com/umputun/go-flags"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -55,7 +58,7 @@ var opts struct {
 		RedirHTTPPort int      `long:"http-port" env:"HTTP_PORT" description:"http port for redirect to https and acme challenge test (default: 8080 under docker, 80 without)"`
 		FQDNs         []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 		DNS           struct {
-			Type       string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" choice:"digitalocean" choice:"hetzner" choice:"linode" default:"none"` // nolint
+			Type       string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" choice:"digitalocean" choice:"hetzner" choice:"linode" choice:"godaddy" choice:"namecheap" choice:"scaleway" default:"none"` // nolint
 			TTL        time.Duration `long:"ttl" env:"TTL" default:"2m" description:"DNS record TTL"`
 			Cloudflare struct {
 				APIToken string `long:"api-token" env:"API_TOKEN" description:"cloudflare api token"`
@@ -80,6 +83,19 @@ var opts struct {
 			Linode struct {
 				APIToken string `long:"api-token" env:"API_TOKEN" description:"linode api token"`
 			} `group:"linode" namespace:"linode" env-namespace:"LINODE"`
+			GoDaddy struct {
+				APIToken string `long:"api-token" env:"API_TOKEN" description:"godaddy api token"`
+			} `group:"godaddy" namespace:"godaddy" env-namespace:"GODADDY"`
+			Namecheap struct {
+				APIKey      string `long:"api-key" env:"API_KEY" description:"namecheap api key"`
+				User        string `long:"user" env:"USER" description:"namecheap api user"`
+				ClientIP    string `long:"client-ip" env:"CLIENT_IP" description:"namecheap client ip (auto-discovered if not set)"`
+				APIEndpoint string `long:"api-endpoint" env:"API_ENDPOINT" description:"namecheap api endpoint (production or sandbox)"`
+			} `group:"namecheap" namespace:"namecheap" env-namespace:"NAMECHEAP"`
+			Scaleway struct {
+				SecretKey      string `long:"secret-key" env:"SECRET_KEY" description:"scaleway secret key"`
+				OrganizationID string `long:"organization-id" env:"ORGANIZATION_ID" description:"scaleway organization id"`
+			} `group:"scaleway" namespace:"scaleway" env-namespace:"SCALEWAY"`
 		} `group:"dns" namespace:"dns" env-namespace:"DNS"`
 	} `group:"ssl" namespace:"ssl" env-namespace:"SSL"`
 
@@ -481,6 +497,20 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 			config.DNSProvider = &hetzner.Provider{AuthAPIToken: opts.SSL.DNS.Hetzner.APIToken}
 		case "linode":
 			config.DNSProvider = &linode.Provider{APIToken: opts.SSL.DNS.Linode.APIToken}
+		case "godaddy":
+			config.DNSProvider = &godaddy.Provider{APIToken: opts.SSL.DNS.GoDaddy.APIToken}
+		case "namecheap":
+			config.DNSProvider = &namecheap.Provider{
+				APIKey:      opts.SSL.DNS.Namecheap.APIKey,
+				User:        opts.SSL.DNS.Namecheap.User,
+				ClientIP:    opts.SSL.DNS.Namecheap.ClientIP,
+				APIEndpoint: opts.SSL.DNS.Namecheap.APIEndpoint,
+			}
+		case "scaleway":
+			config.DNSProvider = &scaleway.Provider{
+				SecretKey:      opts.SSL.DNS.Scaleway.SecretKey,
+				OrganizationID: opts.SSL.DNS.Scaleway.OrganizationID,
+			}
 		}
 	default:
 		return config, fmt.Errorf("invalid value %q for SSL_TYPE, allowed values are: none, static or auto", opts.SSL.Type)
