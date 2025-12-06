@@ -477,7 +477,7 @@ func (h *Http) setXRealIP(r *http.Request) {
 func (h *Http) discoveredServers(ctx context.Context, interval time.Duration) (servers []string) {
 	discoveredServers := 0
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case <-ctx.Done():
 			return nil

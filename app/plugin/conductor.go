@@ -58,7 +58,7 @@ func (f RPCDialerFunc) Dial(network, address string) (RPCClient, error) {
 
 // RPCClient defines interface for remote calls
 type RPCClient interface {
-	Call(serviceMethod string, args interface{}, reply interface{}) error
+	Call(serviceMethod string, args any, reply any) error
 }
 
 // Run creates and activates http registration server

@@ -70,19 +70,16 @@ func TestFile_Events_BusyListener(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		for i := 0; i < 2; i++ {
+	wg.Go(func() {
+		for range 2 {
 			time.Sleep(30 * time.Millisecond)
 			assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 		}
-	}()
+	})
 
 	ch := f.Events(ctx)
 	// exhaust creation and one write event
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		t.Log("event")
 		<-ch
 	}

@@ -333,7 +333,7 @@ func Test_sizeParse(t *testing.T) {
 
 func waitForHTTPServerStart(port int) {
 	client := http.Client{Timeout: time.Second}
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		time.Sleep(time.Millisecond * 100)
 		if resp, err := client.Get(fmt.Sprintf("http://localhost:%d/ping", port)); err == nil {
 			_ = resp.Body.Close()

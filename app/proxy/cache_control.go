@@ -70,8 +70,8 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 func MakeCacheControl(cacheOpts []string) (*CacheControl, error) {
 
 	parseDuration := func(s string) (time.Duration, error) {
-		if strings.HasSuffix(s, "d") { // add parsing 123d as days
-			days, err := strconv.Atoi(strings.TrimSuffix(s, "d"))
+		if daysStr, found := strings.CutSuffix(s, "d"); found { // add parsing 123d as days
+			days, err := strconv.Atoi(daysStr)
 			if err != nil {
 				return 0, fmt.Errorf("can't parse %q as duration: %w", s, err)
 			}

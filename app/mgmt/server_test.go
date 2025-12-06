@@ -83,7 +83,7 @@ func TestServer_controllers(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		data := map[string][]interface{}{}
+		data := map[string][]any{}
 		err = json.NewDecoder(resp.Body).Decode(&data)
 		require.NoError(t, err)
 

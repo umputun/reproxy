@@ -42,12 +42,12 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 
 		dst := strings.TrimSpace(elems[2])
 		assets, spa := false, false
-		if strings.HasPrefix(dst, "assets:") {
-			dst = strings.TrimPrefix(dst, "assets:")
+		if after, found := strings.CutPrefix(dst, "assets:"); found {
+			dst = after
 			assets = true
 		}
-		if strings.HasPrefix(dst, "spa:") {
-			dst = strings.TrimPrefix(dst, "spa:")
+		if after, found := strings.CutPrefix(dst, "spa:"); found {
+			dst = after
 			assets = true
 			spa = true
 		}

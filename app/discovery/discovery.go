@@ -551,22 +551,12 @@ func (m URLMapper) ping() (string, error) {
 	return "", nil
 }
 
-// Contains checks if the input string (e) in the given slice
-func Contains(e string, s []string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 // ParseOnlyFrom parses comma separated list of IPs
 func ParseOnlyFrom(s string) (res []string) {
 	if s == "" {
 		return []string{}
 	}
-	for _, v := range strings.Split(s, ",") {
+	for v := range strings.SplitSeq(s, ",") {
 		res = append(res, strings.TrimSpace(v))
 	}
 	return res

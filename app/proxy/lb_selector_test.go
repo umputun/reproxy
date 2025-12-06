@@ -39,7 +39,7 @@ func TestRoundRobinSelector_SelectConcurrent(t *testing.T) {
 
 	results := &sync.Map{}
 
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			result := selector.Select(l)
@@ -50,7 +50,7 @@ func TestRoundRobinSelector_SelectConcurrent(t *testing.T) {
 	wg.Wait()
 
 	// check that all possible results are present in the map.
-	for i := 0; i < l; i++ {
+	for i := range l {
 		_, ok := results.Load(i)
 		assert.True(t, ok, "expected to find %d in the results", i)
 	}

@@ -21,6 +21,8 @@ linters:
     - testifylint
     - wrapcheck
     - errorlint
+    - modernize
+    - nestif
   settings:
     goconst:
       min-len: 2
