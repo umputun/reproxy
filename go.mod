@@ -12,10 +12,13 @@ require (
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31
 	github.com/libdns/gandi v1.1.0
+	github.com/libdns/godaddy v1.1.0
 	github.com/libdns/hetzner v1.0.0
 	github.com/libdns/libdns v1.1.1
 	github.com/libdns/linode v0.5.0
+	github.com/libdns/namecheap v1.0.0
 	github.com/libdns/route53 v1.6.0
+	github.com/libdns/scaleway v0.2.3
 	github.com/miekg/dns v1.1.68
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
@@ -61,6 +64,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.4 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
@@ -75,4 +79,5 @@ require (
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

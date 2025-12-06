@@ -524,6 +524,35 @@ func Test_makeSSLConfig(t *testing.T) {
 		assert.NotNil(t, cfg.DNSProvider)
 	})
 
+	t.Run("ssl type auto with godaddy dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "godaddy"
+		opts.SSL.DNS.GoDaddy.APIToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with namecheap dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "namecheap"
+		opts.SSL.DNS.Namecheap.APIKey = "test-key"
+		opts.SSL.DNS.Namecheap.User = "test-user"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with scaleway dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "scaleway"
+		opts.SSL.DNS.Scaleway.SecretKey = "test-key"
+		opts.SSL.DNS.Scaleway.OrganizationID = "test-org"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
 	t.Run("ssl type invalid", func(t *testing.T) {
 		opts.SSL.Type = "invalid"
 		_, err := makeSSLConfig()
