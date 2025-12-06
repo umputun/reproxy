@@ -11,12 +11,15 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31
+	github.com/libdns/dnsimple v0.4.2
+	github.com/libdns/duckdns v0.3.0
 	github.com/libdns/gandi v1.1.0
 	github.com/libdns/godaddy v1.1.0
 	github.com/libdns/hetzner v1.0.0
 	github.com/libdns/libdns v1.1.1
 	github.com/libdns/linode v0.5.0
 	github.com/libdns/namecheap v1.0.0
+	github.com/libdns/porkbun v1.1.0
 	github.com/libdns/route53 v1.6.0
 	github.com/libdns/scaleway v0.2.3
 	github.com/miekg/dns v1.1.68
@@ -50,6 +53,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/digitalocean/godo v1.148.0 // indirect
+	github.com/dnsimple/dnsimple-go/v7 v7.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-pkgz/expirable-cache/v3 v3.1.0 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
@@ -65,6 +69,7 @@ require (
 	github.com/prometheus/common v0.67.4 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect

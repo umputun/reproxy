@@ -553,6 +553,35 @@ func Test_makeSSLConfig(t *testing.T) {
 		assert.NotNil(t, cfg.DNSProvider)
 	})
 
+	t.Run("ssl type auto with porkbun dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "porkbun"
+		opts.SSL.DNS.Porkbun.APIKey = "test-key"
+		opts.SSL.DNS.Porkbun.APISecretKey = "test-secret"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with dnsimple dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "dnsimple"
+		opts.SSL.DNS.DNSimple.APIAccessToken = "test-token"
+		opts.SSL.DNS.DNSimple.AccountID = "test-account"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
+	t.Run("ssl type auto with duckdns dns", func(t *testing.T) {
+		opts.SSL.Type = "auto"
+		opts.SSL.DNS.Type = "duckdns"
+		opts.SSL.DNS.DuckDNS.APIToken = "test-token"
+		cfg, err := makeSSLConfig()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DNSProvider)
+	})
+
 	t.Run("ssl type invalid", func(t *testing.T) {
 		opts.SSL.Type = "invalid"
 		_, err := makeSSLConfig()

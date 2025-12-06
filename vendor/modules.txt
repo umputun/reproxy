@@ -135,6 +135,9 @@ github.com/didip/tollbooth/v7/limiter
 ## explicit; go 1.23
 github.com/digitalocean/godo
 github.com/digitalocean/godo/metrics
+# github.com/dnsimple/dnsimple-go/v7 v7.0.0
+## explicit; go 1.24.0
+github.com/dnsimple/dnsimple-go/v7/dnsimple
 # github.com/felixge/httpsnoop v1.0.4
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
@@ -178,6 +181,12 @@ github.com/libdns/cloudflare
 # github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31
 ## explicit; go 1.23
 github.com/libdns/digitalocean
+# github.com/libdns/dnsimple v0.4.2
+## explicit; go 1.25
+github.com/libdns/dnsimple
+# github.com/libdns/duckdns v0.3.0
+## explicit; go 1.18
+github.com/libdns/duckdns
 # github.com/libdns/gandi v1.1.0
 ## explicit; go 1.24
 github.com/libdns/gandi
@@ -197,6 +206,9 @@ github.com/libdns/linode
 ## explicit; go 1.23
 github.com/libdns/namecheap
 github.com/libdns/namecheap/internal/namecheap
+# github.com/libdns/porkbun v1.1.0
+## explicit; go 1.20
+github.com/libdns/porkbun
 # github.com/libdns/route53 v1.6.0
 ## explicit; go 1.25
 github.com/libdns/route53
@@ -255,6 +267,9 @@ github.com/scaleway/scaleway-sdk-go/namegenerator
 github.com/scaleway/scaleway-sdk-go/parameter
 github.com/scaleway/scaleway-sdk-go/scw
 github.com/scaleway/scaleway-sdk-go/validation
+# github.com/shopspring/decimal v1.4.0
+## explicit; go 1.10
+github.com/shopspring/decimal
 # github.com/stretchr/testify v1.11.1
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
