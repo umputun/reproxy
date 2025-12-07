@@ -1,7 +1,6 @@
 package consulcatalog
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -321,7 +320,7 @@ func TestConsulCatalog_Events(t *testing.T) {
 		refreshInterval: time.Millisecond,
 	}
 
-	ch := cc.Events(context.Background())
+	ch := cc.Events(t.Context())
 
 	var s discovery.ProviderID
 

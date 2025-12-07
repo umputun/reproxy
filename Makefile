@@ -6,14 +6,6 @@ REV=$(GITREV)-$(BRANCH)-$(shell date +%Y%m%d-%H:%M:%S)
 docker:
 	docker build -t umputun/reproxy:master --progress=plain .
 
-dist:
-	- @mkdir -p dist
-	docker build -f Dockerfile.artifacts --progress=plain -t reproxy.bin .
-	- @docker rm -f reproxy.bin 2>/dev/null || exit 0
-	docker run -d --name=reproxy.bin reproxy.bin
-	docker cp reproxy.bin:/artifacts dist/
-	docker rm -f reproxy.bin
-
 race_test:
 	cd app && go test -race -timeout=60s -count 1 ./...
 
@@ -31,4 +23,4 @@ site:
 info:
 	- @echo "revision $(REV)"
 
-.PHONY: dist docker race_test bin info site build_site
+.PHONY: docker race_test build info site

@@ -51,6 +51,7 @@ Examples:
 Reproxy distributed as a small self-contained binary as well as a docker image. Both binary and image support multiple architectures and multiple operating systems, including linux_x86_64, linux_arm64, linux_arm, macos_x86_64, macos_arm64, windows_x86_64 and windows_arm. We also provide both arm64 and x86 deb and rpm packages.
 
 - for a binary distribution download the proper file in the [release section](https://github.com/umputun/reproxy/releases)
+- for Homebrew users: `brew install umputun/apps/reproxy`
 - docker container available on [Docker Hub](https://hub.docker.com/r/umputun/reproxy) as well as on [Github Container Registry](https://github.com/users/umputun/packages/container/reproxy/versions). I.e. `docker pull umputun/reproxy` or `docker pull ghcr.io/umputun/reproxy`.
 
 Latest stable version has `:vX.Y.Z` docker tag (with `:latest` alias) and the current master has `:master` tag.

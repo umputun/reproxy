@@ -40,7 +40,7 @@ func Test_healthHandlerDeadlock(t *testing.T) {
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: rules}}, time.Millisecond*10)
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(20 * time.Millisecond)
 
@@ -97,7 +97,7 @@ func TestHttp_healthHandler(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	h.Matcher = svc
@@ -105,18 +105,25 @@ func TestHttp_healthHandler(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
+
+	// wait for discovery service to load mappers
 	time.Sleep(50 * time.Millisecond)
 
 	client := http.Client{}
-	req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", http.NoBody)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
+	var resp *http.Response
+	require.Eventually(t, func() bool {
+		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/health", http.NoBody)
+		if err != nil {
+			return false
+		}
+		resp, err = client.Do(req)
+		return err == nil
+	}, time.Second, 10*time.Millisecond, "server failed to start")
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusExpectationFailed, resp.StatusCode)
 
 	res := map[string]any{}
-	err = json.NewDecoder(resp.Body).Decode(&res)
+	err := json.NewDecoder(resp.Body).Decode(&res)
 	require.NoError(t, err)
 	assert.Equal(t, "failed", res["status"])
 	assert.InDelta(t, 4., res["services"], 0.001)
@@ -140,7 +147,7 @@ func TestHttp_pingHandler(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	h.Matcher = svc

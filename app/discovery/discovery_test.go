@@ -602,7 +602,7 @@ func TestService_ScheduleHealthCheck(t *testing.T) {
 	assert.Len(t, mappers, 3)
 	assert.Equal(t, wantMappers, mappers)
 
-	svc.ScheduleHealthCheck(context.Background(), time.Microsecond*2)
+	svc.ScheduleHealthCheck(t.Context(), time.Microsecond*2)
 	time.Sleep(time.Millisecond * 10)
 
 	mappers = svc.Mappers()

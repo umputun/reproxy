@@ -52,7 +52,7 @@ func TestHttp_Do(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -62,9 +62,18 @@ func TestHttp_Do(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
 
 	client := http.Client{}
+
+	// wait for server to be ready
+	require.Eventually(t, func() bool {
+		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ping")
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("to 127.0.0.1, good", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something?xxx=yyy", http.NoBody)
@@ -152,7 +161,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -162,13 +171,22 @@ func TestHttp_DoWithSSL(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
 
 	client := http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
+
+	// wait for server to be ready
+	require.Eventually(t, func() bool {
+		resp, err := client.Get("https://localhost:" + strconv.Itoa(port) + "/ping")
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("to localhost, good", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "https://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
@@ -252,7 +270,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -342,7 +360,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -435,7 +453,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -444,9 +462,18 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
 
 	client := http.Client{}
+
+	// wait for server to be ready
+	require.Eventually(t, func() bool {
+		resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ping")
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("api call, good", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
@@ -531,7 +558,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(150 * time.Millisecond)
 
@@ -615,7 +642,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -624,13 +651,22 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(10 * time.Millisecond)
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
+
+	// wait for server to be ready
+	require.Eventually(t, func() bool {
+		resp, err := http.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ping")
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("localhost to example.com", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
@@ -678,7 +714,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -743,7 +779,7 @@ func TestHttp_health(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -812,7 +848,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -1048,7 +1084,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 	}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 
