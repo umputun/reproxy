@@ -512,7 +512,11 @@ func (s *Service) mergeEvents(ctx context.Context, chs ...<-chan ProviderID) <-c
 				if !ok {
 					return
 				}
-				out <- v
+				select {
+				case out <- v:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}

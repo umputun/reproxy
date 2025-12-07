@@ -40,7 +40,7 @@ func Test_healthHandlerDeadlock(t *testing.T) {
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: rules}}, time.Millisecond*10)
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(20 * time.Millisecond)
 
@@ -97,7 +97,7 @@ func TestHttp_healthHandler(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	h.Matcher = svc
@@ -140,7 +140,7 @@ func TestHttp_pingHandler(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	h.Matcher = svc
