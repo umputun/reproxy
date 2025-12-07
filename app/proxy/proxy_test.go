@@ -52,7 +52,7 @@ func TestHttp_Do(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -152,7 +152,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -252,7 +252,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -342,7 +342,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -435,7 +435,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -531,7 +531,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(150 * time.Millisecond)
 
@@ -615,7 +615,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
@@ -678,7 +678,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -743,7 +743,7 @@ func TestHttp_health(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -812,7 +812,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 		}}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -1048,7 +1048,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 	}, time.Millisecond*10)
 
 	go func() {
-		_ = svc.Run(context.Background())
+		_ = svc.Run(t.Context())
 	}()
 	time.Sleep(50 * time.Millisecond)
 
