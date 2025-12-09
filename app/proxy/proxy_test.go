@@ -6,11 +6,11 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -26,11 +26,11 @@ import (
 )
 
 func TestHttp_Do(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +43,7 @@ func TestHttp_Do(t *testing.T) {
 		assert.NotEmpty(t, r.Header.Get("X-Forwarded-URL"), "X-Forwarded-URL header must be set")
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -73,7 +74,7 @@ func TestHttp_Do(t *testing.T) {
 		}
 		resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
-	}, time.Second, 10*time.Millisecond, "server failed to start")
+	}, 5*time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("to 127.0.0.1, good", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something?xxx=yyy", http.NoBody)
@@ -134,13 +135,13 @@ func TestHttp_Do(t *testing.T) {
 }
 
 func TestHttp_DoWithSSL(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("localhost:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter:  &ErrorReporter{Nice: true},
 		SSLConfig: SSLConfig{SSLMode: SSLStatic, Cert: "testdata/localhost.crt", Key: "testdata/localhost.key"}, Insecure: true,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +187,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 		}
 		resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
-	}, time.Second, 10*time.Millisecond, "server failed to start")
+	}, 5*time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("to localhost, good", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "https://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
@@ -248,7 +249,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 }
 
 func TestHttp_DoWithAssets(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", CacheControl: cc, Reporter: &ErrorReporter{Nice: false}}
@@ -261,6 +262,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -279,7 +281,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(50 * time.Millisecond)
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	client := http.Client{}
 
@@ -337,7 +339,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 }
 
 func TestHttp_DoWithAssetsCustom404(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", Assets404: "404.html",
@@ -351,6 +353,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -369,7 +372,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(50 * time.Millisecond)
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	client := http.Client{}
 
@@ -430,12 +433,12 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 }
 
 func TestHttp_DoWithSpaAssets(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", AssetsSPA: true,
 		CacheControl: cc, Reporter: &ErrorReporter{Nice: false}}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -444,6 +447,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -473,7 +477,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 		}
 		resp.Body.Close()
 		return resp.StatusCode == http.StatusOK
-	}, time.Second, 10*time.Millisecond, "server failed to start")
+	}, 5*time.Second, 10*time.Millisecond, "server failed to start")
 
 	t.Run("api call, good", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", http.NoBody)
@@ -534,11 +538,11 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 }
 
 func TestHttp_DoWithAssetRules(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, CacheControl: cc, Reporter: &ErrorReporter{}}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -547,6 +551,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -568,7 +573,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(150 * time.Millisecond)
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	client := http.Client{}
 
@@ -627,11 +632,11 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 }
 
 func TestHttp_DoWithRedirects(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, CacheControl: cc, Reporter: &ErrorReporter{}}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	svc := discovery.NewService([]discovery.Provider{
@@ -658,15 +663,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 		},
 	}
 
-	// wait for server to be ready
-	require.Eventually(t, func() bool {
-		resp, err := http.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ping")
-		if err != nil {
-			return false
-		}
-		resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, time.Second, 10*time.Millisecond, "server failed to start")
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	t.Run("localhost to example.com", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
@@ -692,11 +689,11 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 }
 
 func TestHttp_DoLimitedReq(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}, MaxBodySize: 10}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -705,6 +702,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -723,7 +721,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 	go func() {
 		_ = h.Run(ctx)
 	}()
-	time.Sleep(50 * time.Millisecond)
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	client := http.Client{}
 
@@ -756,11 +754,11 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 }
 
 func TestHttp_health(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -769,6 +767,7 @@ func TestHttp_health(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -822,14 +821,14 @@ func TestHttp_health(t *testing.T) {
 }
 
 func TestHttp_withBasicAuth(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}, BasicAuthEnabled: true, BasicAuthAllowed: []string{
 			"test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW",
 			"test2:$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12",
 		}}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -838,6 +837,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 		assert.Equal(t, "127.0.0.1", r.Header.Get("X-Real-IP"))
 		fmt.Fprintf(w, "response %s", r.URL.String())
 	}))
+	defer ds.Close()
 
 	svc := discovery.NewService([]discovery.Provider{
 		&provider.Static{Rules: []string{
@@ -863,7 +863,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/")
 		return err == nil
-	}, time.Second, 10*time.Millisecond, "server did not start")
+	}, 5*time.Second, 10*time.Millisecond, "server did not start")
 
 	t.Run("no auth", func(t *testing.T) {
 		req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(port)+"/api/something", bytes.NewBufferString("abcdefg"))
@@ -1018,7 +1018,6 @@ func TestHttp_matchHandler(t *testing.T) {
 		},
 	}
 
-	client := http.Client{}
 	for _, tt := range tbl {
 		t.Run(tt.name, func(t *testing.T) {
 			h := Http{Matcher: matcherMock, LBSelector: &FailoverSelector{}}
@@ -1034,13 +1033,10 @@ func TestHttp_matchHandler(t *testing.T) {
 				assert.Equal(t, tt.res, v.(*url.URL).String())
 			}))
 
-			req, err := http.NewRequest("GET", "http://example.com", http.NoBody)
-			require.NoError(t, err)
+			req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
 			wr := httptest.NewRecorder()
 			handler.ServeHTTP(wr, req)
-			resp, err := client.Do(req)
-			require.NoError(t, err)
-			assert.Equal(t, 200, resp.StatusCode)
+			assert.Equal(t, http.StatusOK, wr.Code)
 			atomic.AddInt32(&count, 1)
 		})
 	}
@@ -1070,7 +1066,7 @@ func TestHttp_discoveredServers(t *testing.T) {
 }
 
 func TestHttp_UpstreamConfig(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port := getFreePort(t)
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "response %s", r.URL.String())
@@ -1100,7 +1096,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 			UpstreamMaxConnsPerHost: 0,   // unlimited, default
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		go func() {
@@ -1119,7 +1115,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 	})
 
 	t.Run("with custom upstream values", func(t *testing.T) {
-		port2 := rand.Intn(10000) + 40000
+		port2 := getFreePort(t)
 		h := Http{
 			Timeouts:                Timeouts{ResponseHeader: 200 * time.Millisecond},
 			Address:                 fmt.Sprintf("127.0.0.1:%d", port2),
@@ -1131,7 +1127,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 			UpstreamMaxConnsPerHost: 10,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		go func() {
@@ -1154,11 +1150,293 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 func waitForServer(t *testing.T, addr string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		conn, err := net.DialTimeout("tcp", addr, 10*time.Millisecond)
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
 		if err != nil {
 			return false
 		}
 		conn.Close()
 		return true
-	}, time.Second, 10*time.Millisecond, "server at %s did not become ready", addr)
+	}, 5*time.Second, 50*time.Millisecond, "server at %s did not become ready", addr)
 }
+
+// getFreePort returns a free TCP port allocated by the OS
+func getFreePort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+// TestHttp_withPerRouteAuth_DefaultInit tests per-route auth when PerRouteAuth is NOT explicitly set.
+// this simulates the production scenario where main.go doesn't initialize PerRouteAuth.
+// the test verifies that per-route auth still works correctly with default initialization.
+func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
+	port := getFreePort(t)
+	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
+
+	// NOTE: PerRouteAuth is NOT set - this is how main.go currently initializes Http
+	h := Http{
+		Timeouts:  Timeouts{ResponseHeader: 200 * time.Millisecond},
+		Address:   fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard,
+		Reporter:  &ErrorReporter{Nice: true},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+	defer ds.Close()
+
+	mockProvider := &mockAuthProvider{
+		mappers: []discovery.URLMapper{
+			{
+				Server:    "*",
+				SrcMatch:  *regexp.MustCompile("^/secure/(.*)"),
+				Dst:       ds.URL + "/secure/$1",
+				MatchType: discovery.MTProxy,
+				AuthUsers: []string{"test:" + authHash},
+			},
+		},
+	}
+
+	svc := discovery.NewService([]discovery.Provider{mockProvider}, time.Millisecond*10)
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	client := http.Client{Timeout: 100 * time.Millisecond}
+
+	// this MUST return 401 - if it returns 200, we have a security bypass bug
+	t.Run("secure route without auth must return 401", func(t *testing.T) {
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/secure/test", port))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "route with AuthUsers should require auth")
+	})
+
+	t.Run("secure route with correct auth returns 200", func(t *testing.T) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/secure/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("test", "passwd")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
+func TestHttp_withPerRouteAuth(t *testing.T) {
+	port := getFreePort(t)
+	// test password hash for "secret123" generated with htpasswd -nbB test secret123
+	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
+
+	h := Http{
+		Timeouts:     Timeouts{ResponseHeader: 200 * time.Millisecond},
+		Address:      fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog:    io.Discard,
+		Reporter:     &ErrorReporter{Nice: true},
+		PerRouteAuth: NewPerRouteAuth(),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+	defer ds.Close()
+
+	// create a mock provider that returns routes with AuthUsers
+	mockProvider := &mockAuthProvider{
+		mappers: []discovery.URLMapper{
+			{
+				Server:    "*",
+				SrcMatch:  *regexp.MustCompile("^/secure/(.*)"),
+				Dst:       ds.URL + "/secure/$1",
+				MatchType: discovery.MTProxy,
+				AuthUsers: []string{"test:" + authHash},
+			},
+			{
+				Server:    "*",
+				SrcMatch:  *regexp.MustCompile("^/public/(.*)"),
+				Dst:       ds.URL + "/public/$1",
+				MatchType: discovery.MTProxy,
+				AuthUsers: []string{}, // no auth required
+			},
+		},
+	}
+
+	svc := discovery.NewService([]discovery.Provider{mockProvider}, time.Millisecond*10)
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	client := http.Client{Timeout: 100 * time.Millisecond}
+
+	t.Run("secure route without auth returns 401", func(t *testing.T) {
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/secure/test", port))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Equal(t, `Basic realm="Restricted"`, resp.Header.Get("WWW-Authenticate"))
+	})
+
+	t.Run("secure route with bad auth returns 401", func(t *testing.T) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/secure/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("test", "wrongpassword")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("secure route with good auth returns 200", func(t *testing.T) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/secure/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("test", "passwd")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		assert.Contains(t, string(body), "response /secure/test")
+	})
+
+	t.Run("public route without auth returns 200", func(t *testing.T) {
+		resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/public/test", port))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		assert.Contains(t, string(body), "response /public/test")
+	})
+}
+
+func TestHttp_withGlobalAndPerRouteAuth(t *testing.T) {
+	port := getFreePort(t)
+	globalHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
+	routeHash := "$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12"  // passwd2
+
+	h := Http{
+		Timeouts:         Timeouts{ResponseHeader: 200 * time.Millisecond},
+		Address:          fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog:        io.Discard,
+		Reporter:         &ErrorReporter{Nice: true},
+		BasicAuthEnabled: true,
+		BasicAuthAllowed: []string{"globaluser:" + globalHash},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "response %s", r.URL.String())
+	}))
+	defer ds.Close()
+
+	mockProvider := &mockAuthProvider{
+		mappers: []discovery.URLMapper{
+			{
+				Server:    "*",
+				SrcMatch:  *regexp.MustCompile("^/secure/(.*)"),
+				Dst:       ds.URL + "/secure/$1",
+				MatchType: discovery.MTProxy,
+				AuthUsers: []string{"routeuser:" + routeHash}, // per-route auth
+			},
+			{
+				Server:    "*",
+				SrcMatch:  *regexp.MustCompile("^/global/(.*)"),
+				Dst:       ds.URL + "/global/$1",
+				MatchType: discovery.MTProxy,
+				AuthUsers: []string{}, // no per-route auth, uses global
+			},
+		},
+	}
+
+	svc := discovery.NewService([]discovery.Provider{mockProvider}, time.Millisecond*10)
+	go func() {
+		_ = svc.Run(context.Background())
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	client := http.Client{Timeout: 100 * time.Millisecond}
+
+	t.Run("route with per-route auth ignores global auth", func(t *testing.T) {
+		// global creds should NOT work on per-route auth route
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/secure/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("globaluser", "passwd")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "global creds should not work on per-route auth route")
+	})
+
+	t.Run("route with per-route auth accepts route-specific creds", func(t *testing.T) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/secure/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("routeuser", "passwd2")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("route without per-route auth uses global auth", func(t *testing.T) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/global/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("globaluser", "passwd")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("route without per-route auth rejects route-specific creds", func(t *testing.T) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/global/test", port), http.NoBody)
+		require.NoError(t, err)
+		req.SetBasicAuth("routeuser", "passwd2")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "route creds should not work on global auth route")
+	})
+}
+
+// mockAuthProvider is a test provider that returns pre-configured URLMappers with AuthUsers
+type mockAuthProvider struct {
+	mappers []discovery.URLMapper
+}
+
+func (m *mockAuthProvider) Events(_ context.Context) <-chan discovery.ProviderID {
+	res := make(chan discovery.ProviderID, 1)
+	res <- discovery.PIStatic
+	return res
+}
+
+func (m *mockAuthProvider) List() ([]discovery.URLMapper, error) { return m.mappers, nil }
