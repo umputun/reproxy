@@ -80,6 +80,12 @@ Providers are processed in order: static → file → docker → consul-catalog.
 - `SSLStatic` - User-provided certificates
 - `SSLAuto` - ACME/Let's Encrypt automatic certificates with DNS-01 or HTTP-01 challenges
 
+## Testing Patterns
+
+- **Port allocation**: Use `net.Listen("tcp", "127.0.0.1:0")` to get OS-allocated ports instead of random range - avoids port collisions when previous test's port is in TIME_WAIT state
+- **httptest cleanup**: Always close `httptest.Server` with `defer ds.Close()` to prevent goroutine leaks between tests ("Fail in goroutine after TestX has completed" errors)
+- **Context timeouts**: Context timeouts must be longer than `waitForServer` timeouts to allow proper server startup and cleanup
+
 ## Key Patterns
 
 - Configuration via `github.com/umputun/go-flags` with struct tags for CLI/env options
