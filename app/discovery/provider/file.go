@@ -86,6 +86,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		AssetsSPA     bool   `yaml:"spa"`
 		KeepHost      *bool  `yaml:"keep-host,omitempty"`
 		OnlyFrom      string `yaml:"remote"`
+		Auth          string `yaml:"auth"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -116,6 +117,7 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 				ProviderID:  discovery.PIFile,
 				MatchType:   discovery.MTProxy,
 				OnlyFromIPs: discovery.ParseOnlyFrom(f.OnlyFrom),
+				AuthUsers:   discovery.ParseAuth(f.Auth),
 			}
 			if f.AssetsEnabled || f.AssetsSPA {
 				mapper.MatchType = discovery.MTStatic

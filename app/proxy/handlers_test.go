@@ -223,7 +223,7 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 		"bad bad",
 	}
 
-	handler := basicAuthHandler(true, allowed)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := globalBasicAuthHandler(allowed)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 	}))
 	ts := httptest.NewServer(handler)
@@ -258,7 +258,7 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 		})
 	}
 
-	handler = basicAuthHandler(false, allowed)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler = passThroughHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("req: %v", r)
 	}))
 	ts2 := httptest.NewServer(handler)
@@ -273,6 +273,41 @@ func TestHttp_basicAuthHandler(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	}
+}
+
+func Test_globalBasicAuthHandler_SkipsPerRouteAuth(t *testing.T) {
+	// when route has per-route auth configured, global auth should skip
+	allowed := []string{"globaluser:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW"}
+
+	handler := globalBasicAuthHandler(allowed)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	t.Run("no context, requires global auth", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+
+	t.Run("route has per-route auth, global auth skipped", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxMatch,
+			discovery.MatchedRoute{Mapper: discovery.URLMapper{AuthUsers: []string{"routeuser:hash"}}}))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		// should pass without requiring credentials since per-route auth is configured
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("route has no per-route auth, global auth applies", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxMatch,
+			discovery.MatchedRoute{Mapper: discovery.URLMapper{AuthUsers: []string{}}}))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
 }
 
 func Test_gzipHandler(t *testing.T) {

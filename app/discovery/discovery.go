@@ -39,6 +39,7 @@ type URLMapper struct {
 	RedirectType RedirectType
 	KeepHost     *bool
 	OnlyFromIPs  []string
+	AuthUsers    []string // basic auth credentials as user:bcrypt_hash pairs
 
 	AssetsLocation string // local FS root location
 	AssetsWebRoot  string // web root location
@@ -467,6 +468,10 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		AssetsWebRoot:  m.AssetsWebRoot,
 		AssetsLocation: m.AssetsLocation,
 		AssetsSPA:      m.AssetsSPA,
+		RedirectType:   m.RedirectType,
+		KeepHost:       m.KeepHost,
+		OnlyFromIPs:    m.OnlyFromIPs,
+		AuthUsers:      m.AuthUsers,
 	}
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
 	if err != nil {
@@ -562,6 +567,19 @@ func ParseOnlyFrom(s string) (res []string) {
 	}
 	for v := range strings.SplitSeq(s, ",") {
 		res = append(res, strings.TrimSpace(v))
+	}
+	return res
+}
+
+// ParseAuth parses comma separated list of user:bcrypt_hash pairs for basic auth
+func ParseAuth(s string) (res []string) {
+	if s == "" {
+		return []string{}
+	}
+	for v := range strings.SplitSeq(s, ",") {
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			res = append(res, trimmed)
+		}
 	}
 	return res
 }

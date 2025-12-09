@@ -140,6 +140,11 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 			onlyFrom = discovery.ParseOnlyFrom(v)
 		}
 
+		authUsers := []string{}
+		if v, ok := d.labelN(c.Labels, n, "auth"); ok {
+			authUsers = discovery.ParseAuth(v)
+		}
+
 		if v, ok := d.labelN(c.Labels, n, "ping"); ok {
 			enabled = true
 			if strings.HasPrefix(v, "http://") || strings.HasPrefix(v, "https://") {
@@ -181,7 +186,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		for srv := range strings.SplitSeq(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
-				KeepHost: keepHost, OnlyFromIPs: onlyFrom}
+				KeepHost: keepHost, OnlyFromIPs: onlyFrom, AuthUsers: authUsers}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {

@@ -167,6 +167,11 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			onlyFrom = discovery.ParseOnlyFrom(v)
 		}
 
+		authUsers := []string{}
+		if v, ok := c.Labels["reproxy.auth"]; ok {
+			authUsers = discovery.ParseAuth(v)
+		}
+
 		if v, ok := c.Labels["reproxy.ping"]; ok {
 			enabled = true
 			pingURL = fmt.Sprintf("http://%s:%d%s", c.ServiceAddress, c.ServicePort, v)
@@ -199,7 +204,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		// server label may have multiple, comma separated servers
 		for srv := range strings.SplitSeq(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost, OnlyFromIPs: onlyFrom})
+				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost, OnlyFromIPs: onlyFrom, AuthUsers: authUsers})
 		}
 	}
 

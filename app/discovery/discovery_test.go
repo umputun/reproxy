@@ -502,6 +502,16 @@ func TestService_extendRule(t *testing.T) {
 			URLMapper{Server: "m.example.com", PingURL: "http://example.com/ping", ProviderID: "docker",
 				SrcMatch: *regexp.MustCompile("/api/blah"), Dst: "http://localhost:8080/xxx", RedirectType: RTPerm},
 		},
+		{ // verify all fields are preserved when extending trailing slash routes
+			URLMapper{Server: "s.example.com", PingURL: "http://example.com/ping", ProviderID: "file",
+				SrcMatch: *regexp.MustCompile("/admin/"), Dst: "http://localhost:9000/",
+				KeepHost: func() *bool { b := true; return &b }(), OnlyFromIPs: []string{"192.168.1.0/24"},
+				AuthUsers: []string{"user1:hash1", "user2:hash2"}, RedirectType: RTNone},
+			URLMapper{Server: "s.example.com", PingURL: "http://example.com/ping", ProviderID: "file",
+				SrcMatch: *regexp.MustCompile("^/admin/(.*)"), Dst: "http://localhost:9000/$1",
+				KeepHost: func() *bool { b := true; return &b }(), OnlyFromIPs: []string{"192.168.1.0/24"},
+				AuthUsers: []string{"user1:hash1", "user2:hash2"}, RedirectType: RTNone},
+		},
 	}
 
 	svc := &Service{}
@@ -742,6 +752,39 @@ func TestParseOnlyFrom(t *testing.T) {
 	for _, tt := range tbl {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ParseOnlyFrom(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestParseAuth(t *testing.T) {
+	tbl := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{name: "empty string", input: "", expected: []string{}},
+		{name: "single user:hash", input: "user1:$2y$05$hash1", expected: []string{"user1:$2y$05$hash1"}},
+		{
+			name:     "multiple users",
+			input:    "user1:$2y$05$hash1, user2:$2y$05$hash2",
+			expected: []string{"user1:$2y$05$hash1", "user2:$2y$05$hash2"},
+		},
+		{
+			name:     "with extra spaces",
+			input:    " user1:$2y$05$hash1 , user2:$2y$05$hash2 ",
+			expected: []string{"user1:$2y$05$hash1", "user2:$2y$05$hash2"},
+		},
+		{
+			name:     "empty elements filtered",
+			input:    "user1:$2y$05$hash1, , user2:$2y$05$hash2",
+			expected: []string{"user1:$2y$05$hash1", "user2:$2y$05$hash2"},
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParseAuth(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
