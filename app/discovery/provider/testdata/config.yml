@@ -5,3 +5,5 @@ default:
   - {route: "/web2/", dest: "/var/web2", "spa": yes, "keep-host": no}
 srv.example.com:
   - {route: "^/api/svc2/(.*)", dest: "http://127.0.0.2:8080/blah2/$1/abc"}
+auth.example.com:
+  - {route: "^/api/(.*)", dest: "http://127.0.0.4:8080/$1", auth: "user1:$2y$05$hash1, user2:$2y$05$hash2"}

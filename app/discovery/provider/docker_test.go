@@ -52,6 +52,11 @@ func TestDocker_List(t *testing.T) {
 					Name: "c5", State: "running", IP: "127.0.0.122", Ports: []int{2345}, // not enabled
 					Labels: map[string]string{"reproxy.enabled": "false"},
 				},
+				{
+					Name: "c6", State: "running", IP: "127.0.0.6", Ports: []int{8080},
+					Labels: map[string]string{"reproxy.route": "^/secure/(.*)", "reproxy.dest": "/$1",
+						"reproxy.server": "secure.example.com", "reproxy.auth": "user1:$2y$05$hash1, user2:$2y$05$hash2"},
+				},
 			}, nil
 		},
 	}
@@ -59,31 +64,40 @@ func TestDocker_List(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Len(t, res, 4)
+	require.Len(t, res, 5)
 
 	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
 	assert.Equal(t, "http://127.0.0.2:12345/blah/$1", res[0].Dst)
 	assert.Equal(t, "example.com", res[0].Server)
 	assert.Equal(t, "http://127.0.0.2:12345/ping", res[0].PingURL)
 	assert.Equal(t, []string{"192.168.1.0/24", "127.0.0.1"}, res[0].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[0].AuthUsers)
 
 	assert.Equal(t, "^/api/90/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://example.com/blah/$1", res[1].Dst)
 	assert.Equal(t, "https://example.com//ping", res[1].PingURL)
 	assert.Equal(t, "example.com", res[1].Server)
 	assert.Equal(t, []string{}, res[1].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[1].AuthUsers)
 
-	assert.Equal(t, "^/c2/(.*)", res[2].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.3:12346/$1", res[2].Dst)
-	assert.Equal(t, "http://127.0.0.3:12346/ping", res[2].PingURL)
-	assert.Equal(t, "*", res[2].Server)
-	assert.Equal(t, []string{}, res[2].OnlyFromIPs)
+	assert.Equal(t, "^/secure/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.6:8080/$1", res[2].Dst)
+	assert.Equal(t, "secure.example.com", res[2].Server)
+	assert.Equal(t, []string{"user1:$2y$05$hash1", "user2:$2y$05$hash2"}, res[2].AuthUsers)
 
-	assert.Equal(t, "^/a/(.*)", res[3].SrcMatch.String())
-	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[3].Dst)
-	assert.Equal(t, "http://127.0.0.2:12348/ping", res[3].PingURL)
-	assert.Equal(t, "example.com", res[3].Server)
+	assert.Equal(t, "^/c2/(.*)", res[3].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.3:12346/$1", res[3].Dst)
+	assert.Equal(t, "http://127.0.0.3:12346/ping", res[3].PingURL)
+	assert.Equal(t, "*", res[3].Server)
 	assert.Equal(t, []string{}, res[3].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[3].AuthUsers)
+
+	assert.Equal(t, "^/a/(.*)", res[4].SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.2:12348/a/$1", res[4].Dst)
+	assert.Equal(t, "http://127.0.0.2:12348/ping", res[4].PingURL)
+	assert.Equal(t, "example.com", res[4].Server)
+	assert.Equal(t, []string{}, res[4].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[4].AuthUsers)
 }
 
 func TestDocker_ListMulti(t *testing.T) {

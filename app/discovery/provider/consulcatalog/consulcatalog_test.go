@@ -87,6 +87,14 @@ func TestConsulCatalog_List(t *testing.T) {
 				ServicePort:    5001,
 				Labels:         map[string]string{"reproxy.enabled": "true", "reproxy.keep-host": "false"},
 			},
+			{
+				ServiceID:      "id7",
+				ServiceName:    "name7",
+				ServiceAddress: "adr7",
+				ServicePort:    7000,
+				Labels: map[string]string{"reproxy.route": "^/secure/(.*)", "reproxy.dest": "/$1",
+					"reproxy.server": "secure.example.com", "reproxy.auth": "user1:$2y$05$hash1, user2:$2y$05$hash2"},
+			},
 		}, nil
 	}}
 
@@ -96,54 +104,75 @@ func TestConsulCatalog_List(t *testing.T) {
 
 	res, err := cc.List()
 	require.NoError(t, err)
-	require.Len(t, res, 6)
+	require.Len(t, res, 7)
 
 	// sort slice for exclude random item positions after sorting by SrtMatch in List function
 	sort.Slice(res, func(i, j int) bool {
 		return len(res[i].Dst+res[i].Server) > len(res[j].Dst+res[j].Server)
 	})
-	assert.Equal(t, "^/api/123/(.*)", res[0].SrcMatch.String())
-	assert.Equal(t, "http://addr3:3000/blah/$1", res[0].Dst)
-	assert.Equal(t, "example.com", res[0].Server)
-	assert.Equal(t, "http://addr3:3000/ping", res[0].PingURL)
-	assert.Equal(t, (*bool)(nil), res[0].KeepHost)
-	assert.Equal(t, []string{"127.0.0.1", "192.168.1.0/24"}, res[0].OnlyFromIPs)
 
+	// res[0]: secure.example.com with auth
+	assert.Equal(t, "^/secure/(.*)", res[0].SrcMatch.String())
+	assert.Equal(t, "http://adr7:7000/$1", res[0].Dst)
+	assert.Equal(t, "secure.example.com", res[0].Server)
+	assert.Equal(t, "http://adr7:7000/ping", res[0].PingURL)
+	assert.Equal(t, (*bool)(nil), res[0].KeepHost)
+	assert.Equal(t, []string{}, res[0].OnlyFromIPs)
+	assert.Equal(t, []string{"user1:$2y$05$hash1", "user2:$2y$05$hash2"}, res[0].AuthUsers)
+
+	// res[1]: example.com with remote IPs
 	assert.Equal(t, "^/api/123/(.*)", res[1].SrcMatch.String())
 	assert.Equal(t, "http://addr3:3000/blah/$1", res[1].Dst)
-	assert.Equal(t, "domain.com", res[1].Server)
+	assert.Equal(t, "example.com", res[1].Server)
 	assert.Equal(t, "http://addr3:3000/ping", res[1].PingURL)
 	assert.Equal(t, (*bool)(nil), res[1].KeepHost)
 	assert.Equal(t, []string{"127.0.0.1", "192.168.1.0/24"}, res[1].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[1].AuthUsers)
 
-	assert.Equal(t, "^/(.*)", res[2].SrcMatch.String())
-	assert.Equal(t, "http://addr44:4000/$1", res[2].Dst)
-	assert.Equal(t, "http://addr44:4000/ping", res[2].PingURL)
-	assert.Equal(t, "*", res[2].Server)
+	// res[2]: domain.com with remote IPs
+	assert.Equal(t, "^/api/123/(.*)", res[2].SrcMatch.String())
+	assert.Equal(t, "http://addr3:3000/blah/$1", res[2].Dst)
+	assert.Equal(t, "domain.com", res[2].Server)
+	assert.Equal(t, "http://addr3:3000/ping", res[2].PingURL)
 	assert.Equal(t, (*bool)(nil), res[2].KeepHost)
-	assert.Equal(t, []string{}, res[2].OnlyFromIPs)
+	assert.Equal(t, []string{"127.0.0.1", "192.168.1.0/24"}, res[2].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[2].AuthUsers)
 
+	// res[3]: id44
 	assert.Equal(t, "^/(.*)", res[3].SrcMatch.String())
-	assert.Equal(t, "http://addr2:2000/$1", res[3].Dst)
-	assert.Equal(t, "http://addr2:2000/ping", res[3].PingURL)
+	assert.Equal(t, "http://addr44:4000/$1", res[3].Dst)
+	assert.Equal(t, "http://addr44:4000/ping", res[3].PingURL)
 	assert.Equal(t, "*", res[3].Server)
 	assert.Equal(t, (*bool)(nil), res[3].KeepHost)
 	assert.Equal(t, []string{}, res[3].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[3].AuthUsers)
 
-	tr := true
+	// res[4]: id2
 	assert.Equal(t, "^/(.*)", res[4].SrcMatch.String())
-	assert.Equal(t, "http://adr5:5000/$1", res[4].Dst)
-	assert.Equal(t, "http://adr5:5000/ping", res[4].PingURL)
+	assert.Equal(t, "http://addr2:2000/$1", res[4].Dst)
+	assert.Equal(t, "http://addr2:2000/ping", res[4].PingURL)
 	assert.Equal(t, "*", res[4].Server)
-	assert.Equal(t, &tr, res[4].KeepHost)
+	assert.Equal(t, (*bool)(nil), res[4].KeepHost)
+	assert.Equal(t, []string{}, res[4].OnlyFromIPs)
+	assert.Equal(t, []string{}, res[4].AuthUsers)
 
-	fa := false
+	// res[5]: id5 with keep-host=true
+	tr := true
 	assert.Equal(t, "^/(.*)", res[5].SrcMatch.String())
-	assert.Equal(t, "http://adr6:5001/$1", res[5].Dst)
-	assert.Equal(t, "http://adr6:5001/ping", res[5].PingURL)
+	assert.Equal(t, "http://adr5:5000/$1", res[5].Dst)
+	assert.Equal(t, "http://adr5:5000/ping", res[5].PingURL)
 	assert.Equal(t, "*", res[5].Server)
-	assert.Equal(t, &fa, res[5].KeepHost)
+	assert.Equal(t, &tr, res[5].KeepHost)
+	assert.Equal(t, []string{}, res[5].AuthUsers)
 
+	// res[6]: id6 with keep-host=false
+	fa := false
+	assert.Equal(t, "^/(.*)", res[6].SrcMatch.String())
+	assert.Equal(t, "http://adr6:5001/$1", res[6].Dst)
+	assert.Equal(t, "http://adr6:5001/ping", res[6].PingURL)
+	assert.Equal(t, "*", res[6].Server)
+	assert.Equal(t, &fa, res[6].KeepHost)
+	assert.Equal(t, []string{}, res[6].AuthUsers)
 }
 
 func TestConsulCatalog_serviceListWasChanged(t *testing.T) {
