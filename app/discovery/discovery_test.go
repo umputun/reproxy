@@ -171,6 +171,7 @@ func TestService_Match(t *testing.T) {
 				assert.Equal(t, tt.res.Routes[i].Alive, res.Routes[i].Alive)
 				assert.Equal(t, tt.res.Routes[i].Destination, res.Routes[i].Destination)
 				assert.Equal(t, tt.res.Routes[i].Mapper.OnlyFromIPs, res.Routes[i].Mapper.OnlyFromIPs)
+				assert.Equal(t, tt.res.Routes[i].Mapper.AuthUsers, res.Routes[i].Mapper.AuthUsers)
 			}
 			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
@@ -746,6 +747,11 @@ func TestParseOnlyFrom(t *testing.T) {
 			name:     "multiple IPs with extra spaces",
 			input:    " 192.168.1.1 , 192.168.1.2 , 192.168.1.3 ",
 			expected: []string{"192.168.1.1", "192.168.1.2", "192.168.1.3"},
+		},
+		{
+			name:     "empty elements filtered",
+			input:    "192.168.1.1, , 192.168.1.2",
+			expected: []string{"192.168.1.1", "192.168.1.2"},
 		},
 	}
 

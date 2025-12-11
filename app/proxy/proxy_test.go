@@ -1168,14 +1168,12 @@ func getFreePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-// TestHttp_withPerRouteAuth_DefaultInit tests per-route auth when PerRouteAuth is NOT explicitly set.
-// this simulates the production scenario where main.go doesn't initialize PerRouteAuth.
-// the test verifies that per-route auth still works correctly with default initialization.
+// TestHttp_withPerRouteAuth_DefaultInit tests per-route auth works correctly.
+// the test verifies that per-route auth works correctly with the default setup.
 func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
 	port := getFreePort(t)
 	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
 
-	// NOTE: PerRouteAuth is NOT set - this is how main.go currently initializes Http
 	h := Http{
 		Timeouts:  Timeouts{ResponseHeader: 200 * time.Millisecond},
 		Address:   fmt.Sprintf("127.0.0.1:%d", port),
@@ -1238,15 +1236,13 @@ func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
 
 func TestHttp_withPerRouteAuth(t *testing.T) {
 	port := getFreePort(t)
-	// test password hash for "secret123" generated with htpasswd -nbB test secret123
 	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
 
 	h := Http{
-		Timeouts:     Timeouts{ResponseHeader: 200 * time.Millisecond},
-		Address:      fmt.Sprintf("127.0.0.1:%d", port),
-		AccessLog:    io.Discard,
-		Reporter:     &ErrorReporter{Nice: true},
-		PerRouteAuth: NewPerRouteAuth(),
+		Timeouts:  Timeouts{ResponseHeader: 200 * time.Millisecond},
+		Address:   fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard,
+		Reporter:  &ErrorReporter{Nice: true},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

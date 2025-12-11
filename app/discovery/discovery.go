@@ -561,18 +561,17 @@ func (m URLMapper) ping() (string, error) {
 }
 
 // ParseOnlyFrom parses comma separated list of IPs
-func ParseOnlyFrom(s string) (res []string) {
-	if s == "" {
-		return []string{}
-	}
-	for v := range strings.SplitSeq(s, ",") {
-		res = append(res, strings.TrimSpace(v))
-	}
-	return res
+func ParseOnlyFrom(s string) []string {
+	return parseCommaSeparated(s)
 }
 
 // ParseAuth parses comma separated list of user:bcrypt_hash pairs for basic auth
-func ParseAuth(s string) (res []string) {
+func ParseAuth(s string) []string {
+	return parseCommaSeparated(s)
+}
+
+// parseCommaSeparated splits a comma-separated string and returns trimmed non-empty values
+func parseCommaSeparated(s string) (res []string) {
 	if s == "" {
 		return []string{}
 	}

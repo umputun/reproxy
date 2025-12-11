@@ -50,7 +50,6 @@ type Http struct { // nolint golint
 	Reporter         Reporter
 	LBSelector       LBSelector
 	OnlyFrom         *OnlyFrom
-	PerRouteAuth     *PerRouteAuth
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
 
@@ -118,10 +117,6 @@ func (h *Http) Run(ctx context.Context) error {
 		h.LBSelector = &RandomSelector{}
 	}
 
-	if h.PerRouteAuth == nil {
-		h.PerRouteAuth = NewPerRouteAuth()
-	}
-
 	var httpServer, httpsServer *http.Server
 
 	go func() {
@@ -145,7 +140,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.healthMiddleware,                           // respond to /health
 		h.matchHandler,                               // set matched routes to context
 		h.OnlyFrom.Handler,                           // limit source (remote) IPs if defined
-		h.PerRouteAuth.Handler,                       // per-route basic auth (if route has auth configured)
+		perRouteAuthHandler,                          // per-route basic auth (if route has auth configured)
 		h.basicAuthHandler(),                         // global basic auth (skipped if per-route auth is set)
 		limiterSystemHandler(h.ThrottleSystem),       // limit total requests/sec
 		limiterUserHandler(h.ThrottleUser),           // req/seq per user/route match
