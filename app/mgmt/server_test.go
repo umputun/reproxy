@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/plugin"
 )
 
 func TestServer_controllers(t *testing.T) {
@@ -46,7 +47,7 @@ func TestServer_controllers(t *testing.T) {
 
 	port := rand.Intn(10000) + 40000
 	srv := Server{Listen: fmt.Sprintf("127.0.0.1:%d", port), Informer: inf,
-		AssetsWebRoot: "/static", AssetsLocation: "/www", Metrics: NewMetrics()}
+		AssetsWebRoot: "/static", AssetsLocation: "/www", Metrics: NewMetrics(MetricsConfig{})}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -114,7 +115,7 @@ func TestServer_controllers(t *testing.T) {
 }
 
 func TestMetrics_Middleware(t *testing.T) {
-	metrics := NewMetrics()
+	metrics := NewMetrics(MetricsConfig{})
 
 	handler := metrics.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
@@ -143,6 +144,115 @@ func TestMetrics_Middleware(t *testing.T) {
 		wr := httptest.NewRecorder()
 		handler.ServeHTTP(wr, req)
 		assert.Equal(t, http.StatusCreated, wr.Code)
+	})
+}
+
+func TestMetrics_LowCardinality(t *testing.T) {
+	t.Run("low cardinality uses route pattern when match in context", func(t *testing.T) {
+		metrics := NewMetrics(MetricsConfig{LowCardinality: true})
+
+		var capturedPath string
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// capture the path that would be used for metrics by calling getRoutePattern
+			capturedPath = metrics.getRoutePattern(r)
+			w.WriteHeader(http.StatusOK)
+		})
+
+		wrapped := metrics.Middleware(handler)
+
+		// create request with matched route in context
+		req := httptest.NewRequest("GET", "http://example.com/api/users/123", http.NoBody)
+		matchedRoute := discovery.MatchedRoute{
+			Mapper: discovery.URLMapper{
+				SrcMatch: *regexp.MustCompile(`^/api/users/(.*)`),
+			},
+		}
+		ctx := context.WithValue(req.Context(), plugin.CtxMatch, matchedRoute)
+		req = req.WithContext(ctx)
+
+		wr := httptest.NewRecorder()
+		wrapped.ServeHTTP(wr, req)
+
+		assert.Equal(t, http.StatusOK, wr.Code)
+		assert.Equal(t, `^/api/users/(.*)`, capturedPath)
+	})
+
+	t.Run("low cardinality falls back to unmatched when no context", func(t *testing.T) {
+		metrics := NewMetrics(MetricsConfig{LowCardinality: true})
+
+		var capturedPath string
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedPath = metrics.getRoutePattern(r)
+			w.WriteHeader(http.StatusNotFound)
+		})
+
+		wrapped := metrics.Middleware(handler)
+
+		// request without matched route in context
+		req := httptest.NewRequest("GET", "http://example.com/unknown/path", http.NoBody)
+		wr := httptest.NewRecorder()
+		wrapped.ServeHTTP(wr, req)
+
+		assert.Equal(t, http.StatusNotFound, wr.Code)
+		assert.Equal(t, "[unmatched]", capturedPath)
+	})
+
+	t.Run("default mode uses raw path", func(t *testing.T) {
+		metrics := NewMetrics(MetricsConfig{LowCardinality: false})
+
+		handler := metrics.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		// even with matched route in context, should use raw path
+		req := httptest.NewRequest("GET", "http://example.com/api/users/123", http.NoBody)
+		matchedRoute := discovery.MatchedRoute{
+			Mapper: discovery.URLMapper{
+				SrcMatch: *regexp.MustCompile(`^/api/users/(.*)`),
+			},
+		}
+		ctx := context.WithValue(req.Context(), plugin.CtxMatch, matchedRoute)
+		req = req.WithContext(ctx)
+
+		wr := httptest.NewRecorder()
+		handler.ServeHTTP(wr, req)
+
+		assert.Equal(t, http.StatusOK, wr.Code)
+		// in default mode, raw path is used (verified by the middleware behavior)
+		// we can't easily capture the exact label value, but we verify no panic occurs
+	})
+}
+
+func TestMetrics_getRoutePattern(t *testing.T) {
+	metrics := &Metrics{lowCardinality: true}
+
+	t.Run("returns route pattern when match in context", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		matchedRoute := discovery.MatchedRoute{
+			Mapper: discovery.URLMapper{
+				SrcMatch: *regexp.MustCompile(`^/test/(.*)`),
+			},
+		}
+		ctx := context.WithValue(req.Context(), plugin.CtxMatch, matchedRoute)
+		req = req.WithContext(ctx)
+
+		result := metrics.getRoutePattern(req)
+		assert.Equal(t, `^/test/(.*)`, result)
+	})
+
+	t.Run("returns unmatched when no context value", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		result := metrics.getRoutePattern(req)
+		assert.Equal(t, "[unmatched]", result)
+	})
+
+	t.Run("returns unmatched when context value is wrong type", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		ctx := context.WithValue(req.Context(), plugin.CtxMatch, "wrong type")
+		req = req.WithContext(ctx)
+
+		result := metrics.getRoutePattern(req)
+		assert.Equal(t, "[unmatched]", result)
 	})
 }
 

@@ -11,18 +11,27 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/umputun/reproxy/app/discovery"
+	"github.com/umputun/reproxy/app/plugin"
 )
+
+// MetricsConfig holds configuration for metrics collection
+type MetricsConfig struct {
+	LowCardinality bool // use route pattern instead of raw path for metrics labels
+}
 
 // Metrics provides registration and middleware for prometheus
 type Metrics struct {
 	totalRequests  *prometheus.CounterVec
 	responseStatus *prometheus.CounterVec
 	httpDuration   *prometheus.HistogramVec
+	lowCardinality bool
 }
 
-// NewMetrics create metrics object with all counters registered
-func NewMetrics() *Metrics {
-	res := &Metrics{}
+// NewMetrics creates metrics object with all counters registered
+func NewMetrics(cfg MetricsConfig) *Metrics {
+	res := &Metrics{lowCardinality: cfg.LowCardinality}
 
 	res.totalRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -64,8 +73,13 @@ func NewMetrics() *Metrics {
 // Middleware for the primary proxy server to publish all counters and update metrics
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		path := r.URL.Path
+
+		// use route pattern instead of raw path if low cardinality mode enabled
+		if m.lowCardinality {
+			path = m.getRoutePattern(r)
+		}
+
 		server := r.URL.Hostname()
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0]
@@ -81,6 +95,15 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 
 		timer.ObserveDuration()
 	})
+}
+
+// getRoutePattern extracts the route pattern from request context.
+// Falls back to "[unmatched]" if no match found (e.g., 404 requests).
+func (m *Metrics) getRoutePattern(r *http.Request) string {
+	if v, ok := r.Context().Value(plugin.CtxMatch).(discovery.MatchedRoute); ok {
+		return v.Mapper.SrcMatch.String()
+	}
+	return "[unmatched]"
 }
 
 type responseWriter struct {

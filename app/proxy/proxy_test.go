@@ -58,7 +58,7 @@ func TestHttp_Do(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -167,7 +167,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -276,7 +276,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -367,7 +367,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -461,7 +461,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -568,7 +568,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -651,7 +651,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -716,7 +716,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -782,7 +782,7 @@ func TestHttp_health(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -852,7 +852,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 	}()
 
 	time.Sleep(50 * time.Millisecond)
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -1090,7 +1090,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 			Address:                 fmt.Sprintf("127.0.0.1:%d", port),
 			AccessLog:               io.Discard,
 			Matcher:                 svc,
-			Metrics:                 mgmt.NewMetrics(),
+			Metrics:                 mgmt.NewMetrics(mgmt.MetricsConfig{}),
 			Reporter:                &ErrorReporter{Nice: true},
 			UpstreamMaxIdleConns:    100, // default value
 			UpstreamMaxConnsPerHost: 0,   // unlimited, default
@@ -1121,7 +1121,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 			Address:                 fmt.Sprintf("127.0.0.1:%d", port2),
 			AccessLog:               io.Discard,
 			Matcher:                 svc,
-			Metrics:                 mgmt.NewMetrics(),
+			Metrics:                 mgmt.NewMetrics(mgmt.MetricsConfig{}),
 			Reporter:                &ErrorReporter{Nice: true},
 			UpstreamMaxIdleConns:    50,
 			UpstreamMaxConnsPerHost: 10,
@@ -1206,7 +1206,7 @@ func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -1278,7 +1278,7 @@ func TestHttp_withPerRouteAuth(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
@@ -1373,7 +1373,7 @@ func TestHttp_withGlobalAndPerRouteAuth(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond)
 
-	h.Matcher, h.Metrics = svc, mgmt.NewMetrics()
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)
