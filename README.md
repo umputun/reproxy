@@ -341,6 +341,8 @@ Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.l
 - `GET /routes` - list of all discovered routes
 - `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
 
+By default, `http_response_time_seconds` uses raw request paths as labels, which can cause high cardinality with dynamic URLs (e.g., `/api/users/123`, `/api/users/456`). Use `--mgmt.low-cardinality` to switch to route patterns (e.g., `^/api/users/(.*)`) instead, significantly reducing metrics cardinality.
+
 _see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/examples/metrics)_
 
 ## Errors reporting
@@ -546,6 +548,7 @@ timeout:
 mgmt:
       --mgmt.enabled                enable management API [$MGMT_ENABLED]
       --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081) [$MGMT_LISTEN]
+      --mgmt.low-cardinality        use route patterns instead of raw paths for metrics labels [$MGMT_LOW_CARDINALITY]
 
 error:
       --error.enabled               enable html errors reporting [$ERROR_ENABLED]

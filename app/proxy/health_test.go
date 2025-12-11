@@ -101,7 +101,7 @@ func TestHttp_healthHandler(t *testing.T) {
 	}()
 
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -151,7 +151,7 @@ func TestHttp_pingHandler(t *testing.T) {
 	}()
 
 	h.Matcher = svc
-	h.Metrics = mgmt.NewMetrics()
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
 	go func() {
 		_ = h.Run(ctx)

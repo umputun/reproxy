@@ -169,8 +169,9 @@ var opts struct {
 	} `group:"timeout" namespace:"timeout" env-namespace:"TIMEOUT"`
 
 	Management struct {
-		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable management API"`
-		Listen  string `long:"listen" env:"LISTEN" default:"0.0.0.0:8081" description:"listen on host:port"`
+		Enabled        bool   `long:"enabled" env:"ENABLED" description:"enable management API"`
+		Listen         string `long:"listen" env:"LISTEN" default:"0.0.0.0:8081" description:"listen on host:port"`
+		LowCardinality bool   `long:"low-cardinality" env:"LOW_CARDINALITY" description:"use route patterns instead of raw paths for metrics labels"`
 	} `group:"mgmt" namespace:"mgmt" env-namespace:"MGMT"`
 
 	ErrorReport struct {
@@ -449,7 +450,9 @@ func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewarePr
 	if !opts.Management.Enabled {
 		return nil
 	}
-	metrics := mgmt.NewMetrics()
+	metrics := mgmt.NewMetrics(mgmt.MetricsConfig{
+		LowCardinality: opts.Management.LowCardinality,
+	})
 	go func() {
 		mgSrv := mgmt.Server{
 			Listen:         opts.Management.Listen,
