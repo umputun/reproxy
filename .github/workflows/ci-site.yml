@@ -45,7 +45,7 @@ jobs:
           ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
           echo GITHUB_REF - $ref
           echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
-          docker buildx build -f Dockerfile.site --push --no-cache --platform linux/amd64,linux/arm/v7,linux/arm64 \
+          docker buildx build -f Dockerfile.site --push --no-cache --platform linux/amd64,linux/arm64 \
             -t ghcr.io/${USERNAME}/reproxy-site:${ref} .
 
       - name: deploy tagged (latest) site to ghcr.io and dockerhub
@@ -59,7 +59,7 @@ jobs:
           ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
           echo GITHUB_REF - $ref
           echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
-          docker buildx build -f Dockerfile.site --push --no-cache --platform linux/amd64,linux/arm/v7,linux/arm64 \
+          docker buildx build -f Dockerfile.site --push --no-cache --platform linux/amd64,linux/arm64 \
             -t ghcr.io/${USERNAME}/reproxy-site:${ref} -t ghcr.io/${USERNAME}/reproxy-site:latest .
 
       - name: remote site deployment from master
