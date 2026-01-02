@@ -130,12 +130,13 @@ var opts struct {
 	} `group:"logger" namespace:"logger" env-namespace:"LOGGER"`
 
 	Docker struct {
-		Enabled   bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
-		Host      string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
-		Network   string   `long:"network" env:"NETWORK" default:"" description:"docker network"`
-		Excluded  []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
-		AutoAPI   bool     `long:"auto" env:"AUTO" description:"enable automatic routing (without labels)"`
-		APIPrefix string   `long:"prefix" env:"PREFIX" description:"prefix for docker source routes"`
+		Enabled    bool     `long:"enabled" env:"ENABLED" description:"enable docker provider"`
+		Host       string   `long:"host" env:"HOST" default:"unix:///var/run/docker.sock" description:"docker host"`
+		Network    string   `long:"network" env:"NETWORK" default:"" description:"docker network"`
+		Excluded   []string `long:"exclude" env:"EXCLUDE" description:"excluded containers" env-delim:","`
+		AutoAPI    bool     `long:"auto" env:"AUTO" description:"enable automatic routing (without labels)"`
+		APIPrefix  string   `long:"prefix" env:"PREFIX" description:"prefix for docker source routes"`
+		APIVersion string   `long:"api-version" env:"API_VERSION" default:"1.24" description:"docker API version"`
 	} `group:"docker" namespace:"docker" env-namespace:"DOCKER"`
 
 	ConsulCatalog struct {
@@ -404,7 +405,7 @@ func makeProviders() ([]discovery.Provider, error) {
 	}
 
 	if opts.Docker.Enabled {
-		client := provider.NewDockerClient(opts.Docker.Host, opts.Docker.Network)
+		client := provider.NewDockerClient(opts.Docker.Host, opts.Docker.Network, opts.Docker.APIVersion)
 
 		if opts.Docker.AutoAPI {
 			log.Printf("[INFO] auto-api enabled for docker")

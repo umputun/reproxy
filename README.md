@@ -518,6 +518,7 @@ docker:
       --docker.exclude=             excluded containers [$DOCKER_EXCLUDE]
       --docker.auto                 enable automatic routing (without labels) [$DOCKER_AUTO]
       --docker.prefix=              prefix for docker source routes [$DOCKER_PREFIX]
+      --docker.api-version=         docker API version (default: 1.24) [$DOCKER_API_VERSION]
 
 consul-catalog:
       --consul-catalog.enabled      enable consul catalog provider [$CONSUL_CATALOG_ENABLED]
