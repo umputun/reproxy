@@ -1,0 +1,55 @@
+[
+  {
+    "label": "Run Server (static)",
+    "command": "go run ./app --static.enabled --dbg --logger.enabled --static.rule=\" localhost,^/api/(.*),http://127.0.0.1:9090/$1,\" --static.rule=\" *,^/svc1/echo,https://echo.umputun.com/echo,\" --static.rule=\" *,^/svc2/echo,https://httpbin.org/get,\" --static.rule=\"*,^/echo,http://postman-echo.com/get,\" --static.rule=\"*,^/test,http://localhost:9090/get,\" --static.rule=\"*,/www,assets:$HOME/tmp/html,\" --static.rule=\"*,^/speed,http://localhost:9999/get,\" --listen=0.0.0.0:8080 --assets.location=$HOME/tmp/html --assets.root=/static --assets.cache=12h --mgmt.enabled --error.enabled --max=100000000 --logger.stdout",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true
+  },
+  {
+    "label": "Run Server (docker auto)",
+    "command": "go run ./app --docker.enabled --docker.auto --docker.host=unix://$HOME/.docker/run/docker.sock --dbg --logger.enabled --logger.stdout --listen=0.0.0.0:8080 --mgmt.enabled --error.enabled",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true
+  },
+  {
+    "label": "Run Server (file provider)",
+    "command": "go run ./app --file.enabled --file.name=reproxy-private.yml --dbg --logger.enabled --logger.stdout --listen=0.0.0.0:8080 --mgmt.enabled --error.enabled",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true
+  },
+  {
+    "label": "Build",
+    "command": "make build",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Test All",
+    "command": "cd app && go test ./...",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Test with Race",
+    "command": "cd app && go test -race -timeout=60s -count 1 ./...",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Test Current Package",
+    "command": "cd app && go test -v ./$(dirname $ZED_FILE | sed 's|.*/reproxy/app/||')/...",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Lint",
+    "command": "golangci-lint run",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Docker Build",
+    "command": "make docker",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  },
+  {
+    "label": "Coverage Report (HTML)",
+    "command": "cd app && go test -coverprofile=coverage.out $(go list ./... | grep -v '/mocks' | grep -v '/vendor') && go tool cover -html=coverage.out -o coverage.html && echo '' && echo 'Coverage report: file://'$(pwd)'/coverage.html' && open coverage.html",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]

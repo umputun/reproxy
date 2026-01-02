@@ -9,3 +9,4 @@ docker-compose-private.yml
 *.gpg
 reproxy-private.yml
 .env
+coverage.html

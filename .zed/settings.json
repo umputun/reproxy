@@ -1,0 +1,8 @@
+{
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.idea",
+    "**/vendor",
+    "**/.history"
+  ]
+}
