@@ -384,7 +384,7 @@ func TestDocker_refresh(t *testing.T) {
 
 func TestDockerClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, `/v1.24/containers/json`, r.URL.Path)
+		assert.Equal(t, `/v1.44/containers/json`, r.URL.Path)
 
 		// obtained using curl --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json
 		resp, err := os.ReadFile("testdata/containers.json")
@@ -395,7 +395,7 @@ func TestDockerClient(t *testing.T) {
 	defer srv.Close()
 	addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
 
-	client := NewDockerClient(addr, "bridge")
+	client := NewDockerClient(addr, "bridge", "1.44")
 	c, err := client.ListContainers()
 	require.NoError(t, err, "unexpected error while listing containers")
 
@@ -420,7 +420,7 @@ func TestDockerClient_error(t *testing.T) {
 	defer srv.Close()
 	addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
 
-	client := NewDockerClient(addr, "bridge")
+	client := NewDockerClient(addr, "bridge", "1.44")
 	_, err := client.ListContainers()
 	require.EqualError(t, err, "unexpected error from docker daemon: bruh")
 }

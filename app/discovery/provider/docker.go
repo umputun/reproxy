@@ -351,16 +351,17 @@ func (d *Docker) listContainers(allowLogging bool) (res []containerInfo, err err
 }
 
 type dockerClient struct {
-	client  http.Client
-	network string // network for IP selection
+	client     http.Client
+	network    string // network for IP selection
+	apiVersion string // docker API version
 }
 
-// NewDockerClient constructs docker client for given host and network
-func NewDockerClient(host, network string) DockerClient {
+// NewDockerClient constructs docker client for given host, network and API version
+func NewDockerClient(host, network, apiVersion string) DockerClient {
 	var schemaRegex = regexp.MustCompile("^(?:([a-z0-9]+)://)?(.*)$")
 	parts := schemaRegex.FindStringSubmatch(host)
 	proto, addr := parts[1], parts[2]
-	log.Printf("[DEBUG] configuring docker client to talk to %s via %s", addr, proto)
+	log.Printf("[DEBUG] configuring docker client to talk to %s via %s, API version %s", addr, proto, apiVersion)
 
 	client := http.Client{
 		Transport: &http.Transport{
@@ -371,15 +372,12 @@ func NewDockerClient(host, network string) DockerClient {
 		Timeout: time.Second * 5,
 	}
 
-	return &dockerClient{client, network}
+	return &dockerClient{client: client, network: network, apiVersion: apiVersion}
 }
 
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {
-	// minimum API version that returns attached networks
-	// docs.docker.com/engine/api/version-history/#v122-api-changes
-	const APIVersion = "v1.24"
-
-	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", APIVersion))
+	apiVersion := "v" + d.apiVersion
+	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", apiVersion))
 	if err != nil {
 		return nil, fmt.Errorf("failed connection to docker socket: %w", err)
 	}
