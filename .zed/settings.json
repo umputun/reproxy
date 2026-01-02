@@ -2,7 +2,7 @@
   "file_scan_exclusions": [
     "**/.git",
     "**/.idea",
-    "**/vendor",
-    "**/.history"
+    "**/.history",
+    "**/.DS_Store"
   ]
 }
