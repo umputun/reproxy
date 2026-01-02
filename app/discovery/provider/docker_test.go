@@ -383,33 +383,45 @@ func TestDocker_refresh(t *testing.T) {
 }
 
 func TestDockerClient(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, `/v1.44/containers/json`, r.URL.Path)
+	t.Run("without v prefix", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, `/v1.44/containers/json`, r.URL.Path)
+			resp, err := os.ReadFile("testdata/containers.json")
+			assert.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer srv.Close()
+		addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
 
-		// obtained using curl --unix-socket /var/run/docker.sock http://localhost/v1.41/containers/json
-		resp, err := os.ReadFile("testdata/containers.json")
-		assert.NoError(t, err)
-		w.Write(resp)
-	}))
+		client := NewDockerClient(addr, "bridge", "1.44")
+		c, err := client.ListContainers()
+		require.NoError(t, err, "unexpected error while listing containers")
 
-	defer srv.Close()
-	addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
+		assert.Len(t, c, 2)
+		assert.NotEmpty(t, c[0].ID)
+		assert.Equal(t, "nginx", c[0].Name)
+		assert.Equal(t, "running", c[0].State)
+		assert.Equal(t, "172.17.0.3", c[0].IP)
+		assert.Equal(t, "y", c[0].Labels["reproxy.enabled"])
+		assert.Equal(t, []int{80}, c[0].Ports)
+		assert.Equal(t, time.Unix(1618417435, 0), c[0].TS)
+		assert.Empty(t, c[1].IP)
+	})
 
-	client := NewDockerClient(addr, "bridge", "1.44")
-	c, err := client.ListContainers()
-	require.NoError(t, err, "unexpected error while listing containers")
+	t.Run("with v prefix", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, `/v1.24/containers/json`, r.URL.Path) // should not become vv1.24
+			resp, err := os.ReadFile("testdata/containers.json")
+			assert.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer srv.Close()
+		addr := fmt.Sprintf("tcp://%s", strings.TrimPrefix(srv.URL, "http://"))
 
-	assert.Len(t, c, 2)
-
-	assert.NotEmpty(t, c[0].ID)
-	assert.Equal(t, "nginx", c[0].Name)
-	assert.Equal(t, "running", c[0].State)
-	assert.Equal(t, "172.17.0.3", c[0].IP)
-	assert.Equal(t, "y", c[0].Labels["reproxy.enabled"])
-	assert.Equal(t, []int{80}, c[0].Ports)
-	assert.Equal(t, time.Unix(1618417435, 0), c[0].TS)
-
-	assert.Empty(t, c[1].IP)
+		client := NewDockerClient(addr, "bridge", "v1.24")
+		_, err := client.ListContainers()
+		require.NoError(t, err)
+	})
 }
 
 func TestDockerClient_error(t *testing.T) {

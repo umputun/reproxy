@@ -376,7 +376,10 @@ func NewDockerClient(host, network, apiVersion string) DockerClient {
 }
 
 func (d *dockerClient) ListContainers() ([]containerInfo, error) {
-	apiVersion := "v" + d.apiVersion
+	apiVersion := d.apiVersion
+	if !strings.HasPrefix(apiVersion, "v") {
+		apiVersion = "v" + apiVersion
+	}
 	resp, err := d.client.Get(fmt.Sprintf("http://localhost/%s/containers/json", apiVersion))
 	if err != nil {
 		return nil, fmt.Errorf("failed connection to docker socket: %w", err)
