@@ -208,7 +208,9 @@ var opts struct {
 var revision = "unknown"
 
 func main() {
-	fmt.Printf("reproxy %s\n", revision)
+	if os.Getenv("GO_FLAGS_COMPLETION") == "" {
+		fmt.Printf("reproxy %s\n", revision)
+	}
 
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	p.SubcommandsOptional = true

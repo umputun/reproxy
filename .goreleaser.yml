@@ -22,6 +22,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - completions/*
 
 brews:
   - name: reproxy
@@ -37,6 +38,10 @@ brews:
     homepage: "https://reproxy.io"
     description: "Simple edge HTTP(s) reverse proxy with automatic SSL"
     license: "MIT"
+    extra_install: |
+      bash_completion.install "completions/reproxy.bash" => "reproxy"
+      zsh_completion.install "completions/reproxy.zsh" => "_reproxy"
+      fish_completion.install "completions/reproxy.fish" => "reproxy.fish"
 
 nfpms:
   - id: reproxy
@@ -59,6 +64,12 @@ nfpms:
       - src: reproxy-example.yml
         dst: /etc/reproxy-example.yml
         type: config
+      - src: completions/reproxy.bash
+        dst: /usr/share/bash-completion/completions/reproxy
+      - src: completions/reproxy.zsh
+        dst: /usr/share/zsh/vendor-completions/_reproxy
+      - src: completions/reproxy.fish
+        dst: /usr/share/fish/vendor_completions.d/reproxy.fish
     scripts:
       postinstall: "scripts/postinstall.sh"
       preremove: "scripts/preremove.sh"
