@@ -180,9 +180,12 @@ jobs:
 
       - name: create manifest and push to ghcr.io
         working-directory: /tmp/digests/ghcr
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
+          IS_LATEST: ${{ steps.tags.outputs.latest }}
         run: |
-          tags="-t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.tag }}"
-          if [ "${{ steps.tags.outputs.latest }}" == "true" ]; then
+          tags="-t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${TAG}"
+          if [ "${IS_LATEST}" == "true" ]; then
             tags="$tags -t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:latest"
           fi
           docker buildx imagetools create $tags \
@@ -190,9 +193,12 @@ jobs:
 
       - name: create manifest and push to Docker Hub
         working-directory: /tmp/digests/dockerhub
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
+          IS_LATEST: ${{ steps.tags.outputs.latest }}
         run: |
-          tags="-t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.tag }}"
-          if [ "${{ steps.tags.outputs.latest }}" == "true" ]; then
+          tags="-t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:${TAG}"
+          if [ "${IS_LATEST}" == "true" ]; then
             tags="$tags -t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:latest"
           fi
           docker buildx imagetools create $tags \
