@@ -122,6 +122,13 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush delegates to the original writer if it implements http.Flusher.
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Hijack delegate to the original writer if it implements http.Hijacker
 func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	h, ok := rw.ResponseWriter.(http.Hijacker)

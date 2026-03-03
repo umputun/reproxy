@@ -282,6 +282,27 @@ func TestResponseWriter(t *testing.T) {
 	})
 }
 
+func TestResponseWriter_Flush(t *testing.T) {
+	t.Run("delegates to underlying flusher", func(t *testing.T) {
+		wr := httptest.NewRecorder()
+		rw := NewResponseWriter(wr)
+		_, _ = rw.Write([]byte("data"))
+		rw.Flush()
+		assert.True(t, wr.Flushed)
+	})
+
+	t.Run("no-op when underlying writer does not support flush", func(t *testing.T) {
+		rw := NewResponseWriter(&nonFlushableWriter{})
+		assert.NotPanics(t, func() { rw.Flush() })
+	})
+}
+
+type nonFlushableWriter struct{}
+
+func (n *nonFlushableWriter) Header() http.Header         { return http.Header{} }
+func (n *nonFlushableWriter) Write(b []byte) (int, error) { return len(b), nil }
+func (n *nonFlushableWriter) WriteHeader(int)             {}
+
 type hijackableResponseWriter struct {
 	http.ResponseWriter
 	hijacked bool
