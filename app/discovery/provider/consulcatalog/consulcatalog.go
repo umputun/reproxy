@@ -142,6 +142,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		pingURL := fmt.Sprintf("http://%s:%d/ping", c.ServiceAddress, c.ServicePort)
 		server := "*"
 		var keepHost *bool
+		forwardHealthChecks := false
 		onlyFrom := []string{}
 
 		if v, ok := c.Labels["reproxy.enabled"]; ok && (v == "true" || v == "yes" || v == "1") {
@@ -191,6 +192,10 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			}
 		}
 
+		if v, ok := c.Labels["reproxy.forward-health-checks"]; ok && (v == "true" || v == "yes" || v == "1") {
+			forwardHealthChecks = true
+		}
+
 		if !enabled {
 			log.Printf("[DEBUG] service %s disabled", c.ServiceID)
 			continue
@@ -204,7 +209,8 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		// server label may have multiple, comma separated servers
 		for srv := range strings.SplitSeq(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
-				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost, OnlyFromIPs: onlyFrom, AuthUsers: authUsers})
+				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost,
+				ForwardHealthChecks: forwardHealthChecks, OnlyFromIPs: onlyFrom, AuthUsers: authUsers})
 		}
 	}
 

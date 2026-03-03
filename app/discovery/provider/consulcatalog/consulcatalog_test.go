@@ -173,6 +173,49 @@ func TestConsulCatalog_List(t *testing.T) {
 	assert.Equal(t, "*", res[6].Server)
 	assert.Equal(t, &fa, res[6].KeepHost)
 	assert.Equal(t, []string{}, res[6].AuthUsers)
+
+	for i := 0; i < 7; i++ {
+		assert.False(t, res[i].ForwardHealthChecks, "route %d should not have forward-health-checks", i)
+	}
+}
+
+func TestConsulCatalog_ListForwardHealthChecks(t *testing.T) {
+	clientMock := &ConsulClientMock{GetFunc: func() ([]consulService, error) {
+		return []consulService{
+			{
+				ServiceID:      "fhc1",
+				ServiceName:    "fhcService",
+				ServiceAddress: "addr-fhc",
+				ServicePort:    9000,
+				Labels: map[string]string{
+					"reproxy.enabled":              "true",
+					"reproxy.server":               "fhc.example.com",
+					"reproxy.forward-health-checks": "true",
+				},
+			},
+			{
+				ServiceID:      "nofhc",
+				ServiceName:    "noFhcService",
+				ServiceAddress: "addr-nofhc",
+				ServicePort:    9001,
+				Labels: map[string]string{
+					"reproxy.enabled": "true",
+				},
+			},
+		}, nil
+	}}
+
+	cc := &ConsulCatalog{client: clientMock}
+	res, err := cc.List()
+	require.NoError(t, err)
+	require.Len(t, res, 2)
+
+	fhcByServer := map[string]bool{}
+	for _, r := range res {
+		fhcByServer[r.Server] = r.ForwardHealthChecks
+	}
+	assert.True(t, fhcByServer["fhc.example.com"])
+	assert.False(t, fhcByServer["*"])
 }
 
 func TestConsulCatalog_serviceListWasChanged(t *testing.T) {

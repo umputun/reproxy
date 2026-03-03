@@ -105,6 +105,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		// defaults
 		destURL, pingURL, server := fmt.Sprintf("http://%s:%d/$1", c.IP, port), fmt.Sprintf("http://%s:%d/ping", c.IP, port), "*"
 		assetsWebRoot, assetsLocation, assetsSPA := "", "", false
+		forwardHealthChecks := false
 		onlyFrom := []string{}
 
 		if d.AutoAPI && n == 0 {
@@ -172,6 +173,10 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 
 		keepHost := d.getKeepHostValue(c.Labels, n)
 
+		if _, ok := d.labelN(c.Labels, n, "forward-health-checks"); ok {
+			forwardHealthChecks = true
+		}
+
 		if !enabled {
 			continue
 		}
@@ -186,7 +191,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		for srv := range strings.SplitSeq(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
-				KeepHost: keepHost, OnlyFromIPs: onlyFrom, AuthUsers: authUsers}
+				KeepHost: keepHost, ForwardHealthChecks: forwardHealthChecks, OnlyFromIPs: onlyFrom, AuthUsers: authUsers}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {

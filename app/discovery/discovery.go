@@ -37,9 +37,10 @@ type URLMapper struct {
 	PingURL      string
 	MatchType    MatchType
 	RedirectType RedirectType
-	KeepHost     *bool
-	OnlyFromIPs  []string
-	AuthUsers    []string // basic auth credentials as user:bcrypt_hash pairs
+	KeepHost            *bool
+	ForwardHealthChecks bool
+	OnlyFromIPs         []string
+	AuthUsers           []string // basic auth credentials as user:bcrypt_hash pairs
 
 	AssetsLocation string // local FS root location
 	AssetsWebRoot  string // web root location
@@ -460,18 +461,19 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 	}
 
 	res := URLMapper{
-		Server:         m.Server,
-		Dst:            strings.TrimSuffix(m.Dst, "/") + "/$1",
-		ProviderID:     m.ProviderID,
-		PingURL:        m.PingURL,
-		MatchType:      m.MatchType,
-		AssetsWebRoot:  m.AssetsWebRoot,
-		AssetsLocation: m.AssetsLocation,
-		AssetsSPA:      m.AssetsSPA,
-		RedirectType:   m.RedirectType,
-		KeepHost:       m.KeepHost,
-		OnlyFromIPs:    m.OnlyFromIPs,
-		AuthUsers:      m.AuthUsers,
+		Server:              m.Server,
+		Dst:                 strings.TrimSuffix(m.Dst, "/") + "/$1",
+		ProviderID:          m.ProviderID,
+		PingURL:             m.PingURL,
+		MatchType:           m.MatchType,
+		AssetsWebRoot:       m.AssetsWebRoot,
+		AssetsLocation:      m.AssetsLocation,
+		AssetsSPA:           m.AssetsSPA,
+		RedirectType:        m.RedirectType,
+		KeepHost:            m.KeepHost,
+		ForwardHealthChecks: m.ForwardHealthChecks,
+		OnlyFromIPs:         m.OnlyFromIPs,
+		AuthUsers:           m.AuthUsers,
 	}
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
 	if err != nil {
