@@ -11,10 +11,15 @@ env:
   REGISTRY_DOCKER: docker.io
   IMAGE_NAME: ${{ github.actor }}/reproxy
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
       (github.event.workflow_run.head_branch == 'master' ||
        startsWith(github.event.workflow_run.head_branch, 'v'))
     strategy:
@@ -53,11 +58,10 @@ jobs:
 
       - name: prepare build args
         id: prep
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          branch="${{ github.event.workflow_run.head_branch }}"
-          sha="${{ github.event.workflow_run.head_sha }}"
-          echo "branch=${branch}" >> $GITHUB_OUTPUT
-          echo "version=${branch}-${sha:0:7}-$(date +%Y%m%dT%H:%M:%S)" >> $GITHUB_OUTPUT
+          echo "branch=${HEAD_BRANCH}" >> $GITHUB_OUTPUT
 
       - name: build and push to ghcr.io
         id: build-ghcr
@@ -161,21 +165,25 @@ jobs:
 
       - name: set docker tags
         id: tags
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          branch="${{ github.event.workflow_run.head_branch }}"
-          if [[ "$branch" == v* ]]; then
-            echo "tag=${branch}" >> $GITHUB_OUTPUT
+          if [[ "$HEAD_BRANCH" == v* ]]; then
+            echo "tag=${HEAD_BRANCH}" >> $GITHUB_OUTPUT
             echo "latest=true" >> $GITHUB_OUTPUT
           else
-            echo "tag=${branch}" >> $GITHUB_OUTPUT
+            echo "tag=${HEAD_BRANCH}" >> $GITHUB_OUTPUT
             echo "latest=false" >> $GITHUB_OUTPUT
           fi
 
       - name: create manifest and push to ghcr.io
         working-directory: /tmp/digests/ghcr
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
+          IS_LATEST: ${{ steps.tags.outputs.latest }}
         run: |
-          tags="-t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.tag }}"
-          if [ "${{ steps.tags.outputs.latest }}" == "true" ]; then
+          tags="-t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${TAG}"
+          if [ "${IS_LATEST}" == "true" ]; then
             tags="$tags -t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:latest"
           fi
           docker buildx imagetools create $tags \
@@ -183,9 +191,12 @@ jobs:
 
       - name: create manifest and push to Docker Hub
         working-directory: /tmp/digests/dockerhub
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
+          IS_LATEST: ${{ steps.tags.outputs.latest }}
         run: |
-          tags="-t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.tag }}"
-          if [ "${{ steps.tags.outputs.latest }}" == "true" ]; then
+          tags="-t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:${TAG}"
+          if [ "${IS_LATEST}" == "true" ]; then
             tags="$tags -t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:latest"
           fi
           docker buildx imagetools create $tags \
