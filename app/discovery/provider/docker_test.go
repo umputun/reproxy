@@ -206,7 +206,7 @@ func TestDocker_ListMulti(t *testing.T) {
 	assert.Equal(t, "^/kn/", res[7].SrcMatch.String())
 	assert.False(t, *res[7].KeepHost)
 
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		assert.False(t, res[i].ForwardHealthChecks, "route %d should not have forward-health-checks", i)
 	}
 }

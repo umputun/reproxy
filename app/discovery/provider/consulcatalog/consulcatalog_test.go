@@ -174,7 +174,7 @@ func TestConsulCatalog_List(t *testing.T) {
 	assert.Equal(t, &fa, res[6].KeepHost)
 	assert.Equal(t, []string{}, res[6].AuthUsers)
 
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		assert.False(t, res[i].ForwardHealthChecks, "route %d should not have forward-health-checks", i)
 	}
 }
