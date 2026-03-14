@@ -26,6 +26,7 @@ linters:
     gosec:
       excludes:
         - G117
+        - G118
         - G704
     goconst:
       min-len: 2

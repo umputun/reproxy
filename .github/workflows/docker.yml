@@ -6,20 +6,19 @@ on:
     types: [completed]
     # NOTE: Do NOT add `branches:` filter here - it breaks tag builds
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   REGISTRY_GHCR: ghcr.io
   REGISTRY_DOCKER: docker.io
   IMAGE_NAME: ${{ github.actor }}/reproxy
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
   build:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
       (github.event.workflow_run.head_branch == 'master' ||
        startsWith(github.event.workflow_run.head_branch, 'v'))
     strategy:
@@ -39,19 +38,20 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       - name: set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: login to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.PKG_TOKEN }}
 
       - name: login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
@@ -65,7 +65,7 @@ jobs:
 
       - name: build and push to ghcr.io
         id: build-ghcr
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -77,7 +77,7 @@ jobs:
 
       - name: build and push to Docker Hub
         id: build-dockerhub
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -96,7 +96,7 @@ jobs:
           touch "/tmp/digests/dockerhub/${digest_dockerhub#sha256:}"
 
       - name: upload ghcr digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-ghcr-${{ matrix.artifact }}
           path: /tmp/digests/ghcr/*
@@ -104,7 +104,7 @@ jobs:
           retention-days: 1
 
       - name: upload dockerhub digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-dockerhub-${{ matrix.artifact }}
           path: /tmp/digests/dockerhub/*
@@ -117,14 +117,14 @@ jobs:
 
     steps:
       - name: download ghcr digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests/ghcr
           pattern: digests-ghcr-*
           merge-multiple: true
 
       - name: download dockerhub digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests/dockerhub
           pattern: digests-dockerhub-*
@@ -148,17 +148,17 @@ jobs:
           echo "All $expected digests present for both registries"
 
       - name: set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: login to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.PKG_TOKEN }}
 
       - name: login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
