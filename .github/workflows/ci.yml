@@ -6,6 +6,9 @@ on:
     tags:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,14 +21,16 @@ jobs:
           sudo rm -rf /usr/local/share/boost
           docker system prune -af
 
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
       - name: set up go 1.25
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
         id: go
-
-      - name: checkout
-        uses: actions/checkout@v6
 
       - name: build and test
         run: |
@@ -47,20 +52,18 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: "latest"
 
       - name: golangci-lint on example directory
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: "latest"
           args: --config ../../.golangci.yml
           working-directory: examples/plugin
 
-      - name: install goveralls
-        run: |
-         go install github.com/mattn/goveralls@latest
-
       - name: submit coverage
-        run: $(go env GOPATH)/bin/goveralls -service="github" -coverprofile=$GITHUB_WORKSPACE/profile.cov
+        run: |
+          go install github.com/mattn/goveralls@latest
+          goveralls -service="github" -coverprofile=$GITHUB_WORKSPACE/profile.cov
         env:
           COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}

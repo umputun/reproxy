@@ -15,6 +15,10 @@ on:
       - "site/**"
       - "README.md"
       - "Dockerfile.site"
+permissions:
+  contents: read
+  packages: write
+
 jobs:
 
   build:
@@ -22,14 +26,16 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: available platforms
         run: echo ${{ steps.buildx.outputs.platforms }}
