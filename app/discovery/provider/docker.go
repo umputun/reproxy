@@ -173,9 +173,7 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 
 		keepHost := d.getKeepHostValue(c.Labels, n)
 
-		if _, ok := d.labelN(c.Labels, n, "forward-health-checks"); ok {
-			forwardHealthChecks = true
-		}
+		forwardHealthChecks = d.getForwardHealthChecksValue(c.Labels, n)
 
 		if !enabled {
 			continue
@@ -449,6 +447,21 @@ func (d *dockerClient) ListContainers() ([]containerInfo, error) {
 	}
 
 	return containers, nil
+}
+
+func (d *Docker) getForwardHealthChecksValue(labels map[string]string, n int) bool {
+	v, ok := d.labelN(labels, n, "forward-health-checks")
+	if !ok {
+		return false
+	}
+	if v == "true" || v == "yes" || v == "y" || v == "1" {
+		return true
+	}
+	if v == "false" || v == "no" || v == "n" || v == "0" {
+		return false
+	}
+	log.Printf("[WARN] forward-health-checks label value %s is not valid, ignoring", v)
+	return false
 }
 
 func (d *Docker) getKeepHostValue(labels map[string]string, n int) *bool {

@@ -29,6 +29,8 @@ func TestStatic_List(t *testing.T) {
 		{"example.com,123, spa:456 ", "example.com", "123", "456", "", true, true, false, false},
 		{"example.com,^/(.*),/$1,/ping,true", "example.com", "^/(.*)", "/$1", "/ping", false, false, true, false},
 		{"example.com,^/(.*),/$1,,yes", "example.com", "^/(.*)", "/$1", "", false, false, true, false},
+		{"example.com,^/(.*),/$1,,false", "example.com", "^/(.*)", "/$1", "", false, false, false, false},
+		{"example.com,^/(.*),/$1,,no", "example.com", "^/(.*)", "/$1", "", false, false, false, false},
 	}
 
 	for i, tt := range tbl {

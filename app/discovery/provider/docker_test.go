@@ -235,11 +235,20 @@ func TestDocker_ListForwardHealthChecks(t *testing.T) {
 				{
 					Name: "multi", State: "running", IP: "127.0.0.12", Ports: []int{8080},
 					Labels: map[string]string{
-						"reproxy.0.route":                  "^/api/(.*)",
-						"reproxy.0.dest":                   "/api/$1",
-						"reproxy.1.route":                  "^/web/(.*)",
-						"reproxy.1.dest":                   "/web/$1",
-						"reproxy.1.forward-health-checks":  "true",
+						"reproxy.0.route":                 "^/api/(.*)",
+						"reproxy.0.dest":                  "/api/$1",
+						"reproxy.1.route":                 "^/web/(.*)",
+						"reproxy.1.dest":                  "/web/$1",
+						"reproxy.1.forward-health-checks": "true",
+					},
+				},
+				{
+					Name: "explicit-false", State: "running", IP: "127.0.0.13", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":                "falsy.example.com",
+						"reproxy.route":                 "^/(.*)",
+						"reproxy.dest":                  "/$1",
+						"reproxy.forward-health-checks": "false",
 					},
 				},
 			}, nil
@@ -249,7 +258,7 @@ func TestDocker_ListForwardHealthChecks(t *testing.T) {
 	d := Docker{DockerClient: dclient}
 	res, err := d.List()
 	require.NoError(t, err)
-	require.Len(t, res, 4)
+	require.Len(t, res, 5)
 
 	fhcByServer := map[string]bool{}
 	for _, r := range res {
@@ -257,6 +266,7 @@ func TestDocker_ListForwardHealthChecks(t *testing.T) {
 	}
 	assert.True(t, fhcByServer["abs.example.com"], "abs.example.com should have forward-health-checks")
 	assert.False(t, fhcByServer["normal.example.com"], "normal.example.com should not have forward-health-checks")
+	assert.False(t, fhcByServer["falsy.example.com"], "falsy.example.com with forward-health-checks=false should not have forward-health-checks")
 
 	fhcByRoute := map[string]bool{}
 	for _, r := range res {

@@ -192,8 +192,15 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			}
 		}
 
-		if v, ok := c.Labels["reproxy.forward-health-checks"]; ok && (v == "true" || v == "yes" || v == "1") {
-			forwardHealthChecks = true
+		if v, ok := c.Labels["reproxy.forward-health-checks"]; ok {
+			switch v {
+			case "true", "yes", "1":
+				forwardHealthChecks = true
+			case "false", "no", "0":
+				forwardHealthChecks = false
+			default:
+				log.Printf("[WARN] invalid value for reproxy.forward-health-checks: %s", v)
+			}
 		}
 
 		if !enabled {

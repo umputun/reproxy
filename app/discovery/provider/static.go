@@ -37,7 +37,8 @@ func (s *Static) List() (res []discovery.URLMapper, err error) {
 		}
 		forwardHealthChecks := false
 		if len(elems) >= 5 {
-			forwardHealthChecks = strings.TrimSpace(elems[4]) != ""
+			v := strings.TrimSpace(elems[4])
+			forwardHealthChecks = v == "true" || v == "yes" || v == "y" || v == "1"
 		}
 		rx, err := regexp.Compile(strings.TrimSpace(elems[1]))
 		if err != nil {
