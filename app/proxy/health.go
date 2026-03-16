@@ -14,6 +14,10 @@ import (
 func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && strings.EqualFold(r.URL.Path, "/health") {
+			if h.shouldForwardHealthChecks(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			h.healthHandler(w, r)
 			return
 		}
@@ -66,8 +70,11 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 // pingHandler middleware response with pong to /ping. Stops chain if ping request detected
 func (h *Http) pingHandler(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-
 		if r.Method == "GET" && strings.EqualFold(r.URL.Path, "/ping") {
+			if h.shouldForwardHealthChecks(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("pong"))
@@ -76,4 +83,19 @@ func (h *Http) pingHandler(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
+}
+
+// shouldForwardHealthChecks checks if the request matches a route with ForwardHealthChecks enabled
+func (h *Http) shouldForwardHealthChecks(r *http.Request) bool {
+	server := r.URL.Hostname()
+	if server == "" {
+		server = strings.Split(r.Host, ":")[0]
+	}
+	matches := h.Match(server, r.URL.EscapedPath())
+	for _, route := range matches.Routes {
+		if route.Mapper.ForwardHealthChecks {
+			return true
+		}
+	}
+	return false
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -168,4 +169,97 @@ func TestHttp_pingHandler(t *testing.T) {
 	b, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "pong", string(b))
+}
+
+func TestHttp_pingForwardHealthChecks(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success": true}`))
+	}))
+	defer backend.Close()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port)}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{
+			fmt.Sprintf("fhc.example.com,^/(.*),%s/$1,,true", backend.URL),
+			"normal.example.com,^/(.*),http://127.0.0.1:9999/$1,",
+		}},
+	}, time.Millisecond*10)
+
+	go func() {
+		_ = svc.Run(ctx)
+	}()
+	time.Sleep(20 * time.Millisecond)
+
+	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
+
+	go func() {
+		_ = h.Run(ctx)
+	}()
+
+	client := http.Client{}
+
+	t.Run("ping forwarded to backend when forward-health-checks enabled", func(t *testing.T) {
+		var resp *http.Response
+		require.Eventually(t, func() bool {
+			req, e := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/ping", port), http.NoBody)
+			if e != nil {
+				return false
+			}
+			req.Host = "fhc.example.com"
+			resp, e = client.Do(req)
+			return e == nil
+		}, time.Second, 10*time.Millisecond, "server failed to start")
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		b, e := io.ReadAll(resp.Body)
+		require.NoError(t, e)
+		assert.Equal(t, `{"success": true}`, string(b))
+	})
+
+	t.Run("health forwarded to backend when forward-health-checks enabled", func(t *testing.T) {
+		req, e := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/health", port), http.NoBody)
+		require.NoError(t, e)
+		req.Host = "fhc.example.com"
+		resp, e := client.Do(req)
+		require.NoError(t, e)
+		defer resp.Body.Close()
+		b, e := io.ReadAll(resp.Body)
+		require.NoError(t, e)
+		assert.Equal(t, `{"success": true}`, string(b))
+	})
+
+	t.Run("ping returns pong for host without forward-health-checks", func(t *testing.T) {
+		req, e := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/ping", port), http.NoBody)
+		require.NoError(t, e)
+		req.Host = "normal.example.com"
+		resp, e := client.Do(req)
+		require.NoError(t, e)
+		defer resp.Body.Close()
+		b, e := io.ReadAll(resp.Body)
+		require.NoError(t, e)
+		assert.Equal(t, "pong", string(b))
+	})
+
+	t.Run("ping returns pong for unmatched host", func(t *testing.T) {
+		req, e := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/ping", port), http.NoBody)
+		require.NoError(t, e)
+		req.Host = "unknown.example.com"
+		resp, e := client.Do(req)
+		require.NoError(t, e)
+		defer resp.Body.Close()
+		b, e := io.ReadAll(resp.Body)
+		require.NoError(t, e)
+		assert.Equal(t, "pong", string(b))
+	})
 }
