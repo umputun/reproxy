@@ -65,12 +65,13 @@ _See examples of various providers in [examples](https://github.com/umputun/repr
 
 ### Static provider
 
-This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported. Each rule is 3 or 4 comma-separated elements `server,sourceurl,destination[,ping-url]`. For example:
+This is the simplest provider defining all mapping rules directly in the command line (or environment). Multiple rules supported. Each rule is 3 to 5 comma-separated elements `server,sourceurl,destination[,ping-url[,forward-health-checks]]`. For example:
 
 - `*,^/api/(.*),https://api.example.com/$1` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
 - `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` and it sees `https://api.example.com/ping` for the health check.
+- `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping,true` - same as above but also forwards `/ping` and `/health` requests to the backend.
 
-The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. See [Health check](#ping-and-health-checks) section for more details.
+The last (4th) element defines an optional ping url used for health reporting. I.e.`*,^/api/(.*),https://api.example.com/$1,https://api.example.com/ping`. The 5th element optionally enables forwarding health check requests to the backend (`true`, `yes`, `1`). See [Health check](#ping-and-health-checks) section for more details.
 
 ### File provider
 
@@ -87,7 +88,8 @@ default: # the same as * (catch-all) server
       route: "/api/svc3/xyz",
       dest: "http://127.0.0.3:8080/blah3/xyz",
       ping: "http://127.0.0.3:8080/ping",
-      remote: "192.168.1.0/24, 127.0.0.1" # optional, restrict access to the route
+      remote: "192.168.1.0/24, 127.0.0.1", # optional, restrict access to the route
+      forward-health-checks: true # optional, forward /ping and /health to backend
     }
   - {
       route: "^/admin/(.*)",
