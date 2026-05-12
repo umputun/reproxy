@@ -113,14 +113,14 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 			}
 			var timeout time.Duration
 			if f.Timeout != "" {
-				d, perr := time.ParseDuration(f.Timeout)
+				dur, perr := time.ParseDuration(f.Timeout)
 				if perr != nil {
 					return nil, fmt.Errorf("can't parse timeout %s: %w", f.Timeout, perr)
 				}
-				if d < 0 {
+				if dur < 0 {
 					return nil, fmt.Errorf("can't parse timeout %s: negative duration", f.Timeout)
 				}
-				timeout = d
+				timeout = dur
 			}
 			if f.Throttle < 0 {
 				return nil, fmt.Errorf("can't parse throttle %d: negative value", f.Throttle)
