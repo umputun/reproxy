@@ -125,6 +125,10 @@ The cache key includes `rate` so editing config picks up new rates on next reque
 
 **Error status from per-route timeout:** when the per-route context deadline fires, `httputil.ReverseProxy`'s `RoundTrip` returns `context.DeadlineExceeded`. Because `proxy.go` does NOT set a custom `ErrorHandler` on `ReverseProxy`, the stdlib default writes **HTTP 502 Bad Gateway** with the proxy-error message logged. This matches the existing behavior reported in issue #140 ("returns 502 code when wait too long") and stays consistent across global and per-route timeout failures. Tests must assert 502, not 504. We deliberately do NOT change the error status as part of this PR.
 
+**Discovered during Task 7 (integration testing):** delivering 502 to the client when the per-route timeout fires requires the connection's write deadline to be set *slightly later* than the ctx deadline. If both fire at the same instant, the server-side conn is severed before the proxy's ErrorHandler can flush 502 to the client and the client sees EOF instead. The implementation uses a 500ms grace (`writeDeadlineGrace`) on `SetWriteDeadline` relative to `SetReadDeadline` / ctx timeout for exactly this reason; the read deadline still matches the ctx timeout so the request body read fails at the timeout boundary.
+
+**Discovered during Task 7 (keep-alive conn reuse):** when the per-route timeout fires on a connection, Go's `http.Server` marks the conn as broken at the deadline boundary even after the response is flushed. The next request reused on the same keep-alive connection sees its context canceled before the handler reaches the upstream, producing 502. The middleware defers a reset of both read/write deadlines to zero so subsequent server-side request handling can rearm them via standard `WriteTimeout`/`ReadTimeout`. Despite the reset, a single follow-up request on the same kept-alive conn may still observe the broken state — clients are expected to open a fresh TCP connection after a per-route timeout fires (which is what every standard HTTP client does once a conn is in a half-broken state). Tests use `Transport{DisableKeepAlives: true}` to isolate sub-tests from this carry-over.
+
 ## Technical Details
 
 **`URLMapper` extension** (`app/discovery/discovery.go:32`):
@@ -160,6 +164,8 @@ type URLMapper struct {
 
 **`routeTimeoutHandler`** (new in `app/proxy/handlers.go`):
 ```go
+const writeDeadlineGrace = 500 * time.Millisecond
+
 // routeTimeoutHandler applies a per-route request deadline when the matched mapper has Timeout > 0.
 func routeTimeoutHandler(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,16 +179,21 @@ func routeTimeoutHandler(next http.Handler) http.Handler {
             next.ServeHTTP(w, r)
             return
         }
-        ctx, cancel := context.WithTimeout(reqCtx, match.Mapper.Timeout)
+        readDeadline := time.Now().Add(match.Mapper.Timeout)
+        ctx, cancel := context.WithDeadline(reqCtx, readDeadline)
         defer cancel()
         rc := http.NewResponseController(w) // always non-nil per stdlib contract
-        deadline := time.Now().Add(match.Mapper.Timeout)
-        if err := rc.SetReadDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+        if err := rc.SetReadDeadline(readDeadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
             log.Printf("[DEBUG] route timeout: SetReadDeadline failed: %v", err)
         }
-        if err := rc.SetWriteDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+        if err := rc.SetWriteDeadline(readDeadline.Add(writeDeadlineGrace)); err != nil && !errors.Is(err, http.ErrNotSupported) {
             log.Printf("[DEBUG] route timeout: SetWriteDeadline failed: %v", err)
         }
+        // clear deadlines so kept-alive conns don't carry an expired write deadline into subsequent requests
+        defer func() {
+            _ = rc.SetReadDeadline(time.Time{})
+            _ = rc.SetWriteDeadline(time.Time{})
+        }()
         next.ServeHTTP(w, r.WithContext(ctx))
     })
 }
@@ -191,6 +202,8 @@ func routeTimeoutHandler(next http.Handler) http.Handler {
 Notes:
 - `http.NewResponseController` is documented to always return a non-nil `*http.ResponseController` — no nil check needed.
 - `http.ErrNotSupported` is returned when the underlying writer can't surface a deadline (e.g. some HTTP/2 paths or buffering wrappers). Treat that as expected — the ctx deadline still applies and propagates to upstream calls via the reverse proxy's transport. Other errors are logged at DEBUG once per request.
+- Write deadline gets a 500ms grace beyond the ctx timeout so the proxy's default ErrorHandler can flush 502 to the client when the per-route ctx cancels the upstream call (see Solution Overview note on error status).
+- Both deadlines are reset to zero in a defer so kept-alive conns don't carry an expired write deadline into subsequent requests; the server's normal `WriteTimeout`/`ReadTimeout` reapply on the next request.
 
 **Modified `limiterUserHandler`** (`app/proxy/handlers.go:142`): retains the existing global limiter for routes without per-route Throttle. Adds an outer `sync.Map` for route-scoped limiters. Key construction:
 ```go
@@ -337,15 +350,20 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/proxy/proxy_test.go`
 - Create (or reuse existing): `app/proxy/testdata/per_route.yml` — small fixture used only by this test
 
-- [ ] add an integration test that wires up a real `Http` server with a `provider.File` source pointing at the fixture. Fixture contains one route with `timeout: 200ms`, one with `throttle: 2`, one with both, and one with neither (control). Each route maps to a separate `httptest.Server` upstream.
-- [ ] **verify timeout end-to-end**: upstream for the timeout route does a context-aware sleep (`select` on `r.Context().Done()` vs `time.After(500ms)`). Client request times out; **client receives HTTP 502** (the stdlib `httputil.ReverseProxy` default ErrorHandler writes 502 for `context.DeadlineExceeded` from `RoundTrip` — this matches existing reproxy behavior on global timeout, see issue #140 body). Sibling route without per-route timeout responds normally even if it takes 250ms. Assert the response arrives close to the route's Timeout duration (not the upstream's 500ms), proving cancellation actually fired.
-- [ ] **verify throttle end-to-end**: 3 rapid client requests to the throttled route — first two pass, third returns 429. 3 rapid requests to the sibling route — all succeed.
-- [ ] **verify chain ordering interaction**: route with BOTH `timeout: 50ms` and `throttle: 1` — first request that exceeds the throttle should still respect the deadline (routeTimeoutHandler runs before limiterUserHandler). Verify the 429 response is returned within the deadline window (not blocked by a slow upstream that the deadline would have cancelled anyway).
-- [ ] use `net.Listen("tcp", "127.0.0.1:0")` for the reproxy listener (per CLAUDE.md Testing Patterns)
-- [ ] `defer ds.Close()` on every `httptest.Server` and on the reproxy listener
-- [ ] context timeouts in the test wrap must be longer than the per-route timeouts to avoid spurious failures (per the same Testing Patterns note about waitForServer timeouts)
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./...` — must pass before next task
-- [ ] verify per-task gate
+- [x] add an integration test that wires up a real `Http` server with a `provider.File` source pointing at the fixture. Fixture contains one route with `timeout: 200ms`, one with `throttle: 2`, one with both, and one with neither (control). Each route maps to a separate `httptest.Server` upstream.
+- [x] **verify timeout end-to-end**: upstream for the timeout route does a context-aware sleep (`select` on `r.Context().Done()` vs `time.After(500ms)`). Client request times out; **client receives HTTP 502** (the stdlib `httputil.ReverseProxy` default ErrorHandler writes 502 for `context.DeadlineExceeded` from `RoundTrip` — this matches existing reproxy behavior on global timeout, see issue #140 body). Sibling route without per-route timeout responds normally even if it takes 250ms. Assert the response arrives close to the route's Timeout duration (not the upstream's 500ms), proving cancellation actually fired.
+- [x] **verify throttle end-to-end**: 3 rapid client requests to the throttled route — first two pass, third returns 429. 3 rapid requests to the sibling route — all succeed.
+- [x] **verify chain ordering interaction**: route with BOTH `timeout: 50ms` and `throttle: 1` — first request that exceeds the throttle should still respect the deadline (routeTimeoutHandler runs before limiterUserHandler). Verify the 429 response is returned within the deadline window (not blocked by a slow upstream that the deadline would have cancelled anyway).
+- [x] use `net.Listen("tcp", "127.0.0.1:0")` for the reproxy listener (per CLAUDE.md Testing Patterns)
+- [x] `defer ds.Close()` on every `httptest.Server` and on the reproxy listener
+- [x] context timeouts in the test wrap must be longer than the per-route timeouts to avoid spurious failures (per the same Testing Patterns note about waitForServer timeouts)
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./...` — must pass before next task
+- [x] verify per-task gate
+
+**Implementation notes (Task 7):**
+- Fixture uses `__TIMEOUT_URL__` / `__THROTTLE_URL__` / `__BOTH_URL__` / `__CONTROL_URL__` placeholders that the test substitutes at runtime with actual `httptest.Server` URLs (each upstream listens on an OS-allocated port), then writes the substituted YAML into `t.TempDir()` and points the `File` provider at it.
+- Tests disable keep-alives on the client (`Transport{DisableKeepAlives: true}`) so a per-route timeout firing in one sub-test does not poison a kept-alive conn carried into the next sub-test. See the conn-state caveat documented in Solution Overview.
+- `Test_routeTimeoutHandler` unit test (Task 5) was updated to verify both setters are called twice — once to arm the deadline, once (via defer) to clear it back to zero. Reset paths verified.
 
 ### Task 8: Update README
 

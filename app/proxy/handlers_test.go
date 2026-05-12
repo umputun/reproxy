@@ -625,15 +625,21 @@ func Test_routeTimeoutHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
 		reads, writes := rec.recorded()
-		require.Len(t, reads, 1, "exactly one SetReadDeadline call expected")
-		require.Len(t, writes, 1, "exactly one SetWriteDeadline call expected")
+		// two calls per setter: first arms the deadline, second (deferred) clears it back to zero
+		// so kept-alive connections do not carry an expired deadline into subsequent requests
+		require.Len(t, reads, 2, "expected one set + one clear SetReadDeadline call")
+		require.Len(t, writes, 2, "expected one set + one clear SetWriteDeadline call")
 
-		earliest := before.Add(5 * time.Second).Add(-100 * time.Millisecond)
-		latest := after.Add(5 * time.Second).Add(100 * time.Millisecond)
-		assert.True(t, !reads[0].Before(earliest) && !reads[0].After(latest),
-			"read deadline %v outside expected window [%v, %v]", reads[0], earliest, latest)
-		assert.True(t, !writes[0].Before(earliest) && !writes[0].After(latest),
-			"write deadline %v outside expected window [%v, %v]", writes[0], earliest, latest)
+		readEarliest := before.Add(5 * time.Second).Add(-100 * time.Millisecond)
+		readLatest := after.Add(5 * time.Second).Add(100 * time.Millisecond)
+		writeEarliest := readEarliest.Add(writeDeadlineGrace)
+		writeLatest := readLatest.Add(writeDeadlineGrace)
+		assert.True(t, !reads[0].Before(readEarliest) && !reads[0].After(readLatest),
+			"read deadline %v outside expected window [%v, %v]", reads[0], readEarliest, readLatest)
+		assert.True(t, !writes[0].Before(writeEarliest) && !writes[0].After(writeLatest),
+			"write deadline %v outside expected window [%v, %v]", writes[0], writeEarliest, writeLatest)
+		assert.True(t, reads[1].IsZero(), "deferred read deadline reset should be zero time")
+		assert.True(t, writes[1].IsZero(), "deferred write deadline reset should be zero time")
 	})
 
 	t.Run("ErrNotSupported tolerated, ctx-cancel still fires", func(t *testing.T) {

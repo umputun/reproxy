@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1436,3 +1438,147 @@ func (m *mockAuthProvider) Events(_ context.Context) <-chan discovery.ProviderID
 }
 
 func (m *mockAuthProvider) List() ([]discovery.URLMapper, error) { return m.mappers, nil }
+
+func TestHttp_PerRouteTimeoutAndThrottle(t *testing.T) {
+	// upstream that sleeps with context-awareness — used to verify per-route timeout cancels in-flight requests
+	slowUpstream := func(sleep time.Duration) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(sleep):
+			}
+			fmt.Fprintf(w, "ok %s", r.URL.Path)
+		}))
+	}
+	fastUpstream := func() *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "ok %s", r.URL.Path)
+		}))
+	}
+
+	timeoutUpstream := slowUpstream(500 * time.Millisecond) // exceeds 200ms per-route timeout
+	defer timeoutUpstream.Close()
+	throttleUpstream := fastUpstream()
+	defer throttleUpstream.Close()
+	bothUpstream := fastUpstream()
+	defer bothUpstream.Close()
+	controlUpstream := slowUpstream(250 * time.Millisecond) // slow but under global timeout
+	defer controlUpstream.Close()
+
+	tmplBytes, err := os.ReadFile("testdata/per_route.yml")
+	require.NoError(t, err)
+	yaml := strings.NewReplacer(
+		"__TIMEOUT_URL__", timeoutUpstream.URL,
+		"__THROTTLE_URL__", throttleUpstream.URL,
+		"__BOTH_URL__", bothUpstream.URL,
+		"__CONTROL_URL__", controlUpstream.URL,
+	).Replace(string(tmplBytes))
+	cfgPath := filepath.Join(t.TempDir(), "per_route.yml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yaml), 0o600))
+
+	port := getFreePort(t)
+	h := Http{
+		Timeouts:  Timeouts{ResponseHeader: 2 * time.Second, Write: 5 * time.Second, ReadHeader: 5 * time.Second},
+		Address:   fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard,
+		Reporter:  &ErrorReporter{Nice: true},
+	}
+
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.File{FileName: cfgPath, CheckInterval: 20 * time.Millisecond, Delay: 10 * time.Millisecond},
+	}, time.Millisecond*10)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	go func() { _ = svc.Run(ctx) }()
+
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
+
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	// fresh conn per request — a per-route timeout fire leaves Go's http.Server tracking
+	// the conn as broken; keep-alive reuse would carry that state into unrelated sub-tests
+	client := http.Client{
+		Timeout:   5 * time.Second,
+		Transport: &http.Transport{DisableKeepAlives: true},
+	}
+	baseURL := "http://127.0.0.1:" + strconv.Itoa(port)
+
+	// wait for the file provider to ingest the fixture and the proxy to start matching
+	require.Eventually(t, func() bool {
+		resp, err := client.Get(baseURL + "/control/probe")
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 5*time.Second, 25*time.Millisecond, "routes never became matchable")
+
+	t.Run("timeout returns 502 quickly", func(t *testing.T) {
+		start := time.Now()
+		resp, err := client.Get(baseURL + "/timeout/x")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		elapsed := time.Since(start)
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode, "per-route timeout should produce 502")
+		assert.Less(t, elapsed, 450*time.Millisecond, "timeout must fire well before upstream's 500ms sleep")
+	})
+
+	t.Run("control route without per-route timeout completes normally", func(t *testing.T) {
+		// upstream sleeps 250ms which would exceed a 200ms per-route timeout if it had one,
+		// but the control route has no per-route timeout so it succeeds under the 5s global write timeout
+		start := time.Now()
+		resp, err := client.Get(baseURL + "/control/x")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		elapsed := time.Since(start)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "ok /x", string(body))
+		assert.GreaterOrEqual(t, elapsed, 250*time.Millisecond, "control route should run to completion")
+	})
+
+	t.Run("throttle blocks third rapid request", func(t *testing.T) {
+		statuses := make([]int, 3)
+		for i := range statuses {
+			resp, err := client.Get(baseURL + "/throttle/x")
+			require.NoError(t, err)
+			statuses[i] = resp.StatusCode
+			resp.Body.Close()
+		}
+		assert.Equal(t, http.StatusOK, statuses[0])
+		assert.Equal(t, http.StatusOK, statuses[1])
+		assert.Equal(t, http.StatusTooManyRequests, statuses[2], "third rapid request should hit per-route throttle")
+	})
+
+	t.Run("control route accepts many rapid requests", func(t *testing.T) {
+		// control route has no per-route throttle; with no global throttle set, all rapid requests pass
+		for range 3 {
+			resp, err := client.Get(baseURL + "/control/x")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			resp.Body.Close()
+		}
+	})
+
+	t.Run("chain ordering: throttle 429 arrives within timeout window", func(t *testing.T) {
+		// /both has timeout: 50ms and throttle: 1 — first request consumes the bucket,
+		// second exceeds throttle and must return 429 quickly, not stall on a slow upstream
+		resp1, err := client.Get(baseURL + "/both/x")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp1.StatusCode)
+		resp1.Body.Close()
+
+		start := time.Now()
+		resp2, err := client.Get(baseURL + "/both/x")
+		require.NoError(t, err)
+		elapsed := time.Since(start)
+		defer resp2.Body.Close()
+		assert.Equal(t, http.StatusTooManyRequests, resp2.StatusCode, "second rapid request should be throttled")
+		assert.Less(t, elapsed, 200*time.Millisecond, "429 must arrive well within sane bound regardless of upstream latency")
+	})
+}

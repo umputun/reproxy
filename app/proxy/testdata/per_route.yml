@@ -1,0 +1,5 @@
+default:
+  - {route: "^/timeout/(.*)", dest: "__TIMEOUT_URL__/$1", timeout: 200ms}
+  - {route: "^/throttle/(.*)", dest: "__THROTTLE_URL__/$1", throttle: 2}
+  - {route: "^/both/(.*)", dest: "__BOTH_URL__/$1", timeout: 50ms, throttle: 1}
+  - {route: "^/control/(.*)", dest: "__CONTROL_URL__/$1"}

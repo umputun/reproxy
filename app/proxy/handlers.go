@@ -213,6 +213,12 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 	}
 }
 
+// writeDeadlineGrace extends the connection's write deadline beyond the per-route ctx
+// timeout so the proxy's default ErrorHandler has time to deliver 502 to the client
+// when the ctx fires; without this buffer the conn is severed at the same instant
+// and the client sees EOF instead of the error status.
+const writeDeadlineGrace = 500 * time.Millisecond
+
 // routeTimeoutHandler applies a per-route request deadline when the matched mapper has Timeout > 0.
 func routeTimeoutHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -226,16 +232,22 @@ func routeTimeoutHandler(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		ctx, cancel := context.WithTimeout(reqCtx, match.Mapper.Timeout)
+		readDeadline := time.Now().Add(match.Mapper.Timeout)
+		ctx, cancel := context.WithDeadline(reqCtx, readDeadline)
 		defer cancel()
 		rc := http.NewResponseController(w)
-		deadline := time.Now().Add(match.Mapper.Timeout)
-		if err := rc.SetReadDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		if err := rc.SetReadDeadline(readDeadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
 			log.Printf("[DEBUG] route timeout: SetReadDeadline failed: %v", err)
 		}
-		if err := rc.SetWriteDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		if err := rc.SetWriteDeadline(readDeadline.Add(writeDeadlineGrace)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 			log.Printf("[DEBUG] route timeout: SetWriteDeadline failed: %v", err)
 		}
+		// clear per-route deadlines after the request so kept-alive connections do not
+		// carry an expired write deadline into subsequent unrelated requests
+		defer func() {
+			_ = rc.SetReadDeadline(time.Time{})
+			_ = rc.SetWriteDeadline(time.Time{})
+		}()
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
