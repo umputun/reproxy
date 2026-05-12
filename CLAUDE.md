@@ -40,7 +40,7 @@ golangci-lint run
 - **app/discovery/** - Service discovery layer
   - `discovery.go` - `Service` aggregates multiple providers, merges URL mappers, handles health checks
   - `provider/` - Provider implementations (docker, file, static, consul-catalog)
-  - `URLMapper` - Core routing rule struct containing server, source regex, destination, health ping URL, match type
+  - `URLMapper` - Core routing rule struct containing server, source regex, destination, health ping URL, match type, and per-route overrides (auth, IP allowlist, timeout, throttle)
 
 - **app/proxy/** - HTTP/HTTPS proxy server
   - `proxy.go` - `Http` struct is the main proxy server, handles both http and https modes

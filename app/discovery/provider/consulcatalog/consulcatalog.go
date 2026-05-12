@@ -204,6 +204,11 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			}
 		}
 
+		if !enabled {
+			log.Printf("[DEBUG] service %s disabled", c.ServiceID)
+			continue
+		}
+
 		var timeout time.Duration
 		if v, ok := c.Labels["reproxy.timeout"]; ok && v != "" {
 			dur, perr := time.ParseDuration(v)
@@ -228,11 +233,6 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			default:
 				throttle = num
 			}
-		}
-
-		if !enabled {
-			log.Printf("[DEBUG] service %s disabled", c.ServiceID)
-			continue
 		}
 
 		srcRegex, err := regexp.Compile(srcURL)

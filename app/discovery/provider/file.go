@@ -118,12 +118,12 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 					return nil, fmt.Errorf("can't parse timeout %s: %w", f.Timeout, perr)
 				}
 				if dur < 0 {
-					return nil, fmt.Errorf("can't parse timeout %s: negative duration", f.Timeout)
+					return nil, fmt.Errorf("timeout must be non-negative, got %s", f.Timeout)
 				}
 				timeout = dur
 			}
 			if f.Throttle < 0 {
-				return nil, fmt.Errorf("can't parse throttle %d: negative value", f.Throttle)
+				return nil, fmt.Errorf("throttle must be non-negative, got %d", f.Throttle)
 			}
 			mapper := discovery.URLMapper{
 				Server:              srv,

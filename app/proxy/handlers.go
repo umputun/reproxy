@@ -144,25 +144,19 @@ func limiterSystemHandler(reqSec int) func(next http.Handler) http.Handler {
 }
 
 // limiterUserHandler throttles per-user activity. When the matched route has Throttle > 0,
-// it applies a per-route limiter at that rate keyed by [ip, dst] (preserving per-user behavior).
-// Otherwise it falls back to the global limiter at reqSec. A request rejected by either limit
-// returns 429. reqSec = 0 disables the global path while per-route overrides still apply.
+// it applies a per-route limiter at that rate keyed by [ip, dst]. Otherwise it falls back
+// to the global limiter at reqSec, keyed by [ip] and, for MTProxy matches only, [ip, dst].
+// A request rejected by either limit returns 429. reqSec = 0 disables the global path while
+// per-route overrides still apply.
 func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
-	var (
-		routeLimiters sync.Map // map[string]*limiter.Limiter, keyed by server|srcMatch|rate
-		globalOnce    sync.Once
-		globalLmt     *limiter.Limiter
-	)
-	getGlobal := func() *limiter.Limiter {
-		globalOnce.Do(func() {
-			if reqSec > 0 {
-				globalLmt = tollbooth.NewLimiter(float64(reqSec), nil)
-			}
-		})
-		return globalLmt
+	var routeLimiters sync.Map // map[string]*limiter.Limiter, keyed by server\x00srcMatch\x00rate
+	var globalLmt *limiter.Limiter
+	if reqSec > 0 {
+		globalLmt = tollbooth.NewLimiter(float64(reqSec), nil)
 	}
 	getRouteLimiter := func(m discovery.URLMapper) *limiter.Limiter {
-		key := m.Server + "|" + m.SrcMatch.String() + "|" + strconv.Itoa(m.Throttle)
+		// NUL separator is invalid in hostnames and regex source, avoiding key collisions
+		key := m.Server + "\x00" + m.SrcMatch.String() + "\x00" + strconv.Itoa(m.Throttle)
 		if v, ok := routeLimiters.Load(key); ok {
 			return v.(*limiter.Limiter)
 		}
@@ -192,11 +186,11 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 				return
 			}
 
-			lmt := getGlobal()
-			if lmt == nil {
+			if globalLmt == nil {
 				h.ServeHTTP(w, r)
 				return
 			}
+			lmt := globalLmt
 			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
 			if matched {
 				if matchType, ok := r.Context().Value(ctxMatchType).(discovery.MatchType); ok && matchType == discovery.MTProxy {
@@ -219,7 +213,12 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 // and the client sees EOF instead of the error status.
 const writeDeadlineGrace = 500 * time.Millisecond
 
-// routeTimeoutHandler applies a per-route request deadline when the matched mapper has Timeout > 0.
+// routeTimeoutHandler applies a per-route request deadline when the matched mapper has
+// Timeout > 0. It derives a deadline-bound request context and also sets the underlying
+// connection's read deadline to the timeout and the write deadline to timeout +
+// writeDeadlineGrace so the proxy's ErrorHandler can still deliver a 502 to the client
+// when the deadline fires. Both connection deadlines are cleared on return so kept-alive
+// connections do not carry an expired deadline into subsequent unrelated requests.
 func routeTimeoutHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqCtx := r.Context()
@@ -245,8 +244,12 @@ func routeTimeoutHandler(next http.Handler) http.Handler {
 		// clear per-route deadlines after the request so kept-alive connections do not
 		// carry an expired write deadline into subsequent unrelated requests
 		defer func() {
-			_ = rc.SetReadDeadline(time.Time{})
-			_ = rc.SetWriteDeadline(time.Time{})
+			if err := rc.SetReadDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				log.Printf("[DEBUG] route timeout: clear read deadline failed: %v", err)
+			}
+			if err := rc.SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				log.Printf("[DEBUG] route timeout: clear write deadline failed: %v", err)
+			}
 		}()
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

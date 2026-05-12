@@ -216,12 +216,12 @@ func TestFile_ListErrors(t *testing.T) {
 		{
 			name:    "negative timeout",
 			yaml:    "default:\n  - {route: \"^/a/(.*)\", dest: \"http://127.0.0.1/\", timeout: -5s}\n",
-			wantErr: "negative duration",
+			wantErr: "timeout must be non-negative, got -5s",
 		},
 		{
 			name:    "negative throttle",
 			yaml:    "default:\n  - {route: \"^/a/(.*)\", dest: \"http://127.0.0.1/\", throttle: -1}\n",
-			wantErr: "can't parse throttle -1",
+			wantErr: "throttle must be non-negative, got -1",
 		},
 	}
 

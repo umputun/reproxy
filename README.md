@@ -70,7 +70,7 @@ This is the simplest provider defining all mapping rules directly in the command
 - `*,^/api/(.*),https://api.example.com/$1` - proxy all request to any host/server with `/api` prefix to `https://api.example.com`
 - `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping` - proxy all requests to `example.com` and with `/foo/bar` url to `https://api.example.com/zzz` and it sees `https://api.example.com/ping` for the health check.
 - `example.com,/foo/bar,https://api.example.com/zzz,https://api.example.com/ping,true` - same as above but also forwards `/ping` and `/health` requests to the backend.
-- `example.com,^/upload/(.*),https://api.example.com/$1,,,5m` - per-route request timeout of 5 minutes (4th and 5th fields left empty to inherit defaults).
+- `example.com,^/upload/(.*),https://api.example.com/$1,,,5m` - per-route request timeout of 5 minutes (4th and 5th fields left empty to skip ping-url and forward-health-checks).
 - `example.com,^/login,https://api.example.com/login,,,,2` - per-route throttle of 2 req/sec per user (positional fields before are left empty).
 
 The 4th element defines an optional ping url used for health reporting. The 5th element optionally enables forwarding health check requests to the backend (`true`, `yes`, `1`). See [Health check](#ping-and-health-checks) section for more details. The 6th element is an optional per-route request timeout (Go duration, e.g. `5m`, `30s`); `0` or empty inherits the global `--timeout.write` setting. The 7th element is an optional per-route req/sec limit per user; `0` or empty inherits `--throttle.user`. Empty positional fields are allowed (e.g. `,,` for the unused middle fields).
