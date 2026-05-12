@@ -103,9 +103,9 @@ func TestFile_List(t *testing.T) {
 	res, err := f.List()
 	require.NoError(t, err)
 	t.Logf("%+v", res)
-	assert.Len(t, res, 7)
+	assert.Len(t, res, 10)
 
-	// build a lookup by server name for the first 3 entries (same-length server names, order is non-deterministic)
+	// build a lookup by server name for entries with unique server names
 	byServer := map[string]discovery.URLMapper{}
 	for _, m := range res {
 		byServer[m.Server] = m
@@ -120,6 +120,8 @@ func TestFile_List(t *testing.T) {
 	assert.False(t, authEntry.ForwardHealthChecks)
 	assert.Equal(t, []string{}, authEntry.OnlyFromIPs)
 	assert.Equal(t, []string{"user1:$2y$05$hash1", "user2:$2y$05$hash2"}, authEntry.AuthUsers)
+	assert.Equal(t, time.Duration(0), authEntry.Timeout)
+	assert.Equal(t, 0, authEntry.Throttle)
 
 	fhcEntry := byServer["fhc.example.com"]
 	assert.Equal(t, "^/(.*)", fhcEntry.SrcMatch.String())
@@ -127,6 +129,26 @@ func TestFile_List(t *testing.T) {
 	assert.Empty(t, fhcEntry.PingURL)
 	assert.Equal(t, discovery.MTProxy, fhcEntry.MatchType)
 	assert.True(t, fhcEntry.ForwardHealthChecks)
+	assert.Equal(t, time.Duration(0), fhcEntry.Timeout)
+	assert.Equal(t, 0, fhcEntry.Throttle)
+
+	timeoutEntry := byServer["to.example.com"]
+	assert.Equal(t, "^/upload/(.*)", timeoutEntry.SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.6:8080/$1", timeoutEntry.Dst)
+	assert.Equal(t, 5*time.Minute, timeoutEntry.Timeout)
+	assert.Equal(t, 0, timeoutEntry.Throttle)
+
+	throttleEntry := byServer["th.example.com"]
+	assert.Equal(t, "^/login/(.*)", throttleEntry.SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.7:8080/$1", throttleEntry.Dst)
+	assert.Equal(t, time.Duration(0), throttleEntry.Timeout)
+	assert.Equal(t, 10, throttleEntry.Throttle)
+
+	bothEntry := byServer["tt.example.com"]
+	assert.Equal(t, "^/api/(.*)", bothEntry.SrcMatch.String())
+	assert.Equal(t, "http://127.0.0.8:8080/$1", bothEntry.Dst)
+	assert.Equal(t, 30*time.Second, bothEntry.Timeout)
+	assert.Equal(t, 5, bothEntry.Throttle)
 
 	srvEntry := byServer["srv.example.com"]
 	assert.Equal(t, "^/api/svc2/(.*)", srvEntry.SrcMatch.String())
@@ -178,4 +200,43 @@ func TestFile_List(t *testing.T) {
 	assert.True(t, starEntries[3].AssetsSPA)
 	assert.Empty(t, starEntries[3].OnlyFromIPs)
 	assert.False(t, *starEntries[3].KeepHost)
+}
+
+func TestFile_ListErrors(t *testing.T) {
+	tbl := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name:    "invalid timeout duration",
+			yaml:    "default:\n  - {route: \"^/a/(.*)\", dest: \"http://127.0.0.1/\", timeout: notaduration}\n",
+			wantErr: "can't parse timeout notaduration",
+		},
+		{
+			name:    "negative timeout",
+			yaml:    "default:\n  - {route: \"^/a/(.*)\", dest: \"http://127.0.0.1/\", timeout: -5s}\n",
+			wantErr: "negative duration",
+		},
+		{
+			name:    "negative throttle",
+			yaml:    "default:\n  - {route: \"^/a/(.*)\", dest: \"http://127.0.0.1/\", throttle: -1}\n",
+			wantErr: "can't parse throttle -1",
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp, err := os.CreateTemp(t.TempDir(), "reproxy-errors-*.yml")
+			require.NoError(t, err)
+			_, err = tmp.WriteString(tt.yaml)
+			require.NoError(t, err)
+			require.NoError(t, tmp.Close())
+
+			f := File{FileName: tmp.Name()}
+			_, err = f.List()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }

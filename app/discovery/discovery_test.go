@@ -577,6 +577,22 @@ func TestService_extendRule(t *testing.T) {
 				KeepHost: func() *bool { b := true; return &b }(), OnlyFromIPs: []string{"192.168.1.0/24"},
 				AuthUsers: []string{"user1:hash1", "user2:hash2"}, RedirectType: RTNone},
 		},
+		{ // simple-extension src must preserve Timeout and Throttle
+			URLMapper{Server: "t.example.com", ProviderID: "file",
+				SrcMatch: *regexp.MustCompile("/api/"), Dst: "http://upstream/",
+				Timeout: 5 * time.Minute, Throttle: 7},
+			URLMapper{Server: "t.example.com", ProviderID: "file",
+				SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://upstream/$1",
+				Timeout: 5 * time.Minute, Throttle: 7},
+		},
+		{ // non-extension src (already has capture group) also preserves Timeout and Throttle
+			URLMapper{Server: "t.example.com", ProviderID: "file",
+				SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://upstream/$1",
+				Timeout: 30 * time.Second, Throttle: 3},
+			URLMapper{Server: "t.example.com", ProviderID: "file",
+				SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://upstream/$1",
+				Timeout: 30 * time.Second, Throttle: 3},
+		},
 	}
 
 	svc := &Service{}

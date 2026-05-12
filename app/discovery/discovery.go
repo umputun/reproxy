@@ -30,17 +30,19 @@ type Service struct {
 
 // URLMapper contains all info about source and destination routes
 type URLMapper struct {
-	Server       string
-	SrcMatch     regexp.Regexp
-	Dst          string
-	ProviderID   ProviderID
-	PingURL      string
-	MatchType    MatchType
-	RedirectType RedirectType
+	Server              string
+	SrcMatch            regexp.Regexp
+	Dst                 string
+	ProviderID          ProviderID
+	PingURL             string
+	MatchType           MatchType
+	RedirectType        RedirectType
 	KeepHost            *bool
 	ForwardHealthChecks bool
 	OnlyFromIPs         []string
-	AuthUsers           []string // basic auth credentials as user:bcrypt_hash pairs
+	AuthUsers           []string      // basic auth credentials as user:bcrypt_hash pairs
+	Timeout             time.Duration // per-route request timeout, 0 = use global
+	Throttle            int           // per-route req/sec per user, 0 = use global throttle.user
 
 	AssetsLocation string // local FS root location
 	AssetsWebRoot  string // web root location
@@ -474,6 +476,8 @@ func (s *Service) extendMapper(m URLMapper) URLMapper {
 		ForwardHealthChecks: m.ForwardHealthChecks,
 		OnlyFromIPs:         m.OnlyFromIPs,
 		AuthUsers:           m.AuthUsers,
+		Timeout:             m.Timeout,
+		Throttle:            m.Throttle,
 	}
 	rx, err := regexp.Compile("^" + strings.TrimSuffix(src, "/") + "/(.*)")
 	if err != nil {

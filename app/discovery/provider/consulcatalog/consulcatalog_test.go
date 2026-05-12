@@ -188,8 +188,8 @@ func TestConsulCatalog_ListForwardHealthChecks(t *testing.T) {
 				ServiceAddress: "addr-fhc",
 				ServicePort:    9000,
 				Labels: map[string]string{
-					"reproxy.enabled":              "true",
-					"reproxy.server":               "fhc.example.com",
+					"reproxy.enabled":               "true",
+					"reproxy.server":                "fhc.example.com",
 					"reproxy.forward-health-checks": "true",
 				},
 			},

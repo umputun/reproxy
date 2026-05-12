@@ -218,10 +218,10 @@ func TestDocker_ListForwardHealthChecks(t *testing.T) {
 				{
 					Name: "abs", State: "running", IP: "127.0.0.10", Ports: []int{8080},
 					Labels: map[string]string{
-						"reproxy.server":                 "abs.example.com",
-						"reproxy.route":                  "^/(.*)",
-						"reproxy.dest":                   "/$1",
-						"reproxy.forward-health-checks":  "yes",
+						"reproxy.server":                "abs.example.com",
+						"reproxy.route":                 "^/(.*)",
+						"reproxy.dest":                  "/$1",
+						"reproxy.forward-health-checks": "yes",
 					},
 				},
 				{

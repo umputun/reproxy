@@ -232,18 +232,18 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/discovery/provider/file_test.go` (extend existing test functions; do NOT create a new test file)
 - Modify: `app/discovery/provider/testdata/config.yml` (existing fixture loaded by file_test.go)
 
-- [ ] add `Timeout time.Duration` and `Throttle int` fields to `URLMapper` in `app/discovery/discovery.go`
-- [ ] **critical — preserve fields through `extendMapper`** (`discovery.go:463-477`): this function reconstructs a fresh `URLMapper` field-by-field for simple no-capture routes that need implicit regex/destination expansion. Add `Timeout: m.Timeout` and `Throttle: m.Throttle` to the `res := URLMapper{...}` literal. Without this, simple routes (e.g. `/api/` → `/dst/`) silently lose their per-route timeout/throttle before reaching `Match()`. Provider-level tests do NOT catch this — the loss happens later in `mergeLists` → `extendMapper`.
-- [ ] add a discovery-level test in `discovery_test.go`: construct a `URLMapper` with a simple-extension src (e.g. `^/api/` with dst `http://upstream/`) and non-zero `Timeout`/`Throttle`, run it through `extendMapper`, assert both fields survive. Also assert the non-extension path (src with capture group `(.*)`) preserves them.
-- [ ] in `app/discovery/provider/file.go`, add `Timeout string \`yaml:"timeout"\`` and `Throttle int \`yaml:"throttle"\`` to the anonymous struct inside `File.List()` (yaml.v3 does NOT auto-parse Go duration strings into `time.Duration`, so the yaml-mapped field is `string` and parsed manually)
-- [ ] in the mapper construction loop, call `time.ParseDuration(f.Timeout)` only when `f.Timeout != ""`; on parse error return `fmt.Errorf("can't parse timeout %s: %w", f.Timeout, err)`
-- [ ] validate negative values: parsed timeout `< 0` and `f.Throttle < 0` each return a descriptive parse error
-- [ ] populate `mapper.Timeout` (parsed duration or zero) and `mapper.Throttle` (`f.Throttle`)
-- [ ] extend `testdata/config.yml` with: one route that sets `timeout: 5m` only, one that sets `throttle: 10` only, one that sets both, and verify existing routes (without the new fields) still parse correctly
-- [ ] add assertions in the existing `TestFile_List` (or equivalent existing test function) — locate mappers by their `SrcMatch.String()` and assert `Timeout` / `Throttle` values match expected; do NOT create a new test file
-- [ ] add test cases for negative timeout (e.g. yaml `timeout: -5s`) and negative throttle (`throttle: -1`) — both return parse errors
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
-- [ ] verify per-task gate (formatter, golangci-lint, rule scan) before marking complete
+- [x] add `Timeout time.Duration` and `Throttle int` fields to `URLMapper` in `app/discovery/discovery.go`
+- [x] **critical — preserve fields through `extendMapper`** (`discovery.go:463-477`): this function reconstructs a fresh `URLMapper` field-by-field for simple no-capture routes that need implicit regex/destination expansion. Add `Timeout: m.Timeout` and `Throttle: m.Throttle` to the `res := URLMapper{...}` literal. Without this, simple routes (e.g. `/api/` → `/dst/`) silently lose their per-route timeout/throttle before reaching `Match()`. Provider-level tests do NOT catch this — the loss happens later in `mergeLists` → `extendMapper`.
+- [x] add a discovery-level test in `discovery_test.go`: construct a `URLMapper` with a simple-extension src (e.g. `^/api/` with dst `http://upstream/`) and non-zero `Timeout`/`Throttle`, run it through `extendMapper`, assert both fields survive. Also assert the non-extension path (src with capture group `(.*)`) preserves them.
+- [x] in `app/discovery/provider/file.go`, add `Timeout string \`yaml:"timeout"\`` and `Throttle int \`yaml:"throttle"\`` to the anonymous struct inside `File.List()` (yaml.v3 does NOT auto-parse Go duration strings into `time.Duration`, so the yaml-mapped field is `string` and parsed manually)
+- [x] in the mapper construction loop, call `time.ParseDuration(f.Timeout)` only when `f.Timeout != ""`; on parse error return `fmt.Errorf("can't parse timeout %s: %w", f.Timeout, err)`
+- [x] validate negative values: parsed timeout `< 0` and `f.Throttle < 0` each return a descriptive parse error
+- [x] populate `mapper.Timeout` (parsed duration or zero) and `mapper.Throttle` (`f.Throttle`)
+- [x] extend `testdata/config.yml` with: one route that sets `timeout: 5m` only, one that sets `throttle: 10` only, one that sets both, and verify existing routes (without the new fields) still parse correctly
+- [x] add assertions in the existing `TestFile_List` (or equivalent existing test function) — locate mappers by their `SrcMatch.String()` and assert `Timeout` / `Throttle` values match expected; do NOT create a new test file
+- [x] add test cases for negative timeout (e.g. yaml `timeout: -5s`) and negative throttle (`throttle: -1`) — both return parse errors
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
+- [x] verify per-task gate (formatter, golangci-lint, rule scan) before marking complete
 
 ### Task 2: Static provider — positional CSV extension
 
