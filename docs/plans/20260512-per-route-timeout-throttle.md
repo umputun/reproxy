@@ -382,9 +382,9 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 
 ### Task 9: Verify acceptance criteria
 
-- [ ] verify the two issue #140 use cases are exercised by the integration tests from Task 7 (long upload route bypasses 30s global; brute-force route enforces lower rate than global)
-- [ ] verify backward compatibility: any existing config (no per-route fields) produces identical behavior to current master — covered by existing tests staying green, plus the explicit "control" route in the Task 7 fixture
-- [ ] final verification re-run of formatter, linter, and full test suite as a pre-merge check (per-task gate already enforced these per task; this is a belt-and-braces sweep):
+- [x] verify the two issue #140 use cases are exercised by the integration tests from Task 7 (long upload route bypasses 30s global; brute-force route enforces lower rate than global)
+- [x] verify backward compatibility: any existing config (no per-route fields) produces identical behavior to current master — covered by existing tests staying green, plus the explicit "control" route in the Task 7 fixture
+- [x] final verification re-run of formatter, linter, and full test suite as a pre-merge check (per-task gate already enforced these per task; this is a belt-and-braces sweep):
   - `~/.claude/format.sh`
   - `golangci-lint run --max-issues-per-linter=0 --max-same-issues=0` (from repo root)
   - `cd app && go test -race -timeout=60s -count 1 ./...`
