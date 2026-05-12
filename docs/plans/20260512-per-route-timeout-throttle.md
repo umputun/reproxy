@@ -280,11 +280,11 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/discovery/provider/consulcatalog/consulcatalog.go`
 - Modify: `app/discovery/provider/consulcatalog/consulcatalog_test.go`
 
-- [ ] in the provider's list/parse loop, read `c.Labels["reproxy.timeout"]` and `c.Labels["reproxy.throttle"]` and parse with the same warn-and-zero semantics as docker
-- [ ] populate `Timeout` and `Throttle` in the `URLMapper` construction
-- [ ] add test cases mirroring the docker tests: valid values, invalid duration, invalid throttle, missing labels
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
-- [ ] verify per-task gate
+- [x] in the provider's list/parse loop, read `c.Labels["reproxy.timeout"]` and `c.Labels["reproxy.throttle"]` and parse with the same warn-and-zero semantics as docker
+- [x] populate `Timeout` and `Throttle` in the `URLMapper` construction
+- [x] add test cases mirroring the docker tests: valid values, invalid duration, invalid throttle, missing labels
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
+- [x] verify per-task gate
 
 ### Task 5: routeTimeoutHandler middleware + wire into chain
 

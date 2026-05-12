@@ -7,6 +7,7 @@ import (
 	"log"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -203,6 +204,32 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 			}
 		}
 
+		var timeout time.Duration
+		if v, ok := c.Labels["reproxy.timeout"]; ok && v != "" {
+			dur, perr := time.ParseDuration(v)
+			switch {
+			case perr != nil:
+				log.Printf("[WARN] timeout label value %s is not valid, ignoring", v)
+			case dur < 0:
+				log.Printf("[WARN] timeout label value %s is negative, ignoring", v)
+			default:
+				timeout = dur
+			}
+		}
+
+		throttle := 0
+		if v, ok := c.Labels["reproxy.throttle"]; ok && v != "" {
+			num, perr := strconv.Atoi(v)
+			switch {
+			case perr != nil:
+				log.Printf("[WARN] throttle label value %s is not valid, ignoring", v)
+			case num < 0:
+				log.Printf("[WARN] throttle label value %s is negative, ignoring", v)
+			default:
+				throttle = num
+			}
+		}
+
 		if !enabled {
 			log.Printf("[DEBUG] service %s disabled", c.ServiceID)
 			continue
@@ -217,7 +244,8 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 		for srv := range strings.SplitSeq(server, ",") {
 			res = append(res, discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIConsulCatalog, KeepHost: keepHost,
-				ForwardHealthChecks: forwardHealthChecks, OnlyFromIPs: onlyFrom, AuthUsers: authUsers})
+				ForwardHealthChecks: forwardHealthChecks, OnlyFromIPs: onlyFrom, AuthUsers: authUsers,
+				Timeout: timeout, Throttle: throttle})
 		}
 	}
 
