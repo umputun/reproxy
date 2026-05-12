@@ -370,15 +370,15 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 **Files:**
 - Modify: `README.md`
 
-- [ ] in the file-provider section, document `timeout` and `throttle` yaml fields with one example each (mirror the `auth` / `forward-health-checks` style)
-- [ ] in the static-provider section, document the new positional fields and update the format string in the docs
-- [ ] in the docker-provider section, document the new `reproxy.<n>.timeout` and `reproxy.<n>.throttle` labels
-- [ ] in the consul-catalog section, document the same labels
-- [ ] add one short subsection (or note alongside the existing `--timeout.*` docs) explaining the global-vs-per-route precedence: "zero inherits global, positive overrides"
-- [ ] one-line note that per-route timeout overrides the connection write deadline for matched requests; routes without per-route timeout still respect global `--timeout.write`
-- [ ] **document the response-header-timeout limitation**: per-route `timeout` does NOT override the transport-level `--timeout.resp-header` (default 5s). If an upstream takes longer than `--timeout.resp-header` to begin sending response headers (e.g. a slow report-generation endpoint), the request will still fail at that boundary regardless of per-route `timeout`. To support such routes, raise `--timeout.resp-header` globally to the max needed by any slow-response route. Per-route override of transport-level timeouts is intentionally out of scope for this feature.
-- [ ] no test changes (documentation only)
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./...` to confirm no regression
+- [x] in the file-provider section, document `timeout` and `throttle` yaml fields with one example each (mirror the `auth` / `forward-health-checks` style)
+- [x] in the static-provider section, document the new positional fields and update the format string in the docs
+- [x] in the docker-provider section, document the new `reproxy.<n>.timeout` and `reproxy.<n>.throttle` labels
+- [x] in the consul-catalog section, document the same labels
+- [x] add one short subsection (or note alongside the existing `--timeout.*` docs) explaining the global-vs-per-route precedence: "zero inherits global, positive overrides"
+- [x] one-line note that per-route timeout overrides the connection write deadline for matched requests; routes without per-route timeout still respect global `--timeout.write`
+- [x] **document the response-header-timeout limitation**: per-route `timeout` does NOT override the transport-level `--timeout.resp-header` (default 5s). If an upstream takes longer than `--timeout.resp-header` to begin sending response headers (e.g. a slow report-generation endpoint), the request will still fail at that boundary regardless of per-route `timeout`. To support such routes, raise `--timeout.resp-header` globally to the max needed by any slow-response route. Per-route override of transport-level timeouts is intentionally out of scope for this feature.
+- [x] no test changes (documentation only)
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./...` to confirm no regression
 
 ### Task 9: Verify acceptance criteria
 
