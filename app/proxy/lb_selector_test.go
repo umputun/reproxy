@@ -29,6 +29,22 @@ func TestRoundRobinSelector_Select(t *testing.T) {
 	}
 }
 
+func TestRoundRobinSelector_SelectShrinkingN(t *testing.T) {
+	// reproduces issue #250: when the alive-backend count shrinks between calls
+	// (e.g. a backend health-check flips dead), the stale lastSelected can exceed
+	// the new n, causing matchHandler to index out of range and panic.
+	selector := &RoundRobinSelector{}
+
+	// advance internal state with n=3 so the next return position is 2
+	assert.Equal(t, 0, selector.Select(3))
+	assert.Equal(t, 1, selector.Select(3))
+
+	// one backend goes unhealthy: n shrinks to 2. result must remain a valid index.
+	got := selector.Select(2)
+	assert.GreaterOrEqual(t, got, 0)
+	assert.Less(t, got, 2, "Select(2) returned %d, out of range for slice of length 2", got)
+}
+
 func TestRoundRobinSelector_SelectConcurrent(t *testing.T) {
 	selector := &RoundRobinSelector{}
 	l := 3

@@ -15,8 +15,10 @@ type RoundRobinSelector struct {
 func (r *RoundRobinSelector) Select(n int) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	selected := r.lastSelected
-	r.lastSelected = (r.lastSelected + 1) % n
+	// bound to current n: alive-backend count can shrink between calls
+	// (health-check flips), so the previously stored index may be out of range
+	selected := r.lastSelected % n
+	r.lastSelected = selected + 1
 	return selected
 }
 
