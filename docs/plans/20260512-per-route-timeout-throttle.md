@@ -251,14 +251,14 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/discovery/provider/static.go`
 - Modify: `app/discovery/provider/static_test.go`
 
-- [ ] extend the static rule format from `server,source_url,destination[,ping[,forward-health-checks]]` to `server,source_url,destination[,ping[,forward-health-checks[,timeout[,throttle]]]]`
-- [ ] update the package-level doc comment and `Rules` field comment to reflect the 7-field format
-- [ ] in `parse()`, read `elems[5]` as `time.Duration` via `time.ParseDuration` when present and non-empty; read `elems[6]` as `int` via `strconv.Atoi` when present and non-empty
-- [ ] return descriptive parse errors for invalid duration / non-integer / negative values
-- [ ] populate `URLMapper.Timeout` and `URLMapper.Throttle` in the result
-- [ ] add test cases covering: 5-field input (back-compat), 6-field input with timeout only, 7-field with both, invalid duration, invalid throttle, negative throttle
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
-- [ ] verify per-task gate
+- [x] extend the static rule format from `server,source_url,destination[,ping[,forward-health-checks]]` to `server,source_url,destination[,ping[,forward-health-checks[,timeout[,throttle]]]]`
+- [x] update the package-level doc comment and `Rules` field comment to reflect the 7-field format
+- [x] in `parse()`, read `elems[5]` as `time.Duration` via `time.ParseDuration` when present and non-empty; read `elems[6]` as `int` via `strconv.Atoi` when present and non-empty
+- [x] return descriptive parse errors for invalid duration / non-integer / negative values
+- [x] populate `URLMapper.Timeout` and `URLMapper.Throttle` in the result
+- [x] add test cases covering: 5-field input (back-compat), 6-field input with timeout only, 7-field with both, invalid duration, invalid throttle, negative throttle
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
+- [x] verify per-task gate
 
 ### Task 3: Docker provider — labels
 
