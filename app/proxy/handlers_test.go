@@ -124,9 +124,9 @@ func Test_signatureHandler(t *testing.T) {
 
 func Test_limiterSystemHandler(t *testing.T) {
 
-	var passed int32
+	var passed atomic.Int32
 	handler := limiterSystemHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&passed, 1)
+		passed.Add(1)
 	}))
 
 	ts := httptest.NewServer(handler)
@@ -146,14 +146,14 @@ func Test_limiterSystemHandler(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assert.Equal(t, int32(10), atomic.LoadInt32(&passed))
+	assert.Equal(t, int32(10), passed.Load())
 }
 
 func Test_limiterClientHandlerNoMatches(t *testing.T) {
 
-	var passed int32
+	var passed atomic.Int32
 	handler := limiterUserHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&passed, 1)
+		passed.Add(1)
 	}))
 
 	ts := httptest.NewServer(handler)
@@ -173,19 +173,19 @@ func Test_limiterClientHandlerNoMatches(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assert.Equal(t, int32(10), atomic.LoadInt32(&passed))
+	assert.Equal(t, int32(10), passed.Load())
 }
 
 func Test_limiterClientHandlerWithMatches(t *testing.T) {
-	var passed int32
+	var passed atomic.Int32
 	handler := limiterUserHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&passed, 1)
+		passed.Add(1)
 	}))
 
 	wrapWithContext := func(next http.Handler) http.Handler {
-		var id int32
+		var id atomic.Int32
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			n := int(atomic.AddInt32(&id, 1))
+			n := int(id.Add(1))
 			m := discovery.MatchedRoute{Mapper: discovery.URLMapper{Dst: strconv.Itoa(n % 2)}}
 			ctx := context.WithValue(context.Background(), ctxMatchType, discovery.MTProxy)
 			ctx = context.WithValue(ctx, ctxMatch, m)
@@ -214,7 +214,7 @@ func Test_limiterClientHandlerWithMatches(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	assert.Equal(t, int32(20), atomic.LoadInt32(&passed))
+	assert.Equal(t, int32(20), passed.Load())
 }
 
 func TestHttp_basicAuthHandler(t *testing.T) {
