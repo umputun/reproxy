@@ -7,11 +7,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/didip/tollbooth/v7"
 	"github.com/didip/tollbooth/v7/libstring"
+	"github.com/didip/tollbooth/v7/limiter"
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/gorilla/handlers"
@@ -140,27 +143,66 @@ func limiterSystemHandler(reqSec int) func(next http.Handler) http.Handler {
 	}
 }
 
-// limiterUserHandler throttles per user activity. In case if match found the limit is per destination
-// otherwise global (per user in any case). 0 means disabled
+// limiterUserHandler throttles per-user activity. When the matched route has Throttle > 0,
+// it applies a per-route limiter at that rate keyed by [ip, dst] (preserving per-user behavior).
+// Otherwise it falls back to the global limiter at reqSec. A request rejected by either limit
+// returns 429. reqSec = 0 disables the global path while per-route overrides still apply.
 func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
-	if reqSec <= 0 {
-		return passThroughHandler
+	var (
+		routeLimiters sync.Map // map[string]*limiter.Limiter, keyed by server|srcMatch|rate
+		globalOnce    sync.Once
+		globalLmt     *limiter.Limiter
+	)
+	getGlobal := func() *limiter.Limiter {
+		globalOnce.Do(func() {
+			if reqSec > 0 {
+				globalLmt = tollbooth.NewLimiter(float64(reqSec), nil)
+			}
+		})
+		return globalLmt
+	}
+	getRouteLimiter := func(m discovery.URLMapper) *limiter.Limiter {
+		key := m.Server + "|" + m.SrcMatch.String() + "|" + strconv.Itoa(m.Throttle)
+		if v, ok := routeLimiters.Load(key); ok {
+			return v.(*limiter.Limiter)
+		}
+		actual, _ := routeLimiters.LoadOrStore(key, tollbooth.NewLimiter(float64(m.Throttle), nil))
+		return actual.(*limiter.Limiter)
 	}
 
 	return func(h http.Handler) http.Handler {
-		lmt := tollbooth.NewLimiter(float64(reqSec), nil)
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
+			var (
+				match   discovery.MatchedRoute
+				matched bool
+			)
+			if v := r.Context().Value(ctxMatch); v != nil {
+				match = v.(discovery.MatchedRoute)
+				matched = true
+			}
 
-			// add dst proxy if matched
-			if r.Context().Value(ctxMatch) != nil { // route match detected by matchHandler
-				match := r.Context().Value(ctxMatch).(discovery.MatchedRoute)
-				matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
-				if matchType == discovery.MTProxy {
+			if matched && match.Mapper.Throttle > 0 {
+				lmt := getRouteLimiter(match.Mapper)
+				ip := libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)
+				if httpError := tollbooth.LimitByKeys(lmt, []string{ip, match.Mapper.Dst}); httpError != nil {
+					http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+					return
+				}
+				h.ServeHTTP(w, r)
+				return
+			}
+
+			lmt := getGlobal()
+			if lmt == nil {
+				h.ServeHTTP(w, r)
+				return
+			}
+			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
+			if matched {
+				if matchType, ok := r.Context().Value(ctxMatchType).(discovery.MatchType); ok && matchType == discovery.MTProxy {
 					keys = append(keys, match.Mapper.Dst)
 				}
 			}
-
 			if httpError := tollbooth.LimitByKeys(lmt, keys); httpError != nil {
 				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 				return

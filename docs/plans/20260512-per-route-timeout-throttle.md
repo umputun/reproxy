@@ -311,25 +311,25 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/proxy/handlers.go`
 - Modify: `app/proxy/handlers_test.go`
 
-- [ ] modify `limiterUserHandler` in `app/proxy/handlers.go` to maintain a `sync.Map` of route-scoped `*limiter.Limiter` instances (one outer cache per factory call)
-- [ ] **remove the existing `if reqSec <= 0 { return passThroughHandler }` short-circuit** at handlers.go:143-145 — the factory must always return a real middleware so per-route Throttle still applies when global throttle is disabled
-- [ ] construct the global limiter lazily via `sync.Once` (build only when first needed). When global rate is zero, skip the global `LimitByKeys` call per request — but still consult per-route Throttle.
-- [ ] on each request:
+- [x] modify `limiterUserHandler` in `app/proxy/handlers.go` to maintain a `sync.Map` of route-scoped `*limiter.Limiter` instances (one outer cache per factory call)
+- [x] **remove the existing `if reqSec <= 0 { return passThroughHandler }` short-circuit** at handlers.go:143-145 — the factory must always return a real middleware so per-route Throttle still applies when global throttle is disabled
+- [x] construct the global limiter lazily via `sync.Once` (build only when first needed). When global rate is zero, skip the global `LimitByKeys` call per request — but still consult per-route Throttle.
+- [x] on each request:
   - if `ctxMatch` is present and `match.Mapper.Throttle > 0`:
     - build cache key: `match.Mapper.Server + "|" + match.Mapper.SrcMatch.String() + "|" + strconv.Itoa(match.Mapper.Throttle)`
     - `LoadOrStore` a limiter at rate `float64(match.Mapper.Throttle)`
     - call `tollbooth.LimitByKeys(routeLimiter, []string{ip, dst})` — preserving `[ip, dst]` key shape
     - return 429 on limit hit; otherwise continue
   - else (no per-route override): use the existing single global limiter path (key shape unchanged — `[ip]` or `[ip, dst]` for MTProxy matches, exactly as today)
-- [ ] add `handlers_test.go` cases. Tests inject `MatchedRoute` via the same wrapper used in Task 5; each test uses `httptest.NewRecorder` to send requests with explicit `RemoteAddr` so tollbooth's IP detection works deterministically.
+- [x] add `handlers_test.go` cases. Tests inject `MatchedRoute` via the same wrapper used in Task 5; each test uses `httptest.NewRecorder` to send requests with explicit `RemoteAddr` so tollbooth's IP detection works deterministically.
   - **route throttle fires**: `Throttle = 2`. 3 sequential requests from `RemoteAddr=1.2.3.4:1234` to the same route within 1s. Assert: first two return 200, third returns 429.
   - **key isolation across routes**: two routes with `Throttle = 1` each (different `SrcMatch`). One request to each. Both succeed (no cross-contamination through the cache).
   - **per-user preserved**: route with `Throttle = 2`. Two distinct `RemoteAddr` values (`1.1.1.1:1` and `2.2.2.2:1`) each send 2 requests. All 4 succeed (each IP gets its own 2/s budget).
   - **fallback to global**: matched route with `Throttle = 0` and factory built with `reqSec = 5`. Behavior identical to current master — verify via 6th rapid request returning 429.
   - **per-route works when global is zero**: factory built with `reqSec = 0` (which under current code returns `passThroughHandler` — but after the fix must return a real middleware). Matched route with `Throttle = 3`. Send 4 rapid requests; assert 4th returns 429.
   - **rate-change cache key**: two separate test invocations of the middleware with two distinct `MatchedRoute` contexts that have the SAME `Server` and `SrcMatch` but `Throttle = 2` first and `Throttle = 5` second. Send 3 requests at rate-2 (3rd returns 429), then 6 requests at rate-5 (6th returns 429 from a freshly-cached limiter at rate 5). This proves the cache key includes rate.
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./proxy/...` — must pass before next task
-- [ ] verify per-task gate
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./proxy/...` — must pass before next task
+- [x] verify per-task gate
 
 ### Task 7: End-to-end integration tests in proxy_test.go
 

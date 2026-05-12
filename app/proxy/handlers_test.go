@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -656,5 +657,145 @@ func Test_routeTimeoutHandler(t *testing.T) {
 		require.NotPanics(t, func() { handler.ServeHTTP(rec, req) })
 		assert.Equal(t, http.StatusGatewayTimeout, rec.Result().StatusCode,
 			"ctx deadline still fires when deadline setters report ErrNotSupported")
+	})
+}
+
+func Test_limiterUserHandler_PerRoute(t *testing.T) {
+	makeReq := func(remoteAddr string, mapper discovery.URLMapper, matchType discovery.MatchType) *http.Request {
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req.RemoteAddr = remoteAddr
+		ctx := context.WithValue(req.Context(), ctxMatch, discovery.MatchedRoute{Mapper: mapper})
+		ctx = context.WithValue(ctx, ctxMatchType, matchType)
+		return req.WithContext(ctx)
+	}
+
+	t.Run("route throttle fires after burst", func(t *testing.T) {
+		var passed atomic.Int32
+		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			passed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		mapper := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/route$"), Dst: "http://up", Throttle: 2}
+
+		statuses := make([]int, 0, 3)
+		for range 3 {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, makeReq("1.2.3.4:1234", mapper, discovery.MTProxy))
+			statuses = append(statuses, rec.Code)
+		}
+		assert.Equal(t, http.StatusOK, statuses[0])
+		assert.Equal(t, http.StatusOK, statuses[1])
+		assert.Equal(t, http.StatusTooManyRequests, statuses[2])
+		assert.Equal(t, int32(2), passed.Load())
+	})
+
+	t.Run("key isolation across routes", func(t *testing.T) {
+		var passed atomic.Int32
+		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			passed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		mapperA := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/a$"), Dst: "http://upA", Throttle: 1}
+		mapperB := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/b$"), Dst: "http://upB", Throttle: 1}
+
+		recA := httptest.NewRecorder()
+		handler.ServeHTTP(recA, makeReq("1.2.3.4:1", mapperA, discovery.MTProxy))
+		recB := httptest.NewRecorder()
+		handler.ServeHTTP(recB, makeReq("1.2.3.4:2", mapperB, discovery.MTProxy))
+
+		assert.Equal(t, http.StatusOK, recA.Code, "route A first hit passes")
+		assert.Equal(t, http.StatusOK, recB.Code, "route B first hit passes (different cache entry)")
+		assert.Equal(t, int32(2), passed.Load())
+	})
+
+	t.Run("per-user budget preserved", func(t *testing.T) {
+		var passed atomic.Int32
+		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			passed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		mapper := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/multi$"), Dst: "http://up", Throttle: 2}
+
+		statuses := make([]int, 0, 4)
+		for _, ip := range []string{"1.1.1.1:1", "1.1.1.1:1", "2.2.2.2:1", "2.2.2.2:1"} {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, makeReq(ip, mapper, discovery.MTProxy))
+			statuses = append(statuses, rec.Code)
+		}
+		for i, s := range statuses {
+			assert.Equal(t, http.StatusOK, s, "request %d for distinct IPs should pass", i)
+		}
+		assert.Equal(t, int32(4), passed.Load())
+	})
+
+	t.Run("fallback to global when route throttle is zero", func(t *testing.T) {
+		var passed atomic.Int32
+		handler := limiterUserHandler(5)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			passed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		mapper := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/glb$"), Dst: "http://up", Throttle: 0}
+
+		statuses := make([]int, 0, 6)
+		for range 6 {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, makeReq("9.9.9.9:1", mapper, discovery.MTProxy))
+			statuses = append(statuses, rec.Code)
+		}
+		assert.Equal(t, http.StatusTooManyRequests, statuses[5], "6th request hits global rate=5")
+		assert.LessOrEqual(t, int(passed.Load()), 5, "global limiter must reject at least one of the 6 requests")
+	})
+
+	t.Run("per-route works when global is zero", func(t *testing.T) {
+		var passed atomic.Int32
+		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			passed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		mapper := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/rg$"), Dst: "http://up", Throttle: 3}
+
+		statuses := make([]int, 0, 4)
+		for range 4 {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, makeReq("3.3.3.3:1", mapper, discovery.MTProxy))
+			statuses = append(statuses, rec.Code)
+		}
+		assert.Equal(t, http.StatusOK, statuses[0])
+		assert.Equal(t, http.StatusOK, statuses[1])
+		assert.Equal(t, http.StatusOK, statuses[2])
+		assert.Equal(t, http.StatusTooManyRequests, statuses[3], "per-route throttle fires even though global=0")
+		assert.Equal(t, int32(3), passed.Load())
+	})
+
+	t.Run("rate-change cache key", func(t *testing.T) {
+		var passed atomic.Int32
+		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			passed.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		src := regexp.MustCompile("^/rate$")
+		mapper2 := discovery.URLMapper{Server: "*", SrcMatch: *src, Dst: "http://up", Throttle: 2}
+		mapper5 := discovery.URLMapper{Server: "*", SrcMatch: *src, Dst: "http://up", Throttle: 5}
+
+		first := make([]int, 0, 3)
+		for range 3 {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, makeReq("7.7.7.7:1", mapper2, discovery.MTProxy))
+			first = append(first, rec.Code)
+		}
+		assert.Equal(t, http.StatusOK, first[0])
+		assert.Equal(t, http.StatusOK, first[1])
+		assert.Equal(t, http.StatusTooManyRequests, first[2], "rate=2 rejects 3rd request")
+
+		second := make([]int, 0, 6)
+		for range 6 {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, makeReq("8.8.8.8:1", mapper5, discovery.MTProxy))
+			second = append(second, rec.Code)
+		}
+		for i := range 5 {
+			assert.Equal(t, http.StatusOK, second[i], "rate=5 allows requests %d under burst", i)
+		}
+		assert.Equal(t, http.StatusTooManyRequests, second[5], "rate=5 cache entry rejects 6th from a separate IP, proving new limiter at rate 5 (not reused rate-2 entry)")
 	})
 }
