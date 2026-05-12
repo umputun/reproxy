@@ -47,7 +47,7 @@ type TagCreateOptions struct {
 // GetCreateOptions converts a Tag to TagCreateOptions for use in CreateTag
 func (i Tag) GetCreateOptions() (o TagCreateOptions) {
 	o.Label = i.Label
-	return
+	return o
 }
 
 // ListTags lists Tags

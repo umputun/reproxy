@@ -15,7 +15,6 @@ type AccountMaintenance struct {
 	Status string  `json:"status"`
 	Type   string  `json:"type"`
 
-	// NOTE: MaintenancePolicySet can only be used with v4beta.
 	MaintenancePolicySet string `json:"maintenance_policy_set"`
 
 	Description  string     `json:"description"`
@@ -28,7 +27,7 @@ type AccountMaintenance struct {
 	When *time.Time `json:"when"`
 }
 
-// The entity being affected by maintenance
+// Entity represents the entity being affected by maintenance
 type Entity struct {
 	ID    int    `json:"id"`
 	Label string `json:"label"`

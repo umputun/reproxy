@@ -5,11 +5,9 @@ linters:
   default: all
   disable:
     - bodyclose
-    - contextcheck
     - cyclop
     - depguard
     - dupl
-    - durationcheck
     - err113
     - errcheck
     - errname
@@ -19,30 +17,21 @@ linters:
     - forcetypeassert
     - gochecknoglobals
     - gochecknoinits
-    - gocyclo
     - godot
-    - gosec
+    - godox
     - inamedparam
     - lll
     - musttag
-    - nakedret
     - nilerr
     - nlreturn
-    - noctx
     - noinlineerr
     - nolintlint
     - nonamedreturns
     - perfsprint
     - recvcheck
-    - rowserrcheck
-    - sqlclosecheck
     - staticcheck
-    - tagalign
     - tagliatelle
-    - tparallel
-    - unparam
     - varnamelen
-    - wastedassign
     - wrapcheck
     - wsl
   settings:
@@ -63,6 +52,12 @@ linters:
       disable-all: false
   exclusions:
     generated: lax
+    rules:
+      - linters:
+          - gosec
+        # "matches secret pattern" linodego necessarily serializes and
+        # deserializes API structs that contain secrets
+        text: G117
     presets:
       - comments
       - common-false-positives

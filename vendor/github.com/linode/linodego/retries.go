@@ -18,10 +18,10 @@ const (
 	defaultRetryCount = 1000
 )
 
-// type RetryConditional func(r *resty.Response) (shouldRetry bool)
+// RetryConditional func(r *resty.Response) (shouldRetry bool)
 type RetryConditional resty.RetryConditionFunc
 
-// type RetryAfter func(c *resty.Client, r *resty.Response) (time.Duration, error)
+// RetryAfter func(c *resty.Client, r *resty.Response) (time.Duration, error)
 type RetryAfter resty.RetryAfterFunc
 
 // Configures resty to
@@ -87,7 +87,7 @@ func requestGOAWAYRetryCondition(_ *resty.Response, e error) bool {
 func requestNGINXRetryCondition(r *resty.Response, _ error) bool {
 	return r.StatusCode() == http.StatusBadRequest &&
 		r.Header().Get("Server") == "nginx" &&
-		r.Header().Get("Content-Type") == "text/html"
+		r.Header().Get("Content-Type") == "text/html" //nolint:goconst
 }
 
 func respectRetryAfter(client *resty.Client, resp *resty.Response) (time.Duration, error) {

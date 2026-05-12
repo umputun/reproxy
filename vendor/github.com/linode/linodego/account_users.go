@@ -98,7 +98,7 @@ func (i User) GetCreateOptions() (o UserCreateOptions) {
 	o.Email = i.Email
 	o.Restricted = i.Restricted
 
-	return
+	return o
 }
 
 // GetUpdateOptions converts a User to UserUpdateOptions for use in UpdateUser
@@ -107,7 +107,7 @@ func (i User) GetUpdateOptions() (o UserUpdateOptions) {
 	o.Restricted = copyBool(&i.Restricted)
 	o.Email = i.Email
 
-	return
+	return o
 }
 
 // ListUsers lists Users on the account

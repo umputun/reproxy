@@ -8,7 +8,7 @@ import (
 	"github.com/linode/linodego/internal/parseabletime"
 )
 
-// Beta Program is a new product or service that is not generally available to all Akamai customers.
+// BetaProgram is a new product or service that is not generally available to all Akamai customers.
 // Users must enroll into a beta in order to access the functionality.
 type BetaProgram struct {
 	Label       string `json:"label"`

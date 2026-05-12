@@ -93,8 +93,8 @@ type MetricRelativeTimeDuration struct {
 
 // MetricAbsoluteTimeDuration specifies an absolute time range for data queries
 type MetricAbsoluteTimeDuration struct {
-	Start time.Time `json:"start,omitempty"`
-	End   time.Time `json:"end,omitempty"`
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
 }
 
 // FetchEntityMetrics returns metrics information for the individual entities within a specific service type

@@ -20,7 +20,7 @@ func quote(s string) string {
 		c := s[i]
 		switch {
 		case c < 32 || c >= 127:
-			sb.WriteString(fmt.Sprintf("\\%03o", c))
+			_, _ = fmt.Fprintf(&sb, "\\%03o", c)
 		case c == '"':
 			sb.WriteString(`\"`)
 		case c == '\\':
@@ -53,7 +53,11 @@ func unquote(s string) string {
 				i++
 				continue
 			case s[i+1] >= '0' && s[i+1] <= '7' && len(s) > i+3:
-				octal, err := strconv.ParseInt(s[i+1:i+4], 8, 32)
+				// Route53 TXT octal escapes are 8-bit (0-255). ParseUint with
+				// bitSize=8 returns an error for any 3-digit octal that
+				// overflows a byte (e.g. \400+), in which case we leave the
+				// backslash unescaped — matches the prior fall-through behavior.
+				octal, err := strconv.ParseUint(s[i+1:i+4], 8, 8)
 				if err == nil {
 					sb.WriteByte(byte(octal))
 					i += 3

@@ -19,7 +19,7 @@ type MonitorDashboard struct {
 	Widgets     []DashboardWidget `json:"widgets"`
 }
 
-// enum object for serviceType
+// ServiceType is an enum object for serviceType
 type ServiceType string
 
 const (
@@ -28,12 +28,13 @@ const (
 	ServiceTypeDBaaS           ServiceType = "dbaas"
 	ServiceTypeACLB            ServiceType = "aclb"
 	ServiceTypeNodeBalancer    ServiceType = "nodebalancer"
-	ServiceTypeObjectStorage   ServiceType = "objectstorage"
+	ServiceTypeObjectStorage   ServiceType = "object_storage"
 	ServiceTypeVPC             ServiceType = "vpc"
 	ServiceTypeFirewallService ServiceType = "firewall"
+	ServiceTypeNetLoadBalancer ServiceType = "netloadbalancer"
 )
 
-// enum object for DashboardType
+// DashboardType is an enum object for DashboardType
 type DashboardType string
 
 const (
@@ -51,9 +52,18 @@ type DashboardWidget struct {
 	ChartType         ChartType         `json:"chart_type"`
 	YLabel            string            `json:"y_label"`
 	AggregateFunction AggregateFunction `json:"aggregate_function"`
+	GroupBy           []string          `json:"group_by"`
+	Filters           []DashboardFilter `json:"filters"`
 }
 
-// Enum object for AggregateFunction
+// DashboardFilter represents a filter for dashboard widgets
+type DashboardFilter struct {
+	DimensionLabel string `json:"dimension_label"`
+	Operator       string `json:"operator"`
+	Value          string `json:"value"`
+}
+
+// AggregateFunction is an enum object for AggregateFunction
 type AggregateFunction string
 
 const (
@@ -67,7 +77,7 @@ const (
 	AggregateFunctionLast     AggregateFunction = "last"
 )
 
-// Enum object for Chart type
+// ChartType is an enum object for Chart type
 type ChartType string
 
 const (

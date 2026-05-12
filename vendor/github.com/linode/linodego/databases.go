@@ -83,24 +83,26 @@ type Database struct {
 	// Members has dynamic keys so it is a map
 	Members map[string]DatabaseMemberType `json:"members"`
 
-	// Deprecated: ReplicationType is a deprecated property, as it is no longer supported in DBaaS V2.
-	ReplicationType string `json:"replication_type"`
-	// Deprecated: SSLConnection is a deprecated property, as it is no longer supported in DBaaS V2.
-	SSLConnection bool `json:"ssl_connection"`
-	// Deprecated: Encrypted is a deprecated property, as it is no longer supported in DBaaS V2.
-	Encrypted bool `json:"encrypted"`
-
+	Encrypted         bool       `json:"encrypted"`
 	AllowList         []string   `json:"allow_list"`
 	InstanceURI       string     `json:"instance_uri"`
 	Created           *time.Time `json:"-"`
 	Updated           *time.Time `json:"-"`
 	OldestRestoreTime *time.Time `json:"-"`
+
+	PrivateNetwork *DatabasePrivateNetwork `json:"private_network,omitempty"`
 }
 
 // DatabaseHost for Primary/Secondary of Database
 type DatabaseHost struct {
-	Primary   string `json:"primary"`
-	Secondary string `json:"secondary,omitempty"`
+	Primary string `json:"primary"`
+	Standby string `json:"standby"`
+}
+
+type DatabasePrivateNetwork struct {
+	VPCID        int  `json:"vpc_id"`
+	SubnetID     int  `json:"subnet_id"`
+	PublicAccess bool `json:"public_access"`
 }
 
 // DatabaseEngine is information about Engines supported by Linode Managed Databases
@@ -118,9 +120,6 @@ type DatabaseMaintenanceWindow struct {
 	HourOfDay int                          `json:"hour_of_day"`
 
 	Pending []DatabaseMaintenanceWindowPending `json:"pending,omitempty"`
-
-	// Deprecated: WeekOfMonth is a deprecated property, as it is no longer supported in DBaaS V2.
-	WeekOfMonth *int `json:"week_of_month,omitempty"`
 }
 
 type DatabaseMaintenanceWindowPending struct {

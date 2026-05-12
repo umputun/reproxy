@@ -66,7 +66,7 @@ func (i Profile) GetUpdateOptions() (o ProfileUpdateOptions) {
 	o.TwoFactorAuth = copyBool(&i.TwoFactorAuth)
 	o.Restricted = copyBool(&i.Restricted)
 
-	return
+	return o
 }
 
 // GetProfile returns the Profile of the authenticated user

@@ -24,7 +24,7 @@ type PaymentMethod struct {
 	Type string `json:"type"`
 
 	// The detailed data for the Payment Method, which can be of varying types.
-	Data interface{} `json:"data"`
+	Data any `json:"data"`
 }
 
 // PaymentMethodDataCreditCard represents a PaymentMethodDataCreditCard object

@@ -20,20 +20,21 @@ const (
 
 // A Firewall is a set of networking rules (iptables) applied to Devices with which it is associated
 type Firewall struct {
-	ID      int             `json:"id"`
-	Label   string          `json:"label"`
-	Status  FirewallStatus  `json:"status"`
-	Tags    []string        `json:"tags,omitempty"`
-	Rules   FirewallRuleSet `json:"rules"`
-	Created *time.Time      `json:"-"`
-	Updated *time.Time      `json:"-"`
+	ID       int                    `json:"id"`
+	Label    string                 `json:"label"`
+	Status   FirewallStatus         `json:"status"`
+	Tags     []string               `json:"tags"`
+	Rules    FirewallRuleSet        `json:"rules"`
+	Entities []FirewallDeviceEntity `json:"entities"`
+	Created  *time.Time             `json:"-"`
+	Updated  *time.Time             `json:"-"`
 }
 
 // DevicesCreationOptions fields are used when adding devices during the Firewall creation process.
 type DevicesCreationOptions struct {
-	Linodes       []int `json:"linodes,omitempty"`
-	NodeBalancers []int `json:"nodebalancers,omitempty"`
-	Interfaces    []int `json:"interfaces,omitempty"`
+	Linodes          []int `json:"linodes,omitempty"`
+	NodeBalancers    []int `json:"nodebalancers,omitempty"`
+	LinodeInterfaces []int `json:"linode_interfaces,omitempty"`
 }
 
 // FirewallCreateOptions fields are those accepted by CreateFirewall
@@ -41,7 +42,7 @@ type FirewallCreateOptions struct {
 	Label   string                 `json:"label,omitempty"`
 	Rules   FirewallRuleSet        `json:"rules"`
 	Tags    []string               `json:"tags,omitempty"`
-	Devices DevicesCreationOptions `json:"devices,omitempty"`
+	Devices DevicesCreationOptions `json:"devices,omitzero"`
 }
 
 // FirewallUpdateOptions is an options struct used when Updating a Firewall

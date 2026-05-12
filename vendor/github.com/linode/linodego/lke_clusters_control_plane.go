@@ -5,6 +5,9 @@ import "context"
 // LKEClusterControlPlane fields contained within the `control_plane` attribute of an LKE cluster.
 type LKEClusterControlPlane struct {
 	HighAvailability bool `json:"high_availability"`
+
+	// AuditLogsEnabled may not currently be available to all users and can only be used with v4beta.
+	AuditLogsEnabled bool `json:"audit_logs_enabled,omitempty"`
 }
 
 // LKEClusterControlPlaneACLAddresses describes the
@@ -42,6 +45,9 @@ type LKEClusterControlPlaneACLOptions struct {
 type LKEClusterControlPlaneOptions struct {
 	HighAvailability *bool                             `json:"high_availability,omitempty"`
 	ACL              *LKEClusterControlPlaneACLOptions `json:"acl,omitempty"`
+
+	// AuditLogsEnabled may not currently be available to all users and can only be used with v4beta.
+	AuditLogsEnabled *bool `json:"audit_logs_enabled,omitempty"`
 }
 
 // LKEClusterControlPlaneACLUpdateOptions represents the options

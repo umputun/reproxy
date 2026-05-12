@@ -68,7 +68,7 @@ func (i OAuthClient) GetCreateOptions() (o OAuthClientCreateOptions) {
 	o.Label = i.Label
 	o.Public = i.Public
 
-	return
+	return o
 }
 
 // GetUpdateOptions converts a OAuthClient to OAuthClientUpdateOptions for use in UpdateOAuthClient
@@ -77,7 +77,7 @@ func (i OAuthClient) GetUpdateOptions() (o OAuthClientUpdateOptions) {
 	o.Label = i.Label
 	o.Public = i.Public
 
-	return
+	return o
 }
 
 // ListOAuthClients lists OAuthClients

@@ -77,13 +77,13 @@ func (i Token) GetCreateOptions() (o TokenCreateOptions) {
 	o.Expiry = copyTime(i.Expiry)
 	o.Scopes = i.Scopes
 
-	return
+	return o
 }
 
 // GetUpdateOptions converts a Token to TokenUpdateOptions for use in UpdateToken
 func (i Token) GetUpdateOptions() (o TokenUpdateOptions) {
 	o.Label = i.Label
-	return
+	return o
 }
 
 // ListTokens lists Tokens

@@ -20,7 +20,6 @@ type GlobalUserGrants struct {
 	AddLinodes           bool                  `json:"add_linodes"`
 	AddLongview          bool                  `json:"add_longview"`
 	AddNodeBalancers     bool                  `json:"add_nodebalancers"`
-	AddPlacementGroups   bool                  `json:"add_placement_groups"`
 	AddStackScripts      bool                  `json:"add_stackscripts"`
 	AddVolumes           bool                  `json:"add_volumes"`
 	AddVPCs              bool                  `json:"add_vpcs"`

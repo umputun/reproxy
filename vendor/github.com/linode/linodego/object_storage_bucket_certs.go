@@ -19,6 +19,7 @@ type ObjectStorageBucketCertUploadOptions struct {
 }
 
 // UploadObjectStorageBucketCert uploads a TLS/SSL Cert to be used with an Object Storage Bucket.
+//
 // Deprecated: Please use UploadObjectStorageBucketCertV2 for all new implementations.
 func (c *Client) UploadObjectStorageBucketCert(
 	ctx context.Context,
@@ -30,13 +31,14 @@ func (c *Client) UploadObjectStorageBucketCert(
 }
 
 // GetObjectStorageBucketCert gets an ObjectStorageBucketCert
+//
 // Deprecated: Please use GetObjectStorageBucketCertV2 for all new implementations.
 func (c *Client) GetObjectStorageBucketCert(ctx context.Context, clusterOrRegionID, bucket string) (*ObjectStorageBucketCert, error) {
 	e := formatAPIPath("object-storage/buckets/%s/%s/ssl", clusterOrRegionID, bucket)
 	return doGETRequest[ObjectStorageBucketCert](ctx, c, e)
 }
 
-// UploadObjectStorageBucketCert uploads a TLS/SSL Cert to be used with an Object Storage Bucket.
+// UploadObjectStorageBucketCertV2 uploads a TLS/SSL Cert to be used with an Object Storage Bucket.
 func (c *Client) UploadObjectStorageBucketCertV2(
 	ctx context.Context,
 	clusterOrRegionID, bucket string,

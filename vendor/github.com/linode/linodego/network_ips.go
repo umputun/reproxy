@@ -17,6 +17,7 @@ type IPAddressUpdateOptionsV2 struct {
 }
 
 // IPAddressUpdateOptions fields are those accepted by UpdateIPAddress.
+//
 // Deprecated: Please use IPAddressUpdateOptionsV2 for all new implementations.
 type IPAddressUpdateOptions struct {
 	RDNS *string `json:"rdns"`
@@ -66,10 +67,11 @@ func (i InstanceIP) GetUpdateOptionsV2() IPAddressUpdateOptionsV2 {
 }
 
 // GetUpdateOptions converts a IPAddress to IPAddressUpdateOptions for use in UpdateIPAddress.
+//
 // Deprecated: Please use GetUpdateOptionsV2 for all new implementations.
 func (i InstanceIP) GetUpdateOptions() (o IPAddressUpdateOptions) {
 	o.RDNS = copyString(&i.RDNS)
-	return
+	return o
 }
 
 // ListIPAddresses lists IPAddresses.
@@ -90,6 +92,7 @@ func (c *Client) UpdateIPAddressV2(ctx context.Context, address string, opts IPA
 }
 
 // UpdateIPAddress updates the IP address with the specified id.
+//
 // Deprecated: Please use UpdateIPAddressV2 for all new implementation.
 func (c *Client) UpdateIPAddress(ctx context.Context, id string, opts IPAddressUpdateOptions) (*InstanceIP, error) {
 	e := formatAPIPath("networking/ips/%s", id)

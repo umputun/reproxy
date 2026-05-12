@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	libraryVersion = "1.148.0"
+	libraryVersion = "1.189.0"
 	defaultBaseURL = "https://api.digitalocean.com/"
 	userAgent      = "godo/" + libraryVersion
 	mediaType      = "application/json"
@@ -66,7 +66,7 @@ type Client struct {
 	Droplets            DropletsService
 	DropletActions      DropletActionsService
 	DropletAutoscale    DropletAutoscaleService
-	EgressGateways      EgressGatewaysService
+	VPCNATGateways      VPCNATGatewaysService
 	Firewalls           FirewallsService
 	FloatingIPs         FloatingIPsService
 	FloatingIPActions   FloatingIPActionsService
@@ -78,6 +78,9 @@ type Client struct {
 	Kubernetes          KubernetesService
 	LoadBalancers       LoadBalancersService
 	Monitoring          MonitoringService
+	Security            SecurityService
+	Nfs                 NfsService
+	NfsActions          NfsActionsService
 	OneClick            OneClickService
 	Projects            ProjectsService
 	Regions             RegionsService
@@ -96,7 +99,10 @@ type Client struct {
 	UptimeChecks        UptimeChecksService
 	VPCs                VPCsService
 	PartnerAttachment   PartnerAttachmentService
-
+	GradientAI          GradientAIService
+	DedicatedInference  DedicatedInferenceService
+	BatchInference      BatchInferenceService
+	BYOIPPrefixes       BYOIPPrefixesService
 	// Optional function called after every successful request made to the DO APIs
 	onRequestCompleted RequestCompletionCallback
 
@@ -145,6 +151,15 @@ type ListOptions struct {
 
 	// Whether App responses should include project_id fields. The field will be empty if false or if omitted. (ListApps)
 	WithProjects bool `url:"with_projects,omitempty"`
+
+	// This parameter is used to only list agents that are deployed in the response.
+	Deployed bool `url:"only_deployed,omitempty"`
+
+	// This parameter is used to include models that are publicly available.
+	PublicOnly bool `url:"public_only,omitempty"`
+
+	// This parameter is used to include models according to the use cases.
+	Usecases []string `url:"usecases,omitempty"`
 }
 
 // TokenListOptions specifies the optional parameters to various List methods that support token pagination.
@@ -294,7 +309,10 @@ func NewClient(httpClient *http.Client) *Client {
 	c.Kubernetes = &KubernetesServiceOp{client: c}
 	c.LoadBalancers = &LoadBalancersServiceOp{client: c}
 	c.Monitoring = &MonitoringServiceOp{client: c}
-	c.EgressGateways = &EgressGatewaysServiceOp{client: c}
+	c.Security = &SecurityServiceOp{client: c}
+	c.Nfs = &NfsServiceOp{client: c}
+	c.NfsActions = &NfsActionsServiceOp{client: c}
+	c.VPCNATGateways = &VPCNATGatewaysServiceOp{client: c}
 	c.OneClick = &OneClickServiceOp{client: c}
 	c.Projects = &ProjectsServiceOp{client: c}
 	c.Regions = &RegionsServiceOp{client: c}
@@ -304,6 +322,7 @@ func NewClient(httpClient *http.Client) *Client {
 	c.ReservedIPV6s = &ReservedIPV6sServiceOp{client: c}
 	c.ReservedIPActions = &ReservedIPActionsServiceOp{client: c}
 	c.ReservedIPV6Actions = &ReservedIPV6ActionsServiceOp{client: c}
+	c.BYOIPPrefixes = &BYOIPPrefixServiceOp{client: c}
 	c.Sizes = &SizesServiceOp{client: c}
 	c.Snapshots = &SnapshotsServiceOp{client: c}
 	c.SpacesKeys = &SpacesKeysServiceOp{client: c}
@@ -313,6 +332,10 @@ func NewClient(httpClient *http.Client) *Client {
 	c.UptimeChecks = &UptimeChecksServiceOp{client: c}
 	c.VPCs = &VPCsServiceOp{client: c}
 	c.PartnerAttachment = &PartnerAttachmentServiceOp{client: c}
+	c.GradientAI = &GradientAIServiceOp{client: c}
+	c.DedicatedInference = &DedicatedInferenceServiceOp{client: c}
+	batchInferenceURL, _ := url.Parse(defaultBatchInferenceBaseURL)
+	c.BatchInference = &BatchInferenceServiceOp{client: c, baseURL: batchInferenceURL}
 
 	c.headers = make(map[string]string)
 

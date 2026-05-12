@@ -10,15 +10,16 @@ import (
 
 // LinodeKernel represents a Linode Instance kernel object
 type LinodeKernel struct {
-	ID           string     `json:"id"`
-	Label        string     `json:"label"`
-	Version      string     `json:"version"`
-	Architecture string     `json:"architecture"`
-	Deprecated   bool       `json:"deprecated"`
-	KVM          bool       `json:"kvm"`
-	XEN          bool       `json:"xen"`
-	PVOPS        bool       `json:"pvops"`
-	Built        *time.Time `json:"-"`
+	ID           string `json:"id"`
+	Label        string `json:"label"`
+	Version      string `json:"version"`
+	Architecture string `json:"architecture"`
+	Deprecated   bool   `json:"deprecated"`
+	KVM          bool   `json:"kvm"`
+	// Deprecated: this field is no longer populated by the API, but it is included here for backward compatibility with existing implementations.
+	XEN   bool       `json:"xen"`
+	PVOPS bool       `json:"pvops"`
+	Built *time.Time `json:"-"`
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface

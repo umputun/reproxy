@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/scaleway/scaleway-sdk-go/errors"
@@ -190,7 +189,7 @@ func (s *RegistrarAPI) WaitForOrderDomain(
 		IntervalStrategy: async.LinearIntervalStrategy(retryInterval),
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("waiting for domain %s failed, last known status: %s", req.Domain, lastStatus))
+		return nil, errors.Wrap(err, "waiting for domain %s failed, last known status: %s", req.Domain, lastStatus)
 	}
 
 	return domain.(*Domain), nil
@@ -243,7 +242,7 @@ func (s *RegistrarAPI) WaitForAutoRenewStatus(req *WaitForAutoRenewStatusRequest
 		IntervalStrategy: async.LinearIntervalStrategy(retryInterval),
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("waiting for auto_renew to reach a terminal state for domain %s failed, last known status: %s", req.Domain, lastStatus))
+		return nil, errors.Wrap(err, "waiting for auto_renew to reach a terminal state for domain %s failed, last known status: %s", req.Domain, lastStatus)
 	}
 	return domainResult.(*Domain), nil
 }
@@ -297,7 +296,7 @@ func (s *RegistrarAPI) WaitForDNSSECStatus(req *WaitForDNSSECStatusRequest, opts
 		IntervalStrategy: async.LinearIntervalStrategy(retryInterval),
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("waiting for dnssec to reach a terminal state for domain %s failed, last known status: %s", req.Domain, lastStatus))
+		return nil, errors.Wrap(err, "waiting for dnssec to reach a terminal state for domain %s failed, last known status: %s", req.Domain, lastStatus)
 	}
 	return domainResult.(*Domain), nil
 }

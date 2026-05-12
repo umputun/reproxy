@@ -105,7 +105,7 @@ func (d DomainRecord) GetUpdateOptions() (du DomainRecordUpdateOptions) {
 	du.TTLSec = d.TTLSec
 	du.Tag = copyString(d.Tag)
 
-	return
+	return du
 }
 
 // ListDomainRecords lists DomainRecords

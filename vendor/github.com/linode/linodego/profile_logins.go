@@ -8,7 +8,7 @@ import (
 	"github.com/linode/linodego/internal/parseabletime"
 )
 
-// Profile represents a Profile object
+// ProfileLogin represents a Profile object
 type ProfileLogin struct {
 	Datetime   *time.Time `json:"datetime"`
 	ID         int        `json:"id"`

@@ -16,7 +16,7 @@ type MonitorMetricsDefinition struct {
 	Unit                        MetricUnit          `json:"unit"`
 }
 
-// Enum object for MetricType
+// MetricType is an enum object for MetricType
 type MetricType string
 
 const (
@@ -26,25 +26,29 @@ const (
 	MetricTypeSummary   MetricType = "summary"
 )
 
-// Enum object for Unit
+// MetricUnit is an enum object for Unit
 type MetricUnit string
 
 const (
-	MetricUnitCount          MetricUnit = "count"
-	MetricUnitPercent        MetricUnit = "percent"
-	MetricUnitByte           MetricUnit = "byte"
-	MetricUnitSecond         MetricUnit = "second"
-	MetricUnitBitsPerSecond  MetricUnit = "bits_per_second"
-	MetricUnitMillisecond    MetricUnit = "millisecond"
-	MetricUnitKB             MetricUnit = "KB"
-	MetricUnitMB             MetricUnit = "MB"
-	MetricUnitGB             MetricUnit = "GB"
-	MetricUnitRate           MetricUnit = "rate"
-	MetricUnitBytesPerSecond MetricUnit = "bytes_per_second"
-	MetricUnitPercentile     MetricUnit = "percentile"
-	MetricUnitRatio          MetricUnit = "ratio"
-	MetricUnitOpsPerSecond   MetricUnit = "ops_per_second"
-	MetricUnitIops           MetricUnit = "iops"
+	MetricUnitCount              MetricUnit = "count"
+	MetricUnitPercent            MetricUnit = "percent"
+	MetricUnitByte               MetricUnit = "byte"
+	MetricUnitSecond             MetricUnit = "second"
+	MetricUnitBitsPerSecond      MetricUnit = "bits_per_second"
+	MetricUnitMillisecond        MetricUnit = "millisecond"
+	MetricUnitKB                 MetricUnit = "KB"
+	MetricUnitMB                 MetricUnit = "MB"
+	MetricUnitGB                 MetricUnit = "GB"
+	MetricUnitRate               MetricUnit = "rate"
+	MetricUnitBytesPerSecond     MetricUnit = "bytes_per_second"
+	MetricUnitPercentile         MetricUnit = "percentile"
+	MetricUnitRatio              MetricUnit = "ratio"
+	MetricUnitOpsPerSecond       MetricUnit = "ops_per_second"
+	MetricUnitIops               MetricUnit = "iops"
+	MetricUnitKiloBytesPerSecond MetricUnit = "kilo_bytes_per_second"
+	MetricUnitSessionsPerSecond  MetricUnit = "sessions_per_second"
+	MetricUnitPacketsPerSecond   MetricUnit = "packets_per_second"
+	MetricUnitKiloBitsPerSecond  MetricUnit = "kilo_bits_per_second"
 )
 
 // MonitorDimension represents an ACLP MonitorDimension object

@@ -27,7 +27,7 @@ type InstanceConfigInterface struct {
 type InstanceConfigInterfaceIPv6 struct {
 	SLAAC    []InstanceConfigInterfaceIPv6SLAAC `json:"slaac"`
 	Ranges   []InstanceConfigInterfaceIPv6Range `json:"ranges"`
-	IsPublic bool                               `json:"is_public"`
+	IsPublic *bool                              `json:"is_public"`
 }
 
 // InstanceConfigInterfaceIPv6SLAAC represents a single IPv6 SLAAC under
@@ -173,7 +173,7 @@ func (i InstanceConfigInterface) GetCreateOptions() InstanceConfigInterfaceCreat
 					}
 				},
 			),
-			IsPublic: copyValue(&ipv6.IsPublic),
+			IsPublic: copyValue(ipv6.IsPublic),
 		}
 	}
 
@@ -219,7 +219,7 @@ func (i InstanceConfigInterface) GetUpdateOptions() InstanceConfigInterfaceUpdat
 			opts.IPv6 = &InstanceConfigInterfaceUpdateOptionsIPv6{
 				SLAAC:    &newSLAAC,
 				Ranges:   &newRanges,
-				IsPublic: copyValue(&ipv6.IsPublic),
+				IsPublic: copyValue(ipv6.IsPublic),
 			}
 		}
 	}
