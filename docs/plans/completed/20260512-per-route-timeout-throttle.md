@@ -391,8 +391,8 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 
 ### Task 10: Final — Update documentation and move plan
 
-- [ ] update `CLAUDE.md` if any new patterns were discovered (per-route option pattern is already documented via existing fields; likely no change needed)
-- [ ] move this plan to `docs/plans/completed/` (create directory if it does not exist)
+- [x] update `CLAUDE.md` if any new patterns were discovered (per-route option pattern is already documented via existing fields; likely no change needed)
+- [x] move this plan to `docs/plans/completed/` (create directory if it does not exist)
 
 ## Post-Completion
 
