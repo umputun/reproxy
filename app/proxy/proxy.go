@@ -139,6 +139,7 @@ func (h *Http) Run(ctx context.Context) error {
 		h.pingHandler,                                // respond to /ping
 		h.healthMiddleware,                           // respond to /health
 		h.matchHandler,                               // set matched routes to context
+		routeTimeoutHandler,                          // apply per-route request deadline if set on matched mapper
 		h.OnlyFrom.Handler,                           // limit source (remote) IPs if defined
 		perRouteAuthHandler,                          // per-route basic auth (if route has auth configured)
 		h.basicAuthHandler(),                         // global basic auth (skipped if per-route auth is set)

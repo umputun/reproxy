@@ -293,17 +293,17 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/proxy/proxy.go`
 - Modify: `app/proxy/handlers_test.go`
 
-- [ ] add `routeTimeoutHandler` in `app/proxy/handlers.go` per the Technical Details section above (standalone — established middleware pattern, exempted from method-conversion rule per the project-specific exception in the Code-Quality block; one-sentence godoc as shown in the Technical Details snippet)
-- [ ] insert `routeTimeoutHandler` into the middleware chain in `app/proxy/proxy.go` immediately after `h.matchHandler` and before `h.OnlyFrom.Handler` (around line 142)
-- [ ] add `handlers_test.go` cases. Each test injects a `MatchedRoute` into the request context via a tiny test wrapper that calls `context.WithValue(r.Context(), ctxMatch, discovery.MatchedRoute{Mapper: ...})` — same pattern existing tests use; do NOT depend on the real `matchHandler`.
+- [x] add `routeTimeoutHandler` in `app/proxy/handlers.go` per the Technical Details section above (standalone — established middleware pattern, exempted from method-conversion rule per the project-specific exception in the Code-Quality block; one-sentence godoc as shown in the Technical Details snippet)
+- [x] insert `routeTimeoutHandler` into the middleware chain in `app/proxy/proxy.go` immediately after `h.matchHandler` and before `h.OnlyFrom.Handler` (around line 142)
+- [x] add `handlers_test.go` cases. Each test injects a `MatchedRoute` into the request context via a tiny test wrapper that calls `context.WithValue(r.Context(), ctxMatch, discovery.MatchedRoute{Mapper: ...})` — same pattern existing tests use; do NOT depend on the real `matchHandler`.
   Define a small **recording response writer** in the test file that wraps `httptest.ResponseRecorder` and records every `SetReadDeadline` / `SetWriteDeadline` call. `httptest.ResponseRecorder` itself does NOT implement deadline setters; `http.NewResponseController` would return `http.ErrNotSupported` against it. The recording writer is the only way to assert deadline behavior in unit tests. It must satisfy the `interface { SetReadDeadline(time.Time) error; SetWriteDeadline(time.Time) error }` shape so `ResponseController` unwraps it.
   - **passthrough zero timeout**: matched route with `Timeout = 0` → next handler runs to completion; assert the recording writer received ZERO `SetReadDeadline` / `SetWriteDeadline` calls (proves the middleware did not touch deadlines).
   - **timeout fires**: matched route with `Timeout = 100ms`. The next handler is a **context-aware stub** that does `select { case <-r.Context().Done(): http.Error(w, "ctx done", http.StatusGatewayTimeout); case <-time.After(500ms): w.Write([]byte("late")) }`. Assert: response body matches "ctx done" (or check the recorded status the stub wrote) — never "late". This proves the per-route timeout actually cancels the downstream context. **Note**: this status code is for the test stub's choice; in real proxy flow, `httputil.ReverseProxy`'s default ErrorHandler returns 502 for context cancellation — that case is covered in Task 7's integration test.
   - **deadlines are actually set when Timeout > 0**: matched route with `Timeout = 5s`. Next handler responds immediately with 200 OK. Assert success AND assert the recording writer received exactly one `SetReadDeadline` and one `SetWriteDeadline` call at approximately `time.Now() + 5s` (allow a small slack for clock skew). Proves the middleware writes deadlines when Timeout > 0.
   - **no match in context**: request without `ctxMatch` value → passthrough (next handler runs, no panic, no deadline calls recorded).
   - **ErrNotSupported tolerance**: recording writer's `SetWriteDeadline` returns `http.ErrNotSupported`. Assert no panic, no log spam (capture stderr if needed), and ctx-cancel path still fires for the timeout case. **Note**: in Go 1.26 the stdlib HTTP/2 response writer does support deadlines, so `ErrNotSupported` is a defensive fallback for unusual response writer wrappers — not a routine case.
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./proxy/...` — must pass before next task
-- [ ] verify per-task gate
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./proxy/...` — must pass before next task
+- [x] verify per-task gate
 
 ### Task 6: Per-route throttle in limiterUserHandler
 

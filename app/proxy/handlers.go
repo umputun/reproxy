@@ -1,11 +1,14 @@
 package proxy
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/didip/tollbooth/v7"
 	"github.com/didip/tollbooth/v7/libstring"
@@ -166,6 +169,33 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 		}
 		return http.HandlerFunc(fn)
 	}
+}
+
+// routeTimeoutHandler applies a per-route request deadline when the matched mapper has Timeout > 0.
+func routeTimeoutHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCtx := r.Context()
+		if reqCtx.Value(ctxMatch) == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		match := reqCtx.Value(ctxMatch).(discovery.MatchedRoute)
+		if match.Mapper.Timeout <= 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ctx, cancel := context.WithTimeout(reqCtx, match.Mapper.Timeout)
+		defer cancel()
+		rc := http.NewResponseController(w)
+		deadline := time.Now().Add(match.Mapper.Timeout)
+		if err := rc.SetReadDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			log.Printf("[DEBUG] route timeout: SetReadDeadline failed: %v", err)
+		}
+		if err := rc.SetWriteDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			log.Printf("[DEBUG] route timeout: SetWriteDeadline failed: %v", err)
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // perRouteAuthHandler is middleware for per-route basic authentication.

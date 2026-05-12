@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,43 @@ import (
 
 	"github.com/umputun/reproxy/app/discovery"
 )
+
+// deadlineRecorder wraps httptest.ResponseRecorder and records SetReadDeadline / SetWriteDeadline
+// calls so the routeTimeoutHandler tests can assert deadline behavior. It exposes the deadline
+// setters directly so http.NewResponseController unwraps it via the documented setter-method
+// interface, even though the embedded *httptest.ResponseRecorder is itself a deadline-less writer.
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	mu          sync.Mutex
+	readCalls   []time.Time
+	writeCalls  []time.Time
+	readSetErr  error
+	writeSetErr error
+}
+
+func newDeadlineRecorder() *deadlineRecorder {
+	return &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+}
+
+func (d *deadlineRecorder) SetReadDeadline(t time.Time) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.readCalls = append(d.readCalls, t)
+	return d.readSetErr
+}
+
+func (d *deadlineRecorder) SetWriteDeadline(t time.Time) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.writeCalls = append(d.writeCalls, t)
+	return d.writeSetErr
+}
+
+func (d *deadlineRecorder) recorded() (read, write []time.Time) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]time.Time(nil), d.readCalls...), append([]time.Time(nil), d.writeCalls...)
+}
 
 func Test_headersHandler(t *testing.T) {
 	wr := httptest.NewRecorder()
@@ -502,4 +540,121 @@ func TestHeaders_CSPParsing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_routeTimeoutHandler(t *testing.T) {
+	t.Run("zero timeout passthrough, no deadlines touched", func(t *testing.T) {
+		var called atomic.Int32
+		handler := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxMatch,
+			discovery.MatchedRoute{Mapper: discovery.URLMapper{Timeout: 0}}))
+
+		rec := newDeadlineRecorder()
+		handler.ServeHTTP(rec, req)
+
+		assert.Equal(t, int32(1), called.Load())
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		reads, writes := rec.recorded()
+		assert.Empty(t, reads, "no SetReadDeadline calls expected when Timeout=0")
+		assert.Empty(t, writes, "no SetWriteDeadline calls expected when Timeout=0")
+	})
+
+	t.Run("no match in context, passthrough", func(t *testing.T) {
+		var called atomic.Int32
+		handler := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		rec := newDeadlineRecorder()
+		handler.ServeHTTP(rec, req)
+
+		assert.Equal(t, int32(1), called.Load())
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		reads, writes := rec.recorded()
+		assert.Empty(t, reads)
+		assert.Empty(t, writes)
+	})
+
+	t.Run("timeout fires, downstream ctx canceled", func(t *testing.T) {
+		handler := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+				http.Error(w, "ctx done", http.StatusGatewayTimeout)
+			case <-time.After(500 * time.Millisecond):
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("late"))
+			}
+		}))
+
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxMatch,
+			discovery.MatchedRoute{Mapper: discovery.URLMapper{Timeout: 100 * time.Millisecond}}))
+
+		rec := newDeadlineRecorder()
+		start := time.Now()
+		handler.ServeHTTP(rec, req)
+		elapsed := time.Since(start)
+
+		assert.Equal(t, http.StatusGatewayTimeout, rec.Result().StatusCode)
+		assert.Contains(t, rec.Body.String(), "ctx done")
+		assert.NotContains(t, rec.Body.String(), "late")
+		assert.Less(t, elapsed, 400*time.Millisecond, "should return well before 500ms upstream sleep")
+	})
+
+	t.Run("deadlines set when Timeout > 0", func(t *testing.T) {
+		handler := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxMatch,
+			discovery.MatchedRoute{Mapper: discovery.URLMapper{Timeout: 5 * time.Second}}))
+
+		rec := newDeadlineRecorder()
+		before := time.Now()
+		handler.ServeHTTP(rec, req)
+		after := time.Now()
+
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		reads, writes := rec.recorded()
+		require.Len(t, reads, 1, "exactly one SetReadDeadline call expected")
+		require.Len(t, writes, 1, "exactly one SetWriteDeadline call expected")
+
+		earliest := before.Add(5 * time.Second).Add(-100 * time.Millisecond)
+		latest := after.Add(5 * time.Second).Add(100 * time.Millisecond)
+		assert.True(t, !reads[0].Before(earliest) && !reads[0].After(latest),
+			"read deadline %v outside expected window [%v, %v]", reads[0], earliest, latest)
+		assert.True(t, !writes[0].Before(earliest) && !writes[0].After(latest),
+			"write deadline %v outside expected window [%v, %v]", writes[0], earliest, latest)
+	})
+
+	t.Run("ErrNotSupported tolerated, ctx-cancel still fires", func(t *testing.T) {
+		handler := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+				http.Error(w, "ctx done", http.StatusGatewayTimeout)
+			case <-time.After(500 * time.Millisecond):
+				w.WriteHeader(http.StatusOK)
+			}
+		}))
+
+		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxMatch,
+			discovery.MatchedRoute{Mapper: discovery.URLMapper{Timeout: 100 * time.Millisecond}}))
+
+		rec := newDeadlineRecorder()
+		rec.readSetErr = http.ErrNotSupported
+		rec.writeSetErr = http.ErrNotSupported
+
+		require.NotPanics(t, func() { handler.ServeHTTP(rec, req) })
+		assert.Equal(t, http.StatusGatewayTimeout, rec.Result().StatusCode,
+			"ctx deadline still fires when deadline setters report ErrNotSupported")
+	})
 }
