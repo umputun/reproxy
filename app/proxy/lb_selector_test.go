@@ -29,6 +29,21 @@ func TestRoundRobinSelector_Select(t *testing.T) {
 	}
 }
 
+func TestRoundRobinSelector_SelectGrowingN(t *testing.T) {
+	// verifies the [0, n) invariant on lastSelected: after completing a cycle
+	// with small n, a subsequent call with larger n must restart from 0 rather
+	// than continuing the stale counter (e.g., dead backend recovers).
+	selector := &RoundRobinSelector{}
+
+	assert.Equal(t, 0, selector.Select(3))
+	assert.Equal(t, 1, selector.Select(3))
+	assert.Equal(t, 2, selector.Select(3))
+
+	// n grows from 3 to 5; lastSelected wrapped to 0 on the previous call.
+	assert.Equal(t, 0, selector.Select(5))
+	assert.Equal(t, 1, selector.Select(5))
+}
+
 func TestRoundRobinSelector_SelectShrinkingN(t *testing.T) {
 	// reproduces issue #250: when the alive-backend count shrinks between calls
 	// (e.g. a backend health-check flips dead), the stale lastSelected can exceed

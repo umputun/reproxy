@@ -87,7 +87,11 @@ func (h *Http) redirectHandler() http.Handler {
 		if r.URL.RawQuery != "" {
 			newURL += "?" + r.URL.RawQuery
 		}
-		http.Redirect(w, r, newURL, http.StatusTemporaryRedirect) //nolint:gosec // standard http->https upgrade, redirect target derived from request host
+		// standard http->https upgrade: redirect target is built from the request Host header,
+		// matching the pattern used by Go's autocert HTTPHandler, nginx, Caddy. Browsers send Host
+		// based on URL hostname, so an attacker cannot make a victim's browser send a foreign Host
+		// to redirect them elsewhere; a self-spoofed Host only redirects the spoofer to themselves.
+		http.Redirect(w, r, newURL, http.StatusTemporaryRedirect) //nolint:gosec // see comment above
 	})
 }
 

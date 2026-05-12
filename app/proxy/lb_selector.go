@@ -18,7 +18,7 @@ func (r *RoundRobinSelector) Select(n int) int {
 	// bound to current n: alive-backend count can shrink between calls
 	// (health-check flips), so the previously stored index may be out of range
 	selected := r.lastSelected % n
-	r.lastSelected = selected + 1
+	r.lastSelected = (selected + 1) % n
 	return selected
 }
 
