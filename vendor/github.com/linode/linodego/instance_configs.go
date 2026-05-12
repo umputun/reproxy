@@ -34,6 +34,7 @@ type InstanceConfigDevice struct {
 
 // InstanceConfigDeviceMap contains SDA-SDH InstanceConfigDevice settings
 type InstanceConfigDeviceMap struct {
+	// sda-sdz
 	SDA *InstanceConfigDevice `json:"sda,omitempty"`
 	SDB *InstanceConfigDevice `json:"sdb,omitempty"`
 	SDC *InstanceConfigDevice `json:"sdc,omitempty"`
@@ -42,6 +43,66 @@ type InstanceConfigDeviceMap struct {
 	SDF *InstanceConfigDevice `json:"sdf,omitempty"`
 	SDG *InstanceConfigDevice `json:"sdg,omitempty"`
 	SDH *InstanceConfigDevice `json:"sdh,omitempty"`
+	SDI *InstanceConfigDevice `json:"sdi,omitempty"`
+	SDJ *InstanceConfigDevice `json:"sdj,omitempty"`
+	SDK *InstanceConfigDevice `json:"sdk,omitempty"`
+	SDL *InstanceConfigDevice `json:"sdl,omitempty"`
+	SDM *InstanceConfigDevice `json:"sdm,omitempty"`
+	SDN *InstanceConfigDevice `json:"sdn,omitempty"`
+	SDO *InstanceConfigDevice `json:"sdo,omitempty"`
+	SDP *InstanceConfigDevice `json:"sdp,omitempty"`
+	SDQ *InstanceConfigDevice `json:"sdq,omitempty"`
+	SDR *InstanceConfigDevice `json:"sdr,omitempty"`
+	SDS *InstanceConfigDevice `json:"sds,omitempty"`
+	SDT *InstanceConfigDevice `json:"sdt,omitempty"`
+	SDU *InstanceConfigDevice `json:"sdu,omitempty"`
+	SDV *InstanceConfigDevice `json:"sdv,omitempty"`
+	SDW *InstanceConfigDevice `json:"sdw,omitempty"`
+	SDX *InstanceConfigDevice `json:"sdx,omitempty"`
+	SDY *InstanceConfigDevice `json:"sdy,omitempty"`
+	SDZ *InstanceConfigDevice `json:"sdz,omitempty"`
+
+	// sdaa-sdaz
+	SDAA *InstanceConfigDevice `json:"sdaa,omitempty"`
+	SDAB *InstanceConfigDevice `json:"sdab,omitempty"`
+	SDAC *InstanceConfigDevice `json:"sdac,omitempty"`
+	SDAD *InstanceConfigDevice `json:"sdad,omitempty"`
+	SDAE *InstanceConfigDevice `json:"sdae,omitempty"`
+	SDAF *InstanceConfigDevice `json:"sdaf,omitempty"`
+	SDAG *InstanceConfigDevice `json:"sdag,omitempty"`
+	SDAH *InstanceConfigDevice `json:"sdah,omitempty"`
+	SDAI *InstanceConfigDevice `json:"sdai,omitempty"`
+	SDAJ *InstanceConfigDevice `json:"sdaj,omitempty"`
+	SDAK *InstanceConfigDevice `json:"sdak,omitempty"`
+	SDAL *InstanceConfigDevice `json:"sdal,omitempty"`
+	SDAM *InstanceConfigDevice `json:"sdam,omitempty"`
+	SDAN *InstanceConfigDevice `json:"sdan,omitempty"`
+	SDAO *InstanceConfigDevice `json:"sdao,omitempty"`
+	SDAP *InstanceConfigDevice `json:"sdap,omitempty"`
+	SDAQ *InstanceConfigDevice `json:"sdaq,omitempty"`
+	SDAR *InstanceConfigDevice `json:"sdar,omitempty"`
+	SDAS *InstanceConfigDevice `json:"sdas,omitempty"`
+	SDAT *InstanceConfigDevice `json:"sdat,omitempty"`
+	SDAU *InstanceConfigDevice `json:"sdau,omitempty"`
+	SDAV *InstanceConfigDevice `json:"sdav,omitempty"`
+	SDAW *InstanceConfigDevice `json:"sdaw,omitempty"`
+	SDAX *InstanceConfigDevice `json:"sdax,omitempty"`
+	SDAY *InstanceConfigDevice `json:"sday,omitempty"`
+	SDAZ *InstanceConfigDevice `json:"sdaz,omitempty"`
+
+	// sdba-sdbl
+	SDBA *InstanceConfigDevice `json:"sdba,omitempty"`
+	SDBB *InstanceConfigDevice `json:"sdbb,omitempty"`
+	SDBC *InstanceConfigDevice `json:"sdbc,omitempty"`
+	SDBD *InstanceConfigDevice `json:"sdbd,omitempty"`
+	SDBE *InstanceConfigDevice `json:"sdbe,omitempty"`
+	SDBF *InstanceConfigDevice `json:"sdbf,omitempty"`
+	SDBG *InstanceConfigDevice `json:"sdbg,omitempty"`
+	SDBH *InstanceConfigDevice `json:"sdbh,omitempty"`
+	SDBI *InstanceConfigDevice `json:"sdbi,omitempty"`
+	SDBJ *InstanceConfigDevice `json:"sdbj,omitempty"`
+	SDBK *InstanceConfigDevice `json:"sdbk,omitempty"`
+	SDBL *InstanceConfigDevice `json:"sdbl,omitempty"`
 }
 
 // InstanceConfigHelpers are Instance Config options that control Linux distribution specific tweaks

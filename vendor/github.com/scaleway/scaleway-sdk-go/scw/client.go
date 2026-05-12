@@ -395,7 +395,7 @@ L: // We gather potential errors and return them all together
 	for {
 		select {
 		case newErr := <-errChan:
-			err = errors.Wrap(err, newErr.Error())
+			err = errors.Wrap(err, "%s", newErr.Error())
 		default:
 			break L
 		}
@@ -556,6 +556,15 @@ func setInsecureMode(c httpClient) {
 		logger.Warningf("client: cannot use insecure mode with HTTP client of type %T", c)
 		return
 	}
+
+	altTransport, ok := standardHTTPClient.Transport.(interface {
+		SetInsecureTransport()
+	})
+	if ok {
+		altTransport.SetInsecureTransport()
+		return
+	}
+
 	transportClient, ok := standardHTTPClient.Transport.(*http.Transport)
 	if !ok {
 		logger.Warningf("client: cannot use insecure mode with Transport client of type %T", standardHTTPClient.Transport)

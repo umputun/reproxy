@@ -45,7 +45,7 @@ const (
 	APIEnvVar = "LINODE_TOKEN"
 	// APISecondsPerPoll how frequently to poll for new Events or Status in WaitFor functions
 	APISecondsPerPoll = 3
-	// Maximum wait time for retries
+	// APIRetryMaxWaitTime is the maximum wait time for retries
 	APIRetryMaxWaitTime       = time.Duration(30) * time.Second
 	APIDefaultCacheExpiration = time.Minute * 15
 )
@@ -65,6 +65,12 @@ Body: {{.Body}}`))
 )
 
 var envDebug = false
+
+// redactHeadersMap is a map of headers that should be redacted in logs,
+// mapping the header name to its redacted value.
+var redactHeadersMap = map[string]string{
+	"Authorization": "Bearer *******************************",
+}
 
 // Client is a wrapper around the Resty client
 type Client struct {
@@ -171,7 +177,7 @@ func NewClient(hc *http.Client) (client Client) {
 		SetDebug(envDebug).
 		enableLogSanitization()
 
-	return
+	return client
 }
 
 // NewClientFromEnv creates a Client and initializes it with values
@@ -395,6 +401,19 @@ func (c *httpClient) applyAfterResponse(resp *http.Response) error {
 }
 
 // nolint:unused
+func redactHeaders(headers http.Header) http.Header {
+	redacted := headers.Clone()
+
+	for header, redactedValue := range redactHeadersMap {
+		if headers.Get(header) != "" {
+			redacted.Set(header, redactedValue)
+		}
+	}
+
+	return redacted
+}
+
+// nolint:unused
 func (c *httpClient) logRequest(req *http.Request, method, url string, bodyBuffer *bytes.Buffer) {
 	var reqBody string
 	if bodyBuffer != nil {
@@ -405,10 +424,10 @@ func (c *httpClient) logRequest(req *http.Request, method, url string, bodyBuffe
 
 	var logBuf bytes.Buffer
 
-	err := reqLogTemplate.Execute(&logBuf, map[string]interface{}{
+	err := reqLogTemplate.Execute(&logBuf, map[string]any{
 		"Method":  method,
 		"URL":     url,
-		"Headers": req.Header,
+		"Headers": redactHeaders(req.Header),
 		"Body":    reqBody,
 	})
 	if err == nil {
@@ -418,6 +437,7 @@ func (c *httpClient) logRequest(req *http.Request, method, url string, bodyBuffe
 
 // nolint:unused
 func (c *httpClient) sendRequest(req *http.Request) (*http.Response, error) {
+	// #nosec G704
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		if c.debug && c.logger != nil {
@@ -453,9 +473,9 @@ func (c *httpClient) logResponse(resp *http.Response) (*http.Response, error) {
 
 	var logBuf bytes.Buffer
 
-	err := respLogTemplate.Execute(&logBuf, map[string]interface{}{
+	err := respLogTemplate.Execute(&logBuf, map[string]any{
 		"Status":  resp.Status,
-		"Headers": resp.Header,
+		"Headers": redactHeaders(resp.Header),
 		"Body":    respBody.String(),
 	})
 	if err == nil {
@@ -468,7 +488,7 @@ func (c *httpClient) logResponse(resp *http.Response) (*http.Response, error) {
 }
 
 // nolint:unused
-func (c *httpClient) decodeResponseBody(resp *http.Response, response interface{}) error {
+func (c *httpClient) decodeResponseBody(resp *http.Response, response any) error {
 	if err := json.NewDecoder(resp.Body).Decode(response); err != nil {
 		if c.debug && c.logger != nil {
 			c.logger.Errorf("failed to decode response: %v", err)
@@ -735,7 +755,7 @@ func (c *Client) addCachedResponse(endpoint string, response any, expiry *time.D
 	}
 
 	switch responseValue.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		// We want to automatically deref pointers to
 		// avoid caching mutable data.
 		entry.Data = responseValue.Elem().Interface()
@@ -826,10 +846,22 @@ func (c *Client) updateHostURL() {
 	)
 }
 
+func redactLogHeaders(header http.Header) {
+	for h, redactedValue := range redactHeadersMap {
+		if header.Get(h) != "" {
+			header.Set(h, redactedValue)
+		}
+	}
+}
+
 func (c *Client) enableLogSanitization() *Client {
 	c.resty.OnRequestLog(func(r *resty.RequestLog) error {
-		// masking authorization header
-		r.Header.Set("Authorization", "Bearer *******************************")
+		redactLogHeaders(r.Header)
+		return nil
+	})
+
+	c.resty.OnResponseLog(func(r *resty.ResponseLog) error {
+		redactLogHeaders(r.Header)
 		return nil
 	})
 

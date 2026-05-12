@@ -37,11 +37,10 @@ type Volume struct {
 	Tags           []string     `json:"tags"`
 	HardwareType   string       `json:"hardware_type"`
 	LinodeLabel    string       `json:"linode_label"`
+	IOReady        bool         `json:"io_ready"`
 	Created        *time.Time   `json:"-"`
 	Updated        *time.Time   `json:"-"`
-
-	// Note: Block Storage Disk Encryption is not currently available to all users.
-	Encryption string `json:"encryption"`
+	Encryption     string       `json:"encryption"`
 }
 
 // VolumeCreateOptions fields are those accepted by CreateVolume
@@ -99,7 +98,7 @@ func (v Volume) GetUpdateOptions() (updateOpts VolumeUpdateOptions) {
 	updateOpts.Label = v.Label
 	updateOpts.Tags = &v.Tags
 
-	return
+	return updateOpts
 }
 
 // GetCreateOptions converts a Volume to VolumeCreateOptions for use in CreateVolume
@@ -113,7 +112,7 @@ func (v Volume) GetCreateOptions() (createOpts VolumeCreateOptions) {
 		createOpts.LinodeID = *v.LinodeID
 	}
 
-	return
+	return createOpts
 }
 
 // ListVolumes lists Volumes

@@ -2,7 +2,7 @@ package linodego
 
 import "context"
 
-// NotificationType constants start with Notification and include all known Linode API Notification Types.
+// ObjectStorageEndpointType constants start with Notification and include all known Linode API Notification Types.
 type ObjectStorageEndpointType string
 
 // NotificationType constants represent the actions that cause a Notification. New types may be added in the future.

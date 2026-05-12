@@ -10,38 +10,54 @@ import (
 // Defined as strings rather than a custom type to avoid breaking change.
 // Can be changed in the potential v2 version.
 const (
-	CapabilityACLB                          string = "Akamai Cloud Load Balancer"
-	CapabilityBackups                       string = "Backups"
-	CapabilityBareMetal                     string = "Bare Metal"
-	CapabilityBlockStorage                  string = "Block Storage"
-	CapabilityBlockStorageEncryption        string = "Block Storage Encryption"
-	CapabilityBlockStorageMigrations        string = "Block Storage Migrations"
-	CapabilityCloudFirewall                 string = "Cloud Firewall"
-	CapabilityDBAAS                         string = "Managed Databases"
-	CapabilityDiskEncryption                string = "Disk Encryption"
-	CapabilityEdgePlans                     string = "Edge Plans"
-	CapabilityGPU                           string = "GPU Linodes"
-	CapabilityKubernetesEnterprise          string = "Kubernetes Enterprise"
-	CapabilityLinodeInterfaces              string = "Linode Interfaces"
-	CapabilityLADiskEncryption              string = "LA Disk Encryption"
-	CapabilityLKE                           string = "Kubernetes"
-	CapabilityLKEControlPlaneACL            string = "LKE Network Access Control List (IP ACL)"
-	CapabilityLinodes                       string = "Linodes"
-	CapabilityLkeHaControlPlanes            string = "LKE HA Control Planes"
-	CapabilityMachineImages                 string = "Machine Images"
-	CapabilityMaintenancePolicy             string = "Maintenance Policy"
-	CapabilityMetadata                      string = "Metadata"
-	CapabilityNodeBalancers                 string = "NodeBalancers"
-	CapabilityObjectStorage                 string = "Object Storage"
-	CapabilityObjectStorageAccessKeyRegions string = "Object Storage Access Key Regions"
-	CapabilityObjectStorageEndpointTypes    string = "Object Storage Endpoint Types"
-	CapabilityPlacementGroup                string = "Placement Group"
-	CapabilityPremiumPlans                  string = "Premium Plans"
-	CapabilityQuadraT1UVPU                  string = "NETINT Quadra T1U"
-	CapabilitySupportTicketSeverity         string = "Support Ticket Severity"
-	CapabilityVPCs                          string = "VPCs"
-	CapabilityVPCsExtra                     string = "VPCs Extra"
-	CapabilityVlans                         string = "Vlans"
+	CapabilityACLB                             string = "Akamai Cloud Load Balancer"
+	CapabilityACLP                             string = "Akamai Cloud Pulse"
+	CapabilityACLPStreams                      string = "Akamai Cloud Pulse Streams"
+	CapabilityAkamaiRAMProtection              string = "Akamai RAM Protection"
+	CapabilityBackups                          string = "Backups"
+	CapabilityBlockStorage                     string = "Block Storage"
+	CapabilityBlockStorageEncryption           string = "Block Storage Encryption"
+	CapabilityBlockStorageMigrations           string = "Block Storage Migrations"
+	CapabilityBlockStoragePerformanceB1        string = "Block Storage Performance B1"
+	CapabilityBlockStoragePerformanceB1Default string = "Block Storage Performance B1 Default"
+	CapabilityCloudFirewall                    string = "Cloud Firewall"
+	CapabilityCloudFirewallRuleSet             string = "Cloud Firewall Rule Set"
+	CapabilityCloudNAT                         string = "Cloud NAT"
+	CapabilityDBAAS                            string = "Managed Databases"
+	CapabilityDBAASBeta                        string = "Managed Databases Beta"
+	CapabilityDiskEncryption                   string = "Disk Encryption"
+	CapabilityDistributedPlans                 string = "Distributed Plans"
+	CapabilityEdgePlans                        string = "Edge Plans"
+	CapabilityGPU                              string = "GPU Linodes"
+	CapabilityKubernetesEnterprise             string = "Kubernetes Enterprise"
+	CapabilityKubernetesEnterpriseBYOVPC       string = "Kubernetes Enterprise BYO VPC"
+	CapabilityKubernetesEnterpriseDualStack    string = "Kubernetes Enterprise Dual Stack"
+	CapabilityLADiskEncryption                 string = "LA Disk Encryption"
+	CapabilityLinodeInterfaces                 string = "Linode Interfaces"
+	CapabilityLinodes                          string = "Linodes"
+	CapabilityLKE                              string = "Kubernetes"
+	CapabilityLKEControlPlaneACL               string = "LKE Network Access Control List (IP ACL)"
+	CapabilityLkeHaControlPlanes               string = "LKE HA Control Planes"
+	CapabilityMachineImages                    string = "Machine Images"
+	CapabilityMaintenancePolicy                string = "Maintenance Policy"
+	CapabilityMetadata                         string = "Metadata"
+	CapabilityNLB                              string = "Network LoadBalancer"
+	CapabilityNodeBalancers                    string = "NodeBalancers"
+	CapabilityObjectStorage                    string = "Object Storage"
+	CapabilityObjectStorageAccessKeyRegions    string = "Object Storage Access Key Regions"
+	CapabilityObjectStorageEndpointTypes       string = "Object Storage Endpoint Types"
+	CapabilityPlacementGroup                   string = "Placement Group"
+	CapabilityPremiumPlans                     string = "Premium Plans"
+	CapabilityQuadraT1UVPU                     string = "NETINT Quadra T1U"
+	CapabilitySMTPEnabled                      string = "SMTP Enabled"
+	CapabilityStackScripts                     string = "StackScripts"
+	CapabilitySupportTicketSeverity            string = "Support Ticket Severity"
+	CapabilityVlans                            string = "Vlans"
+	CapabilityVPCs                             string = "VPCs"
+	CapabilityVPCDualStack                     string = "VPC Dual Stack"
+	CapabilityVPCIPv6LargePrefixes             string = "VPC IPv6 Large Prefixes"
+	CapabilityVPCIPv6Stack                     string = "VPC IPv6 Stack"
+	CapabilityVPCsExtra                        string = "VPCs Extra"
 
 	// Deprecated: CapabilityObjectStorageRegions constant has been
 	// renamed to `CapabilityObjectStorageAccessKeyRegions`.
@@ -60,6 +76,8 @@ type Region struct {
 	// A List of enums from the above constants
 	Capabilities []string `json:"capabilities"`
 
+	Monitors RegionMonitors `json:"monitors"`
+
 	Status   string `json:"status"`
 	Label    string `json:"label"`
 	SiteType string `json:"site_type"`
@@ -72,6 +90,12 @@ type Region struct {
 type RegionResolvers struct {
 	IPv4 string `json:"ipv4"`
 	IPv6 string `json:"ipv6"`
+}
+
+// RegionMonitors contains the monitoring configuration for a region
+type RegionMonitors struct {
+	Alerts  []string `json:"alerts"`
+	Metrics []string `json:"metrics"`
 }
 
 // RegionPlacementGroupLimits contains information about the

@@ -29,7 +29,7 @@ type InvoiceTaxSummary struct {
 type InvoiceItem struct {
 	Label     string     `json:"label"`
 	Type      string     `json:"type"`
-	UnitPrice float32    `json:"unit_price"`
+	UnitPrice string     `json:"unit_price"`
 	Quantity  int        `json:"quantity"`
 	Amount    float32    `json:"amount"`
 	Tax       float32    `json:"tax"`

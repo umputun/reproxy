@@ -3,7 +3,7 @@ package zerossl
 import "fmt"
 
 type APIError struct {
-	Success   anyBool `json:"success"`
+	Success   *anyBool `json:"success,omitempty"`
 	ErrorInfo struct {
 		Code int    `json:"code"`
 		Type string `json:"type"`
@@ -13,14 +13,18 @@ type APIError struct {
 		// for HTTP validation
 		Details map[string]map[string]ValidationError `json:"details"`
 	} `json:"error"`
+
+	// added after decoding so we can make a more descriptive error message,
+	// but only after stripping credentials from it
+	URL string `json:"-"`
 }
 
 func (ae APIError) Error() string {
 	if ae.ErrorInfo.Code == 0 && ae.ErrorInfo.Type == "" && len(ae.ErrorInfo.Details) == 0 {
 		return "<missing error info>"
 	}
-	return fmt.Sprintf("API error %d: %s (details=%v)",
-		ae.ErrorInfo.Code, ae.ErrorInfo.Type, ae.ErrorInfo.Details)
+	return fmt.Sprintf("API error %d (%s): %s (details=%v)",
+		ae.ErrorInfo.Code, ae.ErrorInfo.Type, ae.URL, ae.ErrorInfo.Details)
 }
 
 type ValidationError struct {
@@ -60,6 +64,7 @@ type CertificateObject struct {
 		EmailValidation map[string][]string         `json:"email_validation,omitempty"`
 		OtherMethods    map[string]ValidationObject `json:"other_methods,omitempty"`
 	} `json:"validation,omitempty"`
+	SignatureAlgorithmProperties any `json:"signature_algorithm_properties,omitempty"` // unsure what this is, but fixes #3
 }
 
 type ValidationObject struct {

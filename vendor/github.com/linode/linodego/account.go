@@ -63,7 +63,7 @@ func (i Account) GetUpdateOptions() (o AccountUpdateOptions) {
 	o.TaxID = i.TaxID
 	o.Zip = i.Zip
 
-	return
+	return o
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface

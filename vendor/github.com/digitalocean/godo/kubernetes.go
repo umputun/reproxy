@@ -27,7 +27,7 @@ type KubernetesService interface {
 	Get(context.Context, string) (*KubernetesCluster, *Response, error)
 	GetUser(context.Context, string) (*KubernetesClusterUser, *Response, error)
 	GetUpgrades(context.Context, string) ([]*KubernetesVersion, *Response, error)
-	GetKubeConfig(context.Context, string) (*KubernetesClusterConfig, *Response, error)
+	GetKubeConfig(context.Context, string, *KubernetesClusterKubeconfigGetRequest) (*KubernetesClusterConfig, *Response, error)
 	GetKubeConfigWithExpiry(context.Context, string, int64) (*KubernetesClusterConfig, *Response, error)
 	GetCredentials(context.Context, string, *KubernetesClusterCredentialsGetRequest) (*KubernetesClusterCredentials, *Response, error)
 	List(context.Context, *ListOptions) ([]*KubernetesCluster, *Response, error)
@@ -81,24 +81,34 @@ type KubernetesClusterCreateRequest struct {
 
 	NodePools []*KubernetesNodePoolCreateRequest `json:"node_pools,omitempty"`
 
-	MaintenancePolicy              *KubernetesMaintenancePolicy              `json:"maintenance_policy"`
-	AutoUpgrade                    bool                                      `json:"auto_upgrade"`
-	SurgeUpgrade                   bool                                      `json:"surge_upgrade"`
-	ControlPlaneFirewall           *KubernetesControlPlaneFirewall           `json:"control_plane_firewall,omitempty"`
-	ClusterAutoscalerConfiguration *KubernetesClusterAutoscalerConfiguration `json:"cluster_autoscaler_configuration,omitempty"`
-	RoutingAgent                   *KubernetesRoutingAgent                   `json:"routing_agent,omitempty"`
+	MaintenancePolicy                 *KubernetesMaintenancePolicy                 `json:"maintenance_policy"`
+	AutoUpgrade                       bool                                         `json:"auto_upgrade"`
+	SurgeUpgrade                      bool                                         `json:"surge_upgrade"`
+	ControlPlaneFirewall              *KubernetesControlPlaneFirewall              `json:"control_plane_firewall,omitempty"`
+	ClusterAutoscalerConfiguration    *KubernetesClusterAutoscalerConfiguration    `json:"cluster_autoscaler_configuration,omitempty"`
+	RoutingAgent                      *KubernetesRoutingAgent                      `json:"routing_agent,omitempty"`
+	AmdGpuDevicePlugin                *KubernetesAmdGpuDevicePlugin                `json:"amd_gpu_device_plugin,omitempty"`
+	AmdGpuDeviceMetricsExporterPlugin *KubernetesAmdGpuDeviceMetricsExporterPlugin `json:"amd_gpu_device_metrics_exporter_plugin,omitempty"`
+	NvidiaGpuDevicePlugin             *KubernetesNvidiaGpuDevicePlugin             `json:"nvidia_gpu_device_plugin,omitempty"`
+	RdmaSharedDevicePlugin            *KubernetesRdmaSharedDevicePlugin            `json:"rdma_shared_dev_plugin,omitempty"`
+	SSO                               *KubernetesClusterSSO                        `json:"sso,omitempty"`
 }
 
 // KubernetesClusterUpdateRequest represents a request to update a Kubernetes cluster.
 type KubernetesClusterUpdateRequest struct {
-	Name                           string                                    `json:"name,omitempty"`
-	Tags                           []string                                  `json:"tags,omitempty"`
-	MaintenancePolicy              *KubernetesMaintenancePolicy              `json:"maintenance_policy,omitempty"`
-	AutoUpgrade                    *bool                                     `json:"auto_upgrade,omitempty"`
-	SurgeUpgrade                   bool                                      `json:"surge_upgrade,omitempty"`
-	ControlPlaneFirewall           *KubernetesControlPlaneFirewall           `json:"control_plane_firewall,omitempty"`
-	ClusterAutoscalerConfiguration *KubernetesClusterAutoscalerConfiguration `json:"cluster_autoscaler_configuration,omitempty"`
-	RoutingAgent                   *KubernetesRoutingAgent                   `json:"routing_agent,omitempty"`
+	Name                              string                                       `json:"name,omitempty"`
+	Tags                              []string                                     `json:"tags,omitempty"`
+	MaintenancePolicy                 *KubernetesMaintenancePolicy                 `json:"maintenance_policy,omitempty"`
+	AutoUpgrade                       *bool                                        `json:"auto_upgrade,omitempty"`
+	SurgeUpgrade                      bool                                         `json:"surge_upgrade,omitempty"`
+	ControlPlaneFirewall              *KubernetesControlPlaneFirewall              `json:"control_plane_firewall,omitempty"`
+	ClusterAutoscalerConfiguration    *KubernetesClusterAutoscalerConfiguration    `json:"cluster_autoscaler_configuration,omitempty"`
+	RoutingAgent                      *KubernetesRoutingAgent                      `json:"routing_agent,omitempty"`
+	AmdGpuDevicePlugin                *KubernetesAmdGpuDevicePlugin                `json:"amd_gpu_device_plugin,omitempty"`
+	AmdGpuDeviceMetricsExporterPlugin *KubernetesAmdGpuDeviceMetricsExporterPlugin `json:"amd_gpu_device_metrics_exporter_plugin,omitempty"`
+	NvidiaGpuDevicePlugin             *KubernetesNvidiaGpuDevicePlugin             `json:"nvidia_gpu_device_plugin,omitempty"`
+	RdmaSharedDevicePlugin            *KubernetesRdmaSharedDevicePlugin            `json:"rdma_shared_dev_plugin,omitempty"`
+	SSO                               *KubernetesClusterSSO                        `json:"sso,omitempty"`
 
 	// Convert cluster to run highly available control plane
 	HA *bool `json:"ha,omitempty"`
@@ -178,6 +188,11 @@ type KubernetesClusterCredentialsGetRequest struct {
 	ExpirySeconds *int `json:"expiry_seconds,omitempty"`
 }
 
+// KubernetesClusterKubeconfigGetRequest is a request to get cluster kubeconfig.
+type KubernetesClusterKubeconfigGetRequest struct {
+	Type string `json:"type,omitempty"`
+}
+
 // KubernetesClusterRegistryRequest represents clusters to integrate with docr registry
 type KubernetesClusterRegistryRequest struct {
 	ClusterUUIDs []string `json:"cluster_uuids,omitempty"`
@@ -225,13 +240,18 @@ type KubernetesCluster struct {
 
 	NodePools []*KubernetesNodePool `json:"node_pools,omitempty"`
 
-	MaintenancePolicy              *KubernetesMaintenancePolicy              `json:"maintenance_policy,omitempty"`
-	AutoUpgrade                    bool                                      `json:"auto_upgrade,omitempty"`
-	SurgeUpgrade                   bool                                      `json:"surge_upgrade,omitempty"`
-	RegistryEnabled                bool                                      `json:"registry_enabled,omitempty"`
-	ControlPlaneFirewall           *KubernetesControlPlaneFirewall           `json:"control_plane_firewall,omitempty"`
-	ClusterAutoscalerConfiguration *KubernetesClusterAutoscalerConfiguration `json:"cluster_autoscaler_configuration,omitempty"`
-	RoutingAgent                   *KubernetesRoutingAgent                   `json:"routing_agent,omitempty"`
+	MaintenancePolicy                 *KubernetesMaintenancePolicy                 `json:"maintenance_policy,omitempty"`
+	AutoUpgrade                       bool                                         `json:"auto_upgrade,omitempty"`
+	SurgeUpgrade                      bool                                         `json:"surge_upgrade,omitempty"`
+	RegistryEnabled                   bool                                         `json:"registry_enabled,omitempty"`
+	ControlPlaneFirewall              *KubernetesControlPlaneFirewall              `json:"control_plane_firewall,omitempty"`
+	ClusterAutoscalerConfiguration    *KubernetesClusterAutoscalerConfiguration    `json:"cluster_autoscaler_configuration,omitempty"`
+	RoutingAgent                      *KubernetesRoutingAgent                      `json:"routing_agent,omitempty"`
+	AmdGpuDevicePlugin                *KubernetesAmdGpuDevicePlugin                `json:"amd_gpu_device_plugin,omitempty"`
+	AmdGpuDeviceMetricsExporterPlugin *KubernetesAmdGpuDeviceMetricsExporterPlugin `json:"amd_gpu_device_metrics_exporter_plugin,omitempty"`
+	NvidiaGpuDevicePlugin             *KubernetesNvidiaGpuDevicePlugin             `json:"nvidia_gpu_device_plugin,omitempty"`
+	RdmaSharedDevicePlugin            *KubernetesRdmaSharedDevicePlugin            `json:"rdma_shared_dev_plugin,omitempty"`
+	SSO                               *KubernetesClusterSSO                        `json:"sso,omitempty"`
 
 	Status    *KubernetesClusterStatus `json:"status,omitempty"`
 	CreatedAt time.Time                `json:"created_at,omitempty"`
@@ -274,15 +294,47 @@ type KubernetesControlPlaneFirewall struct {
 	AllowedAddresses []string `json:"allowed_addresses"`
 }
 
+// KubernetesClusterAutoscalerConfiguration represents Kubernetes cluster autoscaler configuration.
+type KubernetesClusterAutoscalerConfiguration struct {
+	ScaleDownUtilizationThreshold *float64 `json:"scale_down_utilization_threshold"`
+	ScaleDownUnneededTime         *string  `json:"scale_down_unneeded_time"`
+	Expanders                     []string `json:"expanders"`
+}
+
 // KubernetesRoutingAgent represents information about the routing-agent cluster plugin.
 type KubernetesRoutingAgent struct {
 	Enabled *bool `json:"enabled"`
 }
 
-// KubernetesClusterAutoscalerConfiguration represents Kubernetes cluster autoscaler configuration.
-type KubernetesClusterAutoscalerConfiguration struct {
-	ScaleDownUtilizationThreshold *float64 `json:"scale_down_utilization_threshold"`
-	ScaleDownUnneededTime         *string  `json:"scale_down_unneeded_time"`
+// KubernetesAmdGpuDevicePlugin represents information about the AMD GPU Device Plugin cluster plugin.
+// If a cluster has a node pool with an AMD GPU it will be enabled by default.
+type KubernetesAmdGpuDevicePlugin struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// KubernetesAmdGpuDeviceMetricsExporterPlugin represents information about the AMD GPU Device Metrics Exporter cluster plugin.
+type KubernetesAmdGpuDeviceMetricsExporterPlugin struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// KubernetesNvidiaGpuDevicePlugin represents information about the NVIDIA GPU Device Plugin cluster plugin.
+// If a cluster has a node pool with an NVIDIA GPU it will be enabled by default.
+type KubernetesNvidiaGpuDevicePlugin struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// KubernetesRdmaSharedDevicePlugin represents information about the rdma-shared-dev cluster plugin.
+// If a cluster has a multi-node GPU ready slug it will be enabled by default.
+type KubernetesRdmaSharedDevicePlugin struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// KubernetesClusterSSO configures Single Sign-On (SSO) for a Kubernetes cluster.
+type KubernetesClusterSSO struct {
+	Enabled   bool   `json:"enabled"`
+	Required  bool   `json:"required"`
+	IssuerURL string `json:"issuer_url,omitempty"`
+	ClientID  string `json:"client_id,omitempty"`
 }
 
 // KubernetesMaintenancePolicyDay represents the possible days of a maintenance
@@ -459,9 +511,17 @@ type KubernetesNodePoolTemplate struct {
 // This follows https://pkg.go.dev/k8s.io/kubernetes@v1.32.1/pkg/scheduler/framework#Resource to represent
 // node resources within the node object.
 type KubernetesNodePoolResources struct {
-	CPU    int64  `json:"cpu,omitempty"`
-	Memory string `json:"memory,omitempty"`
-	Pods   int64  `json:"pods,omitempty"`
+	CPU           int64  `json:"cpu,omitempty"` // deprecated in favor of cpuMilliCores
+	CpuMilliCores int64  `json:"cpu_milli_cores,omitempty"`
+	Memory        string `json:"memory,omitempty"`
+	Pods          int64  `json:"pods,omitempty"`
+}
+
+// KubernetesNodePoolGPUResources exposes model and GPU count of a node pool template
+type KubernetesNodePoolGPUResources struct {
+	Vendor string `json:"vendor"`
+	Model  string `json:"model"`
+	Count  int64  `json:"count"`
 }
 
 // KubernetesNode represents a Node in a node pool in a Kubernetes cluster.
@@ -477,13 +537,14 @@ type KubernetesNode struct {
 
 // KubernetesNodeTemplate represents a template in a node pool in a Kubernetes cluster.
 type KubernetesNodeTemplate struct {
-	ClusterUUID string                       `json:"cluster_uuid,omitempty"`
-	Name        string                       `json:"name,omitempty"`
-	Slug        string                       `json:"slug,omitempty"`
-	Labels      map[string]string            `json:"labels,omitempty"`
-	Taints      []string                     `json:"taints,omitempty"`
-	Capacity    *KubernetesNodePoolResources `json:"capacity,omitempty"`
-	Allocatable *KubernetesNodePoolResources `json:"allocatable,omitempty"`
+	ClusterUUID string                          `json:"cluster_uuid,omitempty"`
+	Name        string                          `json:"name,omitempty"`
+	Slug        string                          `json:"slug,omitempty"`
+	Labels      map[string]string               `json:"labels,omitempty"`
+	Taints      []string                        `json:"taints,omitempty"`
+	Capacity    *KubernetesNodePoolResources    `json:"capacity,omitempty"`
+	Allocatable *KubernetesNodePoolResources    `json:"allocatable,omitempty"`
+	Gpu         *KubernetesNodePoolGPUResources `json:"gpu,omitempty"`
 }
 
 // KubernetesNodeStatus represents the status of a particular Node in a Kubernetes cluster.
@@ -739,12 +800,17 @@ type KubernetesClusterConfig struct {
 }
 
 // GetKubeConfig returns a Kubernetes config file for the specified cluster.
-func (svc *KubernetesServiceOp) GetKubeConfig(ctx context.Context, clusterID string) (*KubernetesClusterConfig, *Response, error) {
+func (svc *KubernetesServiceOp) GetKubeConfig(ctx context.Context, clusterID string, get *KubernetesClusterKubeconfigGetRequest) (*KubernetesClusterConfig, *Response, error) {
 	path := fmt.Sprintf("%s/%s/kubeconfig", kubernetesClustersPath, clusterID)
 	req, err := svc.client.NewRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, nil, err
 	}
+	q := req.URL.Query()
+	if get.Type != "" {
+		q.Add("type", get.Type)
+	}
+	req.URL.RawQuery = q.Encode()
 	configBytes := bytes.NewBuffer(nil)
 	resp, err := svc.client.Do(ctx, req, configBytes)
 	if err != nil {
@@ -757,6 +823,7 @@ func (svc *KubernetesServiceOp) GetKubeConfig(ctx context.Context, clusterID str
 }
 
 // GetKubeConfigWithExpiry returns a Kubernetes config file for the specified cluster with expiry_seconds.
+// Expiry only makes sense for token-based kubeconfigs.
 func (svc *KubernetesServiceOp) GetKubeConfigWithExpiry(ctx context.Context, clusterID string, expirySeconds int64) (*KubernetesClusterConfig, *Response, error) {
 	path := fmt.Sprintf("%s/%s/kubeconfig", kubernetesClustersPath, clusterID)
 	req, err := svc.client.NewRequest(ctx, http.MethodGet, path, nil)

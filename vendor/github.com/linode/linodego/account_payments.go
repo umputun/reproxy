@@ -53,7 +53,7 @@ func (i *Payment) UnmarshalJSON(b []byte) error {
 // GetCreateOptions converts a Payment to PaymentCreateOptions for use in CreatePayment
 func (i Payment) GetCreateOptions() (o PaymentCreateOptions) {
 	o.USD = i.USD
-	return
+	return o
 }
 
 // ListPayments lists Payments

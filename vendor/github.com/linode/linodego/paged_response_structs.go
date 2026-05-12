@@ -100,9 +100,6 @@ type LongviewSubscriptionsPagedResponse legacyPagedResponse[LongviewSubscription
 // Deprecated: MySQLDatabasesPagedResponse exists for historical compatibility and should not be used.
 type MySQLDatabasesPagedResponse legacyPagedResponse[MySQLDatabase]
 
-// Deprecated: MySQLDatabaseBackupsPagedResponse exists for historical compatibility and should not be used.
-type MySQLDatabaseBackupsPagedResponse legacyPagedResponse[MySQLDatabaseBackup]
-
 // Deprecated: NodeBalancersPagedResponse exists for historical compatibility and should not be used.
 type NodeBalancersPagedResponse legacyPagedResponse[NodeBalancer]
 
@@ -160,9 +157,6 @@ type TicketsPagedResponse legacyPagedResponse[Ticket]
 
 // Deprecated: PostgresDatabasesPagedResponse exists for historical compatibility and should not be used.
 type PostgresDatabasesPagedResponse legacyPagedResponse[PostgresDatabase]
-
-// Deprecated: PostgresDatabaseBackupsPagedResponse exists for historical compatibility and should not be used.
-type PostgresDatabaseBackupsPagedResponse legacyPagedResponse[PostgresDatabaseBackup]
 
 // Deprecated: ProfileLoginsPagedResponse exists for historical compatibility and should not be used.
 type ProfileLoginsPagedResponse legacyPagedResponse[ProfileLogin]

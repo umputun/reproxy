@@ -53,13 +53,13 @@ func (i SSHKey) GetCreateOptions() (o SSHKeyCreateOptions) {
 	o.Label = i.Label
 	o.SSHKey = i.SSHKey
 
-	return
+	return o
 }
 
 // GetUpdateOptions converts a SSHKey to SSHKeyCreateOptions for use in UpdateSSHKey
 func (i SSHKey) GetUpdateOptions() (o SSHKeyUpdateOptions) {
 	o.Label = i.Label
-	return
+	return o
 }
 
 // ListSSHKeys lists SSHKeys

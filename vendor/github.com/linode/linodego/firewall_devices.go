@@ -13,9 +13,9 @@ type FirewallDeviceType string
 
 // FirewallDeviceType constants start with FirewallDevice
 const (
-	FirewallDeviceLinode       FirewallDeviceType = "linode"
-	FirewallDeviceNodeBalancer FirewallDeviceType = "nodebalancer"
-	FirewallDeviceInterface    FirewallDeviceType = "interface"
+	FirewallDeviceLinode          FirewallDeviceType = "linode"
+	FirewallDeviceNodeBalancer    FirewallDeviceType = "nodebalancer"
+	FirewallDeviceLinodeInterface FirewallDeviceType = "linode_interface"
 )
 
 // FirewallDevice represents a device governed by a Firewall
@@ -57,10 +57,11 @@ func (device *FirewallDevice) UnmarshalJSON(b []byte) error {
 
 // FirewallDeviceEntity contains information about a device associated with a Firewall
 type FirewallDeviceEntity struct {
-	ID    int                `json:"id"`
-	Type  FirewallDeviceType `json:"type"`
-	Label string             `json:"label"`
-	URL   string             `json:"url"`
+	ID           int                   `json:"id"`
+	Type         FirewallDeviceType    `json:"type"`
+	Label        string                `json:"label"`
+	URL          string                `json:"url"`
+	ParentEntity *FirewallDeviceEntity `json:"parent_entity"`
 }
 
 // ListFirewallDevices get devices associated with a given Firewall
@@ -74,7 +75,7 @@ func (c *Client) GetFirewallDevice(ctx context.Context, firewallID, deviceID int
 	return doGETRequest[FirewallDevice](ctx, c, e)
 }
 
-// AddFirewallDevice associates a Device with a given Firewall
+// CreateFirewallDevice associates a Device with a given Firewall
 func (c *Client) CreateFirewallDevice(ctx context.Context, firewallID int, opts FirewallDeviceCreateOptions) (*FirewallDevice, error) {
 	e := formatAPIPath("networking/firewalls/%d/devices", firewallID)
 	return doPOSTRequest[FirewallDevice](ctx, c, e, opts)

@@ -2,6 +2,8 @@ package route53
 
 import (
 	"context"
+	"log/slog"
+	"sync"
 	"time"
 
 	r53 "github.com/aws/aws-sdk-go-v2/service/route53"
@@ -59,6 +61,21 @@ type Provider struct {
 	// This option should contain only the ID; the "/hostedzone/" prefix
 	// will be added automatically.
 	HostedZoneID string `json:"hosted_zone_id,omitempty"`
+
+	// Logger receives structured log events emitted by the provider. If nil,
+	// a discard handler is used. Wrappers (for example, the Caddy DNS module)
+	// can adapt their own logger via slog.Handler — for zap, see
+	// go.uber.org/zap/exp/zapslog.
+	//
+	// All events are emitted at Debug level except for ambiguous zone
+	// resolution, which is Warn.
+	Logger *slog.Logger `json:"-"`
+
+	initOnce sync.Once
+	// setLocks serializes read-modify-write critical sections per
+	// (zoneID, name, recordType). Distinct keys parallelize; concurrent
+	// callers touching the same key serialize. See lockSet.
+	setLocks sync.Map
 }
 
 // GetRecords lists all the records in the zone.
@@ -115,27 +132,28 @@ func (p *Provider) appendRecordSet(
 		return nil, nil
 	}
 
-	// for single records, use the simple create
-	if len(recordGroup) == 1 {
-		newRecord, err := p.createRecord(ctx, zoneID, recordGroup[0], zone)
-		if err != nil {
-			return nil, err
-		}
-		return []libdns.Record{newRecord}, nil
-	}
+	// Serialize the read-merge-UPSERT cycle for this (zone, name, type)
+	// against any other goroutine doing the same. See lockSet.
+	unlock := p.lockSet(setLockKey{zoneID: zoneID, name: key.name, recordType: key.recordType})
+	defer unlock()
 
-	// for multiple records, we need to append to existing set if it exists
+	// Retrieve existing records so we can merge and UPSERT.
+	// This is necessary because Route53 treats a ResourceRecordSet as a single
+	// entity — we must include all existing values when updating it. Using CREATE
+	// would fail if the record set already exists (e.g. a stale ACME challenge
+	// TXT record from a previous attempt).
 	existingRecords, err := p.getRecords(ctx, zoneID, zone)
 	if err != nil {
 		return nil, err
 	}
 
-	// find existing records for this name+type
+	// find existing records for this name+type. getRecords returns relative
+	// names, and key.name is also relative (set by groupRecordsByKey from
+	// the caller's input record), so we compare directly.
 	var existingValues []libdns.Record
-	absoluteName := libdns.AbsoluteName(key.name, zone)
 	for _, existing := range existingRecords {
 		existingRR := existing.RR()
-		if existingRR.Name == absoluteName && existingRR.Type == key.recordType {
+		if existingRR.Name == key.name && existingRR.Type == key.recordType {
 			existingValues = append(existingValues, existing)
 		}
 	}
@@ -174,21 +192,14 @@ func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []lib
 		return nil, err
 	}
 
-	existingRecords, err := p.getRecords(ctx, zoneID, zone)
-	if err != nil {
-		return nil, err
-	}
-
-	// group records by name+type
+	// group records by name+type and process each set under its own per-tuple
+	// lock. Reading existing values is done inside that lock so concurrent
+	// callers cannot observe stale state.
 	toDelete := p.groupRecordsByKey(records)
 
-	// index existing records for efficient lookup
-	existingByKey := p.indexRecordsByKey(existingRecords)
-
-	// process each record set
 	var deletedRecords []libdns.Record
 	for key, deleteGroup := range toDelete {
-		deleted, deleteErr := p.processRecordSetDeletion(ctx, zoneID, zone, key, deleteGroup, existingByKey[key])
+		deleted, deleteErr := p.processRecordSetDeletion(ctx, zoneID, zone, key, deleteGroup)
 		if deleteErr != nil {
 			return nil, deleteErr
 		}
@@ -212,28 +223,31 @@ func (p *Provider) groupRecordsByKey(records []libdns.Record) map[recordSetKey][
 	return grouped
 }
 
-// indexRecordsByKey creates an index of records by their name and type.
-func (p *Provider) indexRecordsByKey(records []libdns.Record) map[recordSetKey][]libdns.Record {
-	indexed := make(map[recordSetKey][]libdns.Record)
-	for _, record := range records {
-		rr := record.RR()
-		key := recordSetKey{
-			name:       rr.Name,
-			recordType: rr.Type,
-		}
-		indexed[key] = append(indexed[key], record)
-	}
-	return indexed
-}
-
-// processRecordSetDeletion handles the deletion of records from a single ResourceRecordSet.
+// processRecordSetDeletion handles the deletion of records from a single
+// ResourceRecordSet. The existing values are read inside the per-tuple lock
+// so concurrent callers cannot race the read-modify-write cycle.
 func (p *Provider) processRecordSetDeletion(
 	ctx context.Context,
 	zoneID, zone string,
 	key recordSetKey,
 	deleteGroup []libdns.Record,
-	existingValues []libdns.Record,
 ) ([]libdns.Record, error) {
+	unlock := p.lockSet(setLockKey{zoneID: zoneID, name: key.name, recordType: key.recordType})
+	defer unlock()
+
+	// fetch current state of this record set under the lock. getRecords
+	// returns relative names, matching key.name's format.
+	existingRecords, err := p.getRecords(ctx, zoneID, zone)
+	if err != nil {
+		return nil, err
+	}
+	var existingValues []libdns.Record
+	for _, existing := range existingRecords {
+		existingRR := existing.RR()
+		if existingRR.Name == key.name && existingRR.Type == key.recordType {
+			existingValues = append(existingValues, existing)
+		}
+	}
 	if len(existingValues) == 0 {
 		return nil, nil
 	}
@@ -257,23 +271,26 @@ func (p *Provider) processRecordSetDeletion(
 	// apply the appropriate operation
 	if len(remainingValues) == 0 {
 		// delete the entire record set
-		err := p.deleteRecordSet(ctx, zoneID, zone, key.name, key.recordType, existingValues)
-		if err != nil {
-			return nil, err
+		if delErr := p.deleteRecordSet(ctx, zoneID, zone, key.name, key.recordType, existingValues); delErr != nil {
+			return nil, delErr
 		}
 	} else {
 		// update the record set with remaining values
-		err := p.setRecordSet(ctx, zoneID, zone, key.name, key.recordType, remainingValues)
-		if err != nil {
-			return nil, err
+		if setErr := p.setRecordSet(ctx, zoneID, zone, key.name, key.recordType, remainingValues); setErr != nil {
+			return nil, setErr
 		}
 	}
 
 	return deletedRecords, nil
 }
 
-// SetRecords sets the records in the zone, either by updating existing records
-// or creating new ones. It returns the updated records.
+// SetRecords sets the records in the zone. For each (name, type) tuple
+// represented in the input, the corresponding ResourceRecordSet is replaced
+// with exactly the values provided — other tuples in the zone are not
+// touched. It returns the records that were set.
+//
+// Multiple input records sharing the same (name, type) are combined into a
+// single UPSERT carrying all their values, matching libdns semantics.
 func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
 	p.init(ctx)
 
@@ -282,17 +299,32 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 		return nil, err
 	}
 
-	var updatedRecords []libdns.Record
+	// group by (name, type) so that values sharing a tuple end up in one
+	// UPSERT — otherwise a per-record loop would last-write-wins each one.
+	grouped := p.groupRecordsByKey(records)
 
-	for _, record := range records {
-		updatedRecord, updateErr := p.updateRecord(ctx, zoneID, record, zone)
-		if updateErr != nil {
-			return nil, updateErr
+	var updatedRecords []libdns.Record
+	for key, group := range grouped {
+		if setErr := p.setRecordSetLocked(ctx, zoneID, zone, key, group); setErr != nil {
+			return nil, setErr
 		}
-		updatedRecords = append(updatedRecords, updatedRecord)
+		updatedRecords = append(updatedRecords, group...)
 	}
 
 	return updatedRecords, nil
+}
+
+// setRecordSetLocked UPSERTs a single ResourceRecordSet under the per-tuple
+// lock, isolating concurrent SetRecords callers on the same (name, type).
+func (p *Provider) setRecordSetLocked(
+	ctx context.Context,
+	zoneID, zone string,
+	key recordSetKey,
+	group []libdns.Record,
+) error {
+	unlock := p.lockSet(setLockKey{zoneID: zoneID, name: key.name, recordType: key.recordType})
+	defer unlock()
+	return p.setRecordSet(ctx, zoneID, zone, key.name, key.recordType, group)
 }
 
 // Interface guards.

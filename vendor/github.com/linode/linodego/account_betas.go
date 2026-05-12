@@ -8,7 +8,9 @@ import (
 	"github.com/linode/linodego/internal/parseabletime"
 )
 
-// The details and enrollment information of a Beta program that an account is enrolled in.
+// AccountBetaProgram represents an enrolled Account Beta Program object,
+// which contains the details and enrollment information of a Beta program
+// that an account is enrolled in.
 type AccountBetaProgram struct {
 	Label       string     `json:"label"`
 	ID          string     `json:"id"`

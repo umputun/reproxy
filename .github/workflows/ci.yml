@@ -26,10 +26,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: set up go 1.25
+      - name: set up go 1.26
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26"
         id: go
 
       - name: build and test

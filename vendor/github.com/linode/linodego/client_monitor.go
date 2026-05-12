@@ -66,7 +66,7 @@ func NewMonitorClient(hc *http.Client) (mClient MonitorClient) {
 
 	mClient.SetDebug(envDebug)
 
-	return
+	return mClient
 }
 
 // SetUserAgent sets a custom user-agent for HTTP requests

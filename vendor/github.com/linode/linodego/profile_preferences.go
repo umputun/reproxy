@@ -8,11 +8,11 @@ import (
 // ProfilePreferences represents the user's preferences.
 // The user preferences endpoints allow consumers of the API to store arbitrary JSON data,
 // such as a user's font size preference or preferred display name.
-type ProfilePreferences map[string]interface{}
+type ProfilePreferences map[string]any
 
 // UnmarshalJSON implements the json.Unmarshaler interface
 func (p *ProfilePreferences) UnmarshalJSON(b []byte) error {
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}

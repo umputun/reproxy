@@ -9,7 +9,7 @@ type MonitorServiceToken struct {
 	Token string `json:"token"`
 }
 
-// Create token options.
+// MonitorTokenCreateOptions contains create token options.
 type MonitorTokenCreateOptions struct {
 	// EntityIDs are expected to be type "any" as different service_types have different variable type for their entity_ids. For example, Linode has "int" entity_ids whereas object storage has "string" as entity_ids.
 	EntityIDs []any `json:"entity_ids"`

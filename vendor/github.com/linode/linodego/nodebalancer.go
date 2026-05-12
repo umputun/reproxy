@@ -37,6 +37,11 @@ type NodeBalancer struct {
 	// An array of tags applied to this object. Tags are for organizational purposes only.
 	Tags []string `json:"tags"`
 
+	// An array of locks applied to this NodeBalancer for deletion protection.
+	// Locks prevent the NodeBalancer or its subresources from being deleted.
+	// NOTE: Locks can only be used with v4beta.
+	Locks []LockType `json:"locks"`
+
 	Created *time.Time `json:"-"`
 	Updated *time.Time `json:"-"`
 }
@@ -91,8 +96,9 @@ type NodeBalancerPlanType string
 
 // NodeBalancerPlanType constants reflect the plan type used by a NodeBalancer Config
 const (
-	NBTypePremium NodeBalancerPlanType = "premium"
-	NBTypeCommon  NodeBalancerPlanType = "common"
+	NBTypePremium     NodeBalancerPlanType = "premium"
+	NBTypePremium40GB NodeBalancerPlanType = "premium_40gb"
+	NBTypeCommon      NodeBalancerPlanType = "common"
 )
 
 // UnmarshalJSON implements the json.Unmarshaler interface
