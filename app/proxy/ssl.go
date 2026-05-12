@@ -87,7 +87,7 @@ func (h *Http) redirectHandler() http.Handler {
 		if r.URL.RawQuery != "" {
 			newURL += "?" + r.URL.RawQuery
 		}
-		http.Redirect(w, r, newURL, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, newURL, http.StatusTemporaryRedirect) //nolint:gosec // standard http->https upgrade, redirect target derived from request host
 	})
 }
 

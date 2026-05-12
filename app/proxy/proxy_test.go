@@ -1011,10 +1011,10 @@ func TestHttp_matchHandler(t *testing.T) {
 		},
 	}
 
-	var count int32
+	var count atomic.Int32
 	matcherMock := &MatcherMock{
 		MatchFunc: func(srv string, src string) discovery.Matches {
-			return tbl[atomic.LoadInt32(&count)].matches
+			return tbl[count.Load()].matches
 		},
 	}
 
@@ -1037,7 +1037,7 @@ func TestHttp_matchHandler(t *testing.T) {
 			wr := httptest.NewRecorder()
 			handler.ServeHTTP(wr, req)
 			assert.Equal(t, http.StatusOK, wr.Code)
-			atomic.AddInt32(&count, 1)
+			count.Add(1)
 		})
 	}
 }

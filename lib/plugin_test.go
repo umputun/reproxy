@@ -16,14 +16,14 @@ import (
 
 func TestPlugin_Do(t *testing.T) {
 
-	var postCalls int32
-	var deleteCalls int32
+	var postCalls atomic.Int32
+	var deleteCalls atomic.Int32
 	tsConductor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "POST":
-			atomic.AddInt32(&postCalls, 1)
+			postCalls.Add(1)
 		case "DELETE":
-			atomic.AddInt32(&deleteCalls, 1)
+			deleteCalls.Add(1)
 		default:
 			t.Fatalf("unexpected method %s", r.Method)
 		}
@@ -39,8 +39,8 @@ func TestPlugin_Do(t *testing.T) {
 	defer cancel()
 	err = p.Do(ctx, "http://"+u.Host, new(TestingHandler))
 	require.EqualError(t, err, "context done: context deadline exceeded")
-	assert.Equal(t, int32(1), atomic.LoadInt32(&postCalls))
-	assert.Equal(t, int32(1), atomic.LoadInt32(&deleteCalls))
+	assert.Equal(t, int32(1), postCalls.Load())
+	assert.Equal(t, int32(1), deleteCalls.Load())
 }
 
 func TestPlugin_DoFailed(t *testing.T) {
