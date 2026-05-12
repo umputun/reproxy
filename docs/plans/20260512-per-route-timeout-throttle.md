@@ -266,13 +266,13 @@ limiterUserHandler(h.ThrottleUser)           <-- MODIFIED: per-route throttle ov
 - Modify: `app/discovery/provider/docker.go`
 - Modify: `app/discovery/provider/docker_test.go`
 
-- [ ] in `parseContainerInfo`, read `reproxy.<n>.timeout` and `reproxy.<n>.throttle` labels via the existing `labelN` helper
-- [ ] parse timeout as `time.Duration`; on `time.ParseDuration` error log a warning (`[WARN] timeout label value %s is not valid, ignoring`) and fall back to zero — matches the `forward-health-checks` pattern at `docker.go:452-463`
-- [ ] parse throttle as `int` via `strconv.Atoi`; on error or negative, warn and fall back to zero
-- [ ] populate `Timeout` and `Throttle` in the resulting `URLMapper`
-- [ ] add docker_test.go cases: container with valid `reproxy.0.timeout=5m`, container with valid `reproxy.0.throttle=10`, container with invalid duration (must warn + zero), container with no labels (back-compat)
-- [ ] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
-- [ ] verify per-task gate
+- [x] in `parseContainerInfo`, read `reproxy.<n>.timeout` and `reproxy.<n>.throttle` labels via the existing `labelN` helper
+- [x] parse timeout as `time.Duration`; on `time.ParseDuration` error log a warning (`[WARN] timeout label value %s is not valid, ignoring`) and fall back to zero — matches the `forward-health-checks` pattern at `docker.go:452-463`
+- [x] parse throttle as `int` via `strconv.Atoi`; on error or negative, warn and fall back to zero
+- [x] populate `Timeout` and `Throttle` in the resulting `URLMapper`
+- [x] add docker_test.go cases: container with valid `reproxy.0.timeout=5m`, container with valid `reproxy.0.throttle=10`, container with invalid duration (must warn + zero), container with no labels (back-compat)
+- [x] run `cd app && go test -race -timeout=60s -count 1 ./discovery/...` — must pass before next task
+- [x] verify per-task gate
 
 ### Task 4: Consul catalog provider — labels
 
