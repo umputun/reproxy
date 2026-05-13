@@ -1,14 +1,20 @@
 package proxy
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/didip/tollbooth/v7"
 	"github.com/didip/tollbooth/v7/libstring"
+	"github.com/didip/tollbooth/v7/limiter"
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/gorilla/handlers"
@@ -137,27 +143,60 @@ func limiterSystemHandler(reqSec int) func(next http.Handler) http.Handler {
 	}
 }
 
-// limiterUserHandler throttles per user activity. In case if match found the limit is per destination
-// otherwise global (per user in any case). 0 means disabled
+// limiterUserHandler throttles per-user activity. When the matched route has Throttle > 0,
+// it applies a per-route limiter at that rate keyed by [ip, dst]. Otherwise it falls back
+// to the global limiter at reqSec, keyed by [ip] and, for MTProxy matches only, [ip, dst].
+// A request rejected by either limit returns 429. reqSec = 0 disables the global path while
+// per-route overrides still apply.
 func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
-	if reqSec <= 0 {
-		return passThroughHandler
+	var routeLimiters sync.Map // map[string]*limiter.Limiter, keyed by server\x00srcMatch\x00rate
+	var globalLmt *limiter.Limiter
+	if reqSec > 0 {
+		globalLmt = tollbooth.NewLimiter(float64(reqSec), nil)
+	}
+	getRouteLimiter := func(m discovery.URLMapper) *limiter.Limiter {
+		// NUL separator is invalid in hostnames and regex source, avoiding key collisions
+		key := m.Server + "\x00" + m.SrcMatch.String() + "\x00" + strconv.Itoa(m.Throttle)
+		if v, ok := routeLimiters.Load(key); ok {
+			return v.(*limiter.Limiter)
+		}
+		actual, _ := routeLimiters.LoadOrStore(key, tollbooth.NewLimiter(float64(m.Throttle), nil))
+		return actual.(*limiter.Limiter)
 	}
 
 	return func(h http.Handler) http.Handler {
-		lmt := tollbooth.NewLimiter(float64(reqSec), nil)
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
+			var (
+				match   discovery.MatchedRoute
+				matched bool
+			)
+			if v := r.Context().Value(ctxMatch); v != nil {
+				match = v.(discovery.MatchedRoute)
+				matched = true
+			}
 
-			// add dst proxy if matched
-			if r.Context().Value(ctxMatch) != nil { // route match detected by matchHandler
-				match := r.Context().Value(ctxMatch).(discovery.MatchedRoute)
-				matchType := r.Context().Value(ctxMatchType).(discovery.MatchType)
-				if matchType == discovery.MTProxy {
+			if matched && match.Mapper.Throttle > 0 {
+				lmt := getRouteLimiter(match.Mapper)
+				ip := libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)
+				if httpError := tollbooth.LimitByKeys(lmt, []string{ip, match.Mapper.Dst}); httpError != nil {
+					http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+					return
+				}
+				h.ServeHTTP(w, r)
+				return
+			}
+
+			if globalLmt == nil {
+				h.ServeHTTP(w, r)
+				return
+			}
+			lmt := globalLmt
+			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
+			if matched {
+				if matchType, ok := r.Context().Value(ctxMatchType).(discovery.MatchType); ok && matchType == discovery.MTProxy {
 					keys = append(keys, match.Mapper.Dst)
 				}
 			}
-
 			if httpError := tollbooth.LimitByKeys(lmt, keys); httpError != nil {
 				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 				return
@@ -166,6 +205,54 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 		}
 		return http.HandlerFunc(fn)
 	}
+}
+
+// writeDeadlineGrace extends the connection's write deadline beyond the per-route ctx
+// timeout so the proxy's default ErrorHandler has time to deliver 502 to the client
+// when the ctx fires; without this buffer the conn is severed at the same instant
+// and the client sees EOF instead of the error status.
+const writeDeadlineGrace = 500 * time.Millisecond
+
+// routeTimeoutHandler applies a per-route request deadline when the matched mapper has
+// Timeout > 0. It derives a deadline-bound request context and also sets the underlying
+// connection's read deadline to the timeout and the write deadline to timeout +
+// writeDeadlineGrace so the proxy's ErrorHandler can still deliver a 502 to the client
+// when the deadline fires. Both connection deadlines are cleared on return so kept-alive
+// connections do not carry an expired deadline into subsequent unrelated requests.
+func routeTimeoutHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCtx := r.Context()
+		if reqCtx.Value(ctxMatch) == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		match := reqCtx.Value(ctxMatch).(discovery.MatchedRoute)
+		if match.Mapper.Timeout <= 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+		readDeadline := time.Now().Add(match.Mapper.Timeout)
+		ctx, cancel := context.WithDeadline(reqCtx, readDeadline)
+		defer cancel()
+		rc := http.NewResponseController(w)
+		if err := rc.SetReadDeadline(readDeadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			log.Printf("[DEBUG] route timeout: SetReadDeadline failed: %v", err)
+		}
+		if err := rc.SetWriteDeadline(readDeadline.Add(writeDeadlineGrace)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			log.Printf("[DEBUG] route timeout: SetWriteDeadline failed: %v", err)
+		}
+		// clear per-route deadlines after the request so kept-alive connections do not
+		// carry an expired write deadline into subsequent unrelated requests
+		defer func() {
+			if err := rc.SetReadDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				log.Printf("[DEBUG] route timeout: clear read deadline failed: %v", err)
+			}
+			if err := rc.SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				log.Printf("[DEBUG] route timeout: clear write deadline failed: %v", err)
+			}
+		}()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // perRouteAuthHandler is middleware for per-route basic authentication.

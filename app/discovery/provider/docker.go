@@ -175,6 +175,9 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 
 		forwardHealthChecks = d.getForwardHealthChecksValue(c.Labels, n)
 
+		timeout := d.getTimeoutValue(c.Labels, n)
+		throttle := d.getThrottleValue(c.Labels, n)
+
 		if !enabled {
 			continue
 		}
@@ -189,7 +192,8 @@ func (d *Docker) parseContainerInfo(c containerInfo) (res []discovery.URLMapper)
 		for srv := range strings.SplitSeq(server, ",") {
 			mp := discovery.URLMapper{Server: strings.TrimSpace(srv), SrcMatch: *srcRegex, Dst: destURL,
 				PingURL: pingURL, ProviderID: discovery.PIDocker, MatchType: discovery.MTProxy,
-				KeepHost: keepHost, ForwardHealthChecks: forwardHealthChecks, OnlyFromIPs: onlyFrom, AuthUsers: authUsers}
+				KeepHost: keepHost, ForwardHealthChecks: forwardHealthChecks, OnlyFromIPs: onlyFrom, AuthUsers: authUsers,
+				Timeout: timeout, Throttle: throttle}
 
 			// for assets we add the second proxy mapping only if explicitly requested
 			if assetsWebRoot != "" && explicit {
@@ -462,6 +466,40 @@ func (d *Docker) getForwardHealthChecksValue(labels map[string]string, n int) bo
 	}
 	log.Printf("[WARN] forward-health-checks label value %s is not valid, ignoring", v)
 	return false
+}
+
+func (d *Docker) getTimeoutValue(labels map[string]string, n int) time.Duration {
+	v, ok := d.labelN(labels, n, "timeout")
+	if !ok || v == "" {
+		return 0
+	}
+	dur, err := time.ParseDuration(v)
+	if err != nil {
+		log.Printf("[WARN] timeout label value %s is not valid, ignoring", v)
+		return 0
+	}
+	if dur < 0 {
+		log.Printf("[WARN] timeout label value %s is negative, ignoring", v)
+		return 0
+	}
+	return dur
+}
+
+func (d *Docker) getThrottleValue(labels map[string]string, n int) int {
+	v, ok := d.labelN(labels, n, "throttle")
+	if !ok || v == "" {
+		return 0
+	}
+	num, err := strconv.Atoi(v)
+	if err != nil {
+		log.Printf("[WARN] throttle label value %s is not valid, ignoring", v)
+		return 0
+	}
+	if num < 0 {
+		log.Printf("[WARN] throttle label value %s is negative, ignoring", v)
+		return 0
+	}
+	return num
 }
 
 func (d *Docker) getKeepHostValue(labels map[string]string, n int) *bool {

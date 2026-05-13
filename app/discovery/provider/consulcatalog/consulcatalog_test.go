@@ -176,6 +176,8 @@ func TestConsulCatalog_List(t *testing.T) {
 
 	for i := range 7 {
 		assert.False(t, res[i].ForwardHealthChecks, "route %d should not have forward-health-checks", i)
+		assert.Equal(t, time.Duration(0), res[i].Timeout, "route %d should not have timeout", i)
+		assert.Equal(t, 0, res[i].Throttle, "route %d should not have throttle", i)
 	}
 }
 
@@ -188,8 +190,8 @@ func TestConsulCatalog_ListForwardHealthChecks(t *testing.T) {
 				ServiceAddress: "addr-fhc",
 				ServicePort:    9000,
 				Labels: map[string]string{
-					"reproxy.enabled":              "true",
-					"reproxy.server":               "fhc.example.com",
+					"reproxy.enabled":               "true",
+					"reproxy.server":                "fhc.example.com",
 					"reproxy.forward-health-checks": "true",
 				},
 			},
@@ -216,6 +218,118 @@ func TestConsulCatalog_ListForwardHealthChecks(t *testing.T) {
 	}
 	assert.True(t, fhcByServer["fhc.example.com"])
 	assert.False(t, fhcByServer["*"])
+}
+
+func TestConsulCatalog_ListTimeoutThrottle(t *testing.T) {
+	clientMock := &ConsulClientMock{GetFunc: func() ([]consulService, error) {
+		return []consulService{
+			{
+				ServiceID:      "valid",
+				ServiceName:    "valid",
+				ServiceAddress: "addr-v",
+				ServicePort:    9000,
+				Labels: map[string]string{
+					"reproxy.enabled":  "true",
+					"reproxy.server":   "v.example.com",
+					"reproxy.timeout":  "5m",
+					"reproxy.throttle": "10",
+				},
+			},
+			{
+				ServiceID:      "bad-dur",
+				ServiceName:    "bad-dur",
+				ServiceAddress: "addr-bd",
+				ServicePort:    9001,
+				Labels: map[string]string{
+					"reproxy.enabled": "true",
+					"reproxy.server":  "bd.example.com",
+					"reproxy.timeout": "not-a-duration",
+				},
+			},
+			{
+				ServiceID:      "neg-dur",
+				ServiceName:    "neg-dur",
+				ServiceAddress: "addr-nd",
+				ServicePort:    9002,
+				Labels: map[string]string{
+					"reproxy.enabled": "true",
+					"reproxy.server":  "nd.example.com",
+					"reproxy.timeout": "-5s",
+				},
+			},
+			{
+				ServiceID:      "bad-thr",
+				ServiceName:    "bad-thr",
+				ServiceAddress: "addr-bt",
+				ServicePort:    9003,
+				Labels: map[string]string{
+					"reproxy.enabled":  "true",
+					"reproxy.server":   "bt.example.com",
+					"reproxy.throttle": "not-a-number",
+				},
+			},
+			{
+				ServiceID:      "neg-thr",
+				ServiceName:    "neg-thr",
+				ServiceAddress: "addr-nt",
+				ServicePort:    9004,
+				Labels: map[string]string{
+					"reproxy.enabled":  "true",
+					"reproxy.server":   "nt.example.com",
+					"reproxy.throttle": "-1",
+				},
+			},
+			{
+				ServiceID:      "empty",
+				ServiceName:    "empty",
+				ServiceAddress: "addr-e",
+				ServicePort:    9005,
+				Labels: map[string]string{
+					"reproxy.enabled":  "true",
+					"reproxy.server":   "e.example.com",
+					"reproxy.timeout":  "",
+					"reproxy.throttle": "",
+				},
+			},
+			{
+				ServiceID:      "none",
+				ServiceName:    "none",
+				ServiceAddress: "addr-n",
+				ServicePort:    9006,
+				Labels: map[string]string{
+					"reproxy.enabled": "true",
+					"reproxy.server":  "n.example.com",
+				},
+			},
+		}, nil
+	}}
+
+	cc := &ConsulCatalog{client: clientMock}
+	res, err := cc.List()
+	require.NoError(t, err)
+	require.Len(t, res, 7)
+
+	byServer := map[string]discovery.URLMapper{}
+	for _, r := range res {
+		byServer[r.Server] = r
+	}
+
+	assert.Equal(t, 5*time.Minute, byServer["v.example.com"].Timeout)
+	assert.Equal(t, 10, byServer["v.example.com"].Throttle)
+
+	assert.Equal(t, time.Duration(0), byServer["bd.example.com"].Timeout)
+	assert.Equal(t, 0, byServer["bd.example.com"].Throttle)
+
+	assert.Equal(t, time.Duration(0), byServer["nd.example.com"].Timeout)
+
+	assert.Equal(t, 0, byServer["bt.example.com"].Throttle)
+	assert.Equal(t, 0, byServer["nt.example.com"].Throttle)
+
+	assert.Equal(t, time.Duration(0), byServer["e.example.com"].Timeout)
+	assert.Equal(t, 0, byServer["e.example.com"].Throttle)
+
+	assert.Equal(t, time.Duration(0), byServer["n.example.com"].Timeout)
+	assert.Equal(t, 0, byServer["n.example.com"].Throttle)
 }
 
 func TestConsulCatalog_serviceListWasChanged(t *testing.T) {

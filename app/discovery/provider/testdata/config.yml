@@ -9,3 +9,9 @@ auth.example.com:
   - {route: "^/api/(.*)", dest: "http://127.0.0.4:8080/$1", auth: "user1:$2y$05$hash1, user2:$2y$05$hash2"}
 fhc.example.com:
   - {route: "^/(.*)", dest: "http://127.0.0.5:8080/$1", forward-health-checks: true}
+to.example.com:
+  - {route: "^/upload/(.*)", dest: "http://127.0.0.6:8080/$1", timeout: 5m}
+th.example.com:
+  - {route: "^/login/(.*)", dest: "http://127.0.0.7:8080/$1", throttle: 10}
+tt.example.com:
+  - {route: "^/api/(.*)", dest: "http://127.0.0.8:8080/$1", timeout: 30s, throttle: 5}

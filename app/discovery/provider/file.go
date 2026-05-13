@@ -79,8 +79,8 @@ func (d *File) Events(ctx context.Context) <-chan discovery.ProviderID {
 func (d *File) List() (res []discovery.URLMapper, err error) {
 
 	var fileConf map[string][]struct {
-		SourceRoute   string `yaml:"route"`
-		Dest          string `yaml:"dest"`
+		SourceRoute         string `yaml:"route"`
+		Dest                string `yaml:"dest"`
 		Ping                string `yaml:"ping"`
 		AssetsEnabled       bool   `yaml:"assets"`
 		AssetsSPA           bool   `yaml:"spa"`
@@ -88,6 +88,8 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 		ForwardHealthChecks bool   `yaml:"forward-health-checks"`
 		OnlyFrom            string `yaml:"remote"`
 		Auth                string `yaml:"auth"`
+		Timeout             string `yaml:"timeout"`
+		Throttle            int    `yaml:"throttle"`
 	}
 	fh, err := os.Open(d.FileName)
 	if err != nil {
@@ -109,6 +111,20 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 			if srv == "default" {
 				srv = "*"
 			}
+			var timeout time.Duration
+			if f.Timeout != "" {
+				dur, perr := time.ParseDuration(f.Timeout)
+				if perr != nil {
+					return nil, fmt.Errorf("can't parse timeout %s: %w", f.Timeout, perr)
+				}
+				if dur < 0 {
+					return nil, fmt.Errorf("timeout must be non-negative, got %s", f.Timeout)
+				}
+				timeout = dur
+			}
+			if f.Throttle < 0 {
+				return nil, fmt.Errorf("throttle must be non-negative, got %d", f.Throttle)
+			}
 			mapper := discovery.URLMapper{
 				Server:              srv,
 				SrcMatch:            *rx,
@@ -120,6 +136,8 @@ func (d *File) List() (res []discovery.URLMapper, err error) {
 				MatchType:           discovery.MTProxy,
 				OnlyFromIPs:         discovery.ParseOnlyFrom(f.OnlyFrom),
 				AuthUsers:           discovery.ParseAuth(f.Auth),
+				Timeout:             timeout,
+				Throttle:            f.Throttle,
 			}
 			if f.AssetsEnabled || f.AssetsSPA {
 				mapper.MatchType = discovery.MTStatic

@@ -218,10 +218,10 @@ func TestDocker_ListForwardHealthChecks(t *testing.T) {
 				{
 					Name: "abs", State: "running", IP: "127.0.0.10", Ports: []int{8080},
 					Labels: map[string]string{
-						"reproxy.server":                 "abs.example.com",
-						"reproxy.route":                  "^/(.*)",
-						"reproxy.dest":                   "/$1",
-						"reproxy.forward-health-checks":  "yes",
+						"reproxy.server":                "abs.example.com",
+						"reproxy.route":                 "^/(.*)",
+						"reproxy.dest":                  "/$1",
+						"reproxy.forward-health-checks": "yes",
 					},
 				},
 				{
@@ -274,6 +274,185 @@ func TestDocker_ListForwardHealthChecks(t *testing.T) {
 	}
 	assert.False(t, fhcByRoute["^/api/(.*)"], "multi route 0 should not have forward-health-checks")
 	assert.True(t, fhcByRoute["^/web/(.*)"], "multi route 1 should have forward-health-checks")
+}
+
+func TestDocker_ListTimeoutThrottle(t *testing.T) {
+	dclient := &DockerClientMock{
+		ListContainersFunc: func() ([]containerInfo, error) {
+			return []containerInfo{
+				{
+					Name: "with-timeout", State: "running", IP: "127.0.0.20", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":  "tmo.example.com",
+						"reproxy.route":   "^/(.*)",
+						"reproxy.dest":    "/$1",
+						"reproxy.timeout": "5m",
+					},
+				},
+				{
+					Name: "with-throttle", State: "running", IP: "127.0.0.21", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":   "thr.example.com",
+						"reproxy.route":    "^/(.*)",
+						"reproxy.dest":     "/$1",
+						"reproxy.throttle": "10",
+					},
+				},
+				{
+					Name: "with-both", State: "running", IP: "127.0.0.22", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":   "both.example.com",
+						"reproxy.route":    "^/(.*)",
+						"reproxy.dest":     "/$1",
+						"reproxy.timeout":  "30s",
+						"reproxy.throttle": "5",
+					},
+				},
+				{
+					Name: "bad-timeout", State: "running", IP: "127.0.0.23", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":  "bad-tmo.example.com",
+						"reproxy.route":   "^/(.*)",
+						"reproxy.dest":    "/$1",
+						"reproxy.timeout": "not-a-duration",
+					},
+				},
+				{
+					Name: "bad-throttle", State: "running", IP: "127.0.0.24", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":   "bad-thr.example.com",
+						"reproxy.route":    "^/(.*)",
+						"reproxy.dest":     "/$1",
+						"reproxy.throttle": "abc",
+					},
+				},
+				{
+					Name: "negative-timeout", State: "running", IP: "127.0.0.25", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":  "neg-tmo.example.com",
+						"reproxy.route":   "^/(.*)",
+						"reproxy.dest":    "/$1",
+						"reproxy.timeout": "-5s",
+					},
+				},
+				{
+					Name: "negative-throttle", State: "running", IP: "127.0.0.26", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server":   "neg-thr.example.com",
+						"reproxy.route":    "^/(.*)",
+						"reproxy.dest":     "/$1",
+						"reproxy.throttle": "-1",
+					},
+				},
+				{
+					Name: "no-labels", State: "running", IP: "127.0.0.27", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.server": "plain.example.com",
+						"reproxy.route":  "^/(.*)",
+						"reproxy.dest":   "/$1",
+					},
+				},
+				{
+					Name: "multi-route", State: "running", IP: "127.0.0.28", Ports: []int{8080},
+					Labels: map[string]string{
+						"reproxy.0.route":    "^/api/(.*)",
+						"reproxy.0.dest":     "/api/$1",
+						"reproxy.1.route":    "^/web/(.*)",
+						"reproxy.1.dest":     "/web/$1",
+						"reproxy.1.timeout":  "1m",
+						"reproxy.1.throttle": "20",
+					},
+				},
+			}, nil
+		},
+	}
+
+	d := Docker{DockerClient: dclient}
+	res, err := d.List()
+	require.NoError(t, err)
+
+	timeoutByServer := map[string]time.Duration{}
+	throttleByServer := map[string]int{}
+	for _, r := range res {
+		timeoutByServer[r.Server] = r.Timeout
+		throttleByServer[r.Server] = r.Throttle
+	}
+
+	assert.Equal(t, 5*time.Minute, timeoutByServer["tmo.example.com"], "timeout label parsed")
+	assert.Equal(t, 0, throttleByServer["tmo.example.com"], "no throttle label means zero")
+
+	assert.Equal(t, time.Duration(0), timeoutByServer["thr.example.com"], "no timeout label means zero")
+	assert.Equal(t, 10, throttleByServer["thr.example.com"], "throttle label parsed")
+
+	assert.Equal(t, 30*time.Second, timeoutByServer["both.example.com"], "both timeout and throttle parse")
+	assert.Equal(t, 5, throttleByServer["both.example.com"], "both timeout and throttle parse")
+
+	assert.Equal(t, time.Duration(0), timeoutByServer["bad-tmo.example.com"], "invalid timeout falls back to zero")
+	assert.Equal(t, time.Duration(0), timeoutByServer["neg-tmo.example.com"], "negative timeout falls back to zero")
+
+	assert.Equal(t, 0, throttleByServer["bad-thr.example.com"], "invalid throttle falls back to zero")
+	assert.Equal(t, 0, throttleByServer["neg-thr.example.com"], "negative throttle falls back to zero")
+
+	assert.Equal(t, time.Duration(0), timeoutByServer["plain.example.com"], "no labels means zero timeout")
+	assert.Equal(t, 0, throttleByServer["plain.example.com"], "no labels means zero throttle")
+
+	timeoutByRoute := map[string]time.Duration{}
+	throttleByRoute := map[string]int{}
+	for _, r := range res {
+		timeoutByRoute[r.SrcMatch.String()] = r.Timeout
+		throttleByRoute[r.SrcMatch.String()] = r.Throttle
+	}
+	assert.Equal(t, time.Duration(0), timeoutByRoute["^/api/(.*)"], "multi-route 0 has no timeout")
+	assert.Equal(t, 0, throttleByRoute["^/api/(.*)"], "multi-route 0 has no throttle")
+	assert.Equal(t, time.Minute, timeoutByRoute["^/web/(.*)"], "multi-route 1 timeout parsed")
+	assert.Equal(t, 20, throttleByRoute["^/web/(.*)"], "multi-route 1 throttle parsed")
+}
+
+func TestDocker_getTimeoutValue(t *testing.T) {
+	d := Docker{}
+	tbl := []struct {
+		name   string
+		labels map[string]string
+		n      int
+		want   time.Duration
+	}{
+		{"missing", map[string]string{}, 0, 0},
+		{"empty value", map[string]string{"reproxy.timeout": ""}, 0, 0},
+		{"valid 5m", map[string]string{"reproxy.timeout": "5m"}, 0, 5 * time.Minute},
+		{"valid 100ms", map[string]string{"reproxy.timeout": "100ms"}, 0, 100 * time.Millisecond},
+		{"invalid", map[string]string{"reproxy.timeout": "abc"}, 0, 0},
+		{"negative", map[string]string{"reproxy.timeout": "-1s"}, 0, 0},
+		{"numbered route 1", map[string]string{"reproxy.1.timeout": "2s"}, 1, 2 * time.Second},
+		{"numbered route 0 explicit", map[string]string{"reproxy.0.timeout": "3s"}, 0, 3 * time.Second},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, d.getTimeoutValue(tt.labels, tt.n))
+		})
+	}
+}
+
+func TestDocker_getThrottleValue(t *testing.T) {
+	d := Docker{}
+	tbl := []struct {
+		name   string
+		labels map[string]string
+		n      int
+		want   int
+	}{
+		{"missing", map[string]string{}, 0, 0},
+		{"empty value", map[string]string{"reproxy.throttle": ""}, 0, 0},
+		{"valid 10", map[string]string{"reproxy.throttle": "10"}, 0, 10},
+		{"invalid", map[string]string{"reproxy.throttle": "abc"}, 0, 0},
+		{"negative", map[string]string{"reproxy.throttle": "-1"}, 0, 0},
+		{"numbered route 1", map[string]string{"reproxy.1.throttle": "5"}, 1, 5},
+		{"numbered route 0 explicit", map[string]string{"reproxy.0.throttle": "7"}, 0, 7},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, d.getThrottleValue(tt.labels, tt.n))
+		})
+	}
 }
 
 func TestDocker_ListMultiFallBack(t *testing.T) {
