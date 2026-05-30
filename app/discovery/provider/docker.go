@@ -283,7 +283,10 @@ func (d *Docker) events(ctx context.Context, eventsCh chan<- discovery.ProviderI
 			for _, c := range containers {
 				saved[c.ID] = c
 			}
-			eventsCh <- discovery.PIDocker
+			select {
+			case eventsCh <- discovery.PIDocker:
+			case <-ctx.Done(): // don't block on send if discovery is shutting down
+			}
 		}
 	}
 

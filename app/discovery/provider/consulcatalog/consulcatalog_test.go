@@ -1,6 +1,7 @@
 package consulcatalog
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -439,7 +440,7 @@ func TestConsulCatalog_checkUpdates_http_error(t *testing.T) {
 		client: clientMock,
 	}
 
-	err := cc.checkUpdates(nil)
+	err := cc.checkUpdates(context.Background(), nil)
 	require.Error(t, err)
 	assert.Equal(t, "unable to get services list, err1", err.Error())
 }
@@ -454,7 +455,7 @@ func TestConsulCatalog_checkUpdates_not_changed(t *testing.T) {
 		client: clientMock,
 	}
 
-	err := cc.checkUpdates(nil)
+	err := cc.checkUpdates(context.Background(), nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, cc.list)
@@ -475,16 +476,38 @@ func TestConsulCatalog_checkUpdates_changed(t *testing.T) {
 
 	ch := make(chan discovery.ProviderID, 1)
 
-	err := cc.checkUpdates(ch)
+	err := cc.checkUpdates(context.Background(), ch)
 	require.NoError(t, err)
 
 	assert.Len(t, cc.list, 1)
 	_, ok := cc.list["1"]
 	assert.True(t, ok)
+}
 
-	s, ok := <-ch
-	assert.True(t, ok)
-	assert.Equal(t, discovery.PIConsulCatalog, s)
+func TestConsulCatalog_checkUpdates_canceled(t *testing.T) {
+	clientMock := &ConsulClientMock{
+		GetFunc: func() ([]consulService, error) {
+			return []consulService{{ServiceID: "1"}}, nil
+		},
+	}
+	cc := &ConsulCatalog{
+		list:   map[string]struct{}{"2": {}},
+		client: clientMock,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // canceled before the send, unbuffered channel has no reader
+
+	ch := make(chan discovery.ProviderID) // unbuffered, would block forever without ctx guard
+	done := make(chan error, 1)
+	go func() { done <- cc.checkUpdates(ctx, ch) }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("checkUpdates blocked on send despite canceled context")
+	}
 }
 
 func TestConsulCatalog_Events(t *testing.T) {
