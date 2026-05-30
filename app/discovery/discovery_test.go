@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -338,6 +339,51 @@ func TestService_MatchServerRegex(t *testing.T) {
 			}
 			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
+	}
+}
+
+func TestService_MatchConcurrent(t *testing.T) {
+	mockProvider := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "*.example.com", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy},
+				{Server: "(.*)\\.test-domain\\.com", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.2:8080/$1", MatchType: MTProxy},
+			}, nil
+		},
+	}
+	svc := NewService([]Provider{mockProvider}, time.Millisecond*100)
+	go func() { _ = svc.Run(t.Context()) }()
+
+	// wait until discovery populates mappers instead of relying on a fixed deadline (flaky under slow -race)
+	require.Eventually(t, func() bool {
+		return len(svc.Match("host.example.com", "/some").Routes) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// fire many concurrent Match calls for distinct uncached hostnames, each reaching the lazy
+	// cache write at the wildcard/regex branch; -race flags any unsynchronized map access
+	var wg sync.WaitGroup
+	dests := make([]string, 200)
+	for i := range 200 {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			host := fmt.Sprintf("host%d.example.com", n)
+			routes := svc.Match(host, "/some").Routes
+			if assert.Len(t, routes, 1) {
+				dests[n] = routes[0].Destination
+			}
+		}(i)
+	}
+	wg.Wait()
+	for _, d := range dests {
+		assert.Equal(t, "http://127.0.0.1:8080/some", d)
 	}
 }
 
