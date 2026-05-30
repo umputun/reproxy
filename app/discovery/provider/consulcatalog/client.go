@@ -88,6 +88,7 @@ func (cl *consulClient) filterServices(src map[string][]string) []string {
 		for _, tag := range tags {
 			if strings.HasPrefix(tag, "reproxy.") {
 				result = append(result, serviceName)
+				break
 			}
 		}
 	}
