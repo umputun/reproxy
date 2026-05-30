@@ -421,3 +421,36 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
 }
+
+func TestConductor_MiddlewarePluginFailedNoLockLeak(t *testing.T) {
+	rpcClient := &RPCClientMock{
+		CallFunc: func(serviceMethod string, args any, reply any) error {
+			return errors.New("something failed")
+		},
+	}
+
+	c := Conductor{plugins: []Handler{{Method: "Test1.Mw1", Alive: true, client: rpcClient}}}
+
+	// trigger the call-error path which must release the read lock
+	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler must not be called on plugin failure")
+	}))
+	h.ServeHTTP(w, rr)
+	assert.Equal(t, 500, w.Result().StatusCode)
+
+	// a write-lock operation must not block on a leaked read lock
+	done := make(chan struct{})
+	go func() {
+		c.locked(func() { c.plugins = nil })
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("write lock blocked, read lock leaked on plugin call-error path")
+	}
+}

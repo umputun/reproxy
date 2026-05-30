@@ -107,7 +107,10 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		c.lock.RLock()
-		for _, p := range c.plugins {
+		alive := append([]Handler(nil), c.plugins...)
+		c.lock.RUnlock()
+
+		for _, p := range alive {
 			if !p.Alive {
 				continue
 			}
@@ -123,12 +126,10 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 			setHeaders(w.Header(), reply.HeadersOut, reply.OverrideHeadersOut)
 
 			if reply.StatusCode >= 400 {
-				c.lock.RUnlock()
 				http.Error(w, http.StatusText(reply.StatusCode), reply.StatusCode)
 				return
 			}
 		}
-		c.lock.RUnlock()
 
 		next.ServeHTTP(w, r)
 	})
