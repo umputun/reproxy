@@ -760,26 +760,27 @@ func Test_ping(t *testing.T) {
 	}))
 	defer ts2.Close()
 
-	type args struct {
-		m URLMapper
-	}
 	tests := []struct {
 		name    string
-		args    args
-		want    string
+		m       URLMapper
+		wantMsg string
 		wantErr bool
 	}{
-		{name: "test server, expected OK", args: args{m: URLMapper{PingURL: ts.URL}}, want: "", wantErr: false},
-		{name: "random port, expected error", args: args{m: URLMapper{PingURL: fmt.Sprintf("127.0.0.1:%d", port)}}, want: "", wantErr: true},
-		{name: "error code != 200", args: args{m: URLMapper{PingURL: ts2.URL}}, want: "", wantErr: true},
+		{name: "test server, expected OK", m: URLMapper{PingURL: ts.URL}, wantMsg: "", wantErr: false},
+		{name: "transport error, unreachable URL", m: URLMapper{PingURL: fmt.Sprintf("http://127.0.0.1:%d", port)},
+			wantMsg: "failed to ping for health", wantErr: true},
+		{name: "non-200 status code", m: URLMapper{PingURL: ts2.URL}, wantMsg: "failed ping status for health", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.args.m.ping()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ping() error = %v, wantErr %v", err, tt.wantErr)
+			msg, err := tt.m.ping()
+			if !tt.wantErr {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantMsg, msg)
 				return
 			}
+			require.Error(t, err)
+			assert.Contains(t, msg, tt.wantMsg)
 		})
 	}
 }

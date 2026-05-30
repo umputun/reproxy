@@ -575,6 +575,7 @@ func (m URLMapper) ping() (string, error) {
 		errMsg = fmt.Sprintf("failed to ping for health %s, %s", m.PingURL, errMsg)
 		return errMsg, fmt.Errorf("%s %s: %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("failed ping status for health %s (%s)", m.PingURL, resp.Status)
 		return errMsg, fmt.Errorf("%s %s: %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)
