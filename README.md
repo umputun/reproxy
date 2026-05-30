@@ -457,9 +457,9 @@ Reproxy allows restricting access to the routes with a list of comma-separated s
 
 To restrict access to the routes, user should set appropriate keys for the routes, i.e. `reproxy.remote` for docker and consul, and `remote` for file provider. The value should be a list of comma-separated subnets or ips or subnets. For example `127.0.0.1, 192.168.1.0/24`. For more details see [docker provider](#docker-provider) and [consul catalog provider](#consul-catalog-provider) sections.
 
-By default, reproxy will check the remote address from the client's request. However, in some cases, it won't work as expected, for example behind of other proxy, or with docker bridge network. This can be altered with `--remote-lookup-headers` parameter allowing check the value of the header `X-Real-IP` or `X-Forwarded-For` (in this order) and use it for the check. If the header is not set, the check will be performed against the remote address of the client.
+By default, reproxy will check the remote address from the client's request. However, in some cases, it won't work as expected, for example behind of other proxy, or with docker bridge network. This can be altered with `--remote-lookup-headers` parameter allowing check the value of the header `X-Real-IP` or `X-Forwarded-For` (in this order) and use it for the check. If the header is not set, the check will be performed against the remote address of the client. These headers are supplied by the client and are trivially spoofable, so this parameter must only be enabled when reproxy runs behind a trusted fronting proxy that always sets and overwrites these headers.
 
-Checking headers should be used with caution, as it is possible to fake them. However, in some cases, it is the only way to get the real remote address of the client. Generally, it is recommended to use this option only if user is completely controlling all the headers and can guarantee the headers are not faked.
+Checking headers should be used with caution, as it is possible to fake them. When `--remote-lookup-headers` is enabled, the IP allowlist relies entirely on this trust assumption: a client sending `X-Real-IP` or `X-Forwarded-For` with an allowed address can otherwise bypass the restriction. Enable this option only if reproxy is behind a trusted proxy that controls these headers and you can guarantee they are not faked.
 
 
 ## Plugins support
@@ -530,7 +530,7 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
-      --remote-lookup-headers       enable remote lookup headers [$REMOTE_LOOKUP_HEADERS]      
+      --remote-lookup-headers       enable remote lookup headers, trust only behind a trusted proxy [$REMOTE_LOOKUP_HEADERS]
       --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
       --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
