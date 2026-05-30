@@ -671,3 +671,36 @@ func Test_fqdns(t *testing.T) {
 		})
 	}
 }
+
+func Test_RunErrorReturnDoesNotDeadlock(t *testing.T) {
+	setupLogger()
+
+	// configure a real static provider so the discovery goroutine actually starts, then force an early
+	// error return (non-existent error template) after discovery launches but without a signal. run() must
+	// return promptly: cancel() has to run before the discoveryDone wait, otherwise discovery never exits.
+	saved := opts
+	defer func() { opts = saved }()
+
+	opts.Static.Enabled = true
+	opts.Static.Rules = []string{"*,/svc1/(.*), https://echo.example.com/$1"}
+	opts.File.Enabled = false
+	opts.Docker.Enabled = false
+	opts.ConsulCatalog.Enabled = false
+	opts.Assets.Location = ""
+	opts.HealthCheck.Enabled = false
+	opts.Listen = "127.0.0.1:0"
+	opts.SSL.Type = "none"
+	opts.ErrorReport.Enabled = true
+	opts.ErrorReport.Template = "testdata/does-not-exist.html"
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- run() }()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "error reporter")
+	case <-time.After(5 * time.Second):
+		t.Fatal("run() did not return on early error path - deadlock waiting for discovery shutdown")
+	}
+}
