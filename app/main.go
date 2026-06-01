@@ -46,7 +46,7 @@ var opts struct {
 	ProxyHeaders        []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
 	DropHeaders         []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
-	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers"`
+	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers, trust only behind a trusted proxy"`
 	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" choice:"roundrobin" default:"random"` // nolint
 	Insecure            bool     `long:"insecure" env:"INSECURE" description:"skip SSL certificate verification for the destination host"`
 	KeepHost            bool     `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
@@ -234,14 +234,19 @@ func main() {
 
 func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // catch-all: registered first so it runs last, cancels ctx on every return path (incl. early ones before the wait defer) so the signal goroutine can't leak
 
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(stop) // deregister so the signal goroutine and registration don't leak across run() calls (tests)
 	go func() {
-		// catch signal and invoke graceful termination
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-		<-stop
-		log.Printf("[WARN] interrupt signal")
-		cancel()
+		// catch signal and invoke graceful termination, also exit on ctx cancel so this goroutine can't leak
+		select {
+		case <-stop:
+			log.Printf("[WARN] interrupt signal")
+			cancel()
+		case <-ctx.Done():
+		}
 	}()
 
 	defer func() {
@@ -258,15 +263,32 @@ func run() error {
 	}
 
 	svc := discovery.NewService(providers, time.Second)
+	discoveryDone := make(chan struct{})
 	if len(providers) > 0 {
 		go func() {
-			if e := svc.Run(context.Background()); e != nil {
+			defer close(discoveryDone)
+			if e := svc.Run(ctx); e != nil && !errors.Is(e, context.Canceled) {
 				log.Printf("[WARN] discovery failed, %v", e)
 			}
 		}()
+	} else {
+		close(discoveryDone) // no discovery goroutine started, close immediately so the defer below doesn't block
 	}
+	// cancel() runs first, then we await discovery (and its provider watchers) before returning so its goroutines
+	// don't outlive run; cancellation must happen before the wait or discovery never exits on non-signal error returns.
+	// the wait is bounded: a provider List() doing a context-less network call (e.g. consul http) won't honor ctx, so
+	// without the timeout a stuck provider could hang process exit indefinitely. the health-check goroutine is only
+	// canceled via ctx, not awaited
+	defer func() {
+		cancel()
+		select {
+		case <-discoveryDone:
+		case <-time.After(5 * time.Second):
+			log.Printf("[WARN] discovery shutdown timed out")
+		}
+	}()
 	if opts.HealthCheck.Enabled {
-		svc.ScheduleHealthCheck(context.Background(), opts.HealthCheck.Interval)
+		svc.ScheduleHealthCheck(ctx, opts.HealthCheck.Interval)
 	}
 
 	sslConfig, sslErr := makeSSLConfig()

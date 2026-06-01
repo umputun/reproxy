@@ -78,6 +78,26 @@ func TestClient_getServiceNames_wrong_answer(t *testing.T) {
 	assert.Equal(t, "error unmarshal consul response, invalid character 'b' looking for beginning of value", err.Error())
 }
 
+func TestClient_filterServices(t *testing.T) {
+	tbl := []struct {
+		name string
+		src  map[string][]string
+		want []string
+	}{
+		{name: "no reproxy tags", src: map[string][]string{"s1": {}, "s2": {"baz", "wow"}}, want: nil},
+		{name: "single reproxy tag", src: map[string][]string{"s1": {"bar", "reproxy.enabled", "foo"}}, want: []string{"s1"}},
+		{name: "multiple reproxy tags dedup", src: map[string][]string{"s1": {"reproxy.enabled", "reproxy.route", "reproxy.dest"}}, want: []string{"s1"}},
+		{name: "sorted output", src: map[string][]string{"s3": {"reproxy.enabled"}, "s1": {"reproxy.enabled"}, "s2": {"reproxy.enabled"}}, want: []string{"s1", "s2", "s3"}},
+	}
+
+	cl := &consulClient{}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, cl.filterServices(tt.src))
+		})
+	}
+}
+
 func TestClient_getServices(t *testing.T) {
 	body := `[
 {"ServiceID":"s1","ServiceName":"n1","ServiceTags":[],"ServiceAddress":"a1","ServicePort":1000},

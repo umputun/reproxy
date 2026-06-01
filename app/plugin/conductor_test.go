@@ -421,3 +421,79 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	t.Logf("req: %+v", rr)
 	t.Logf("resp: %+v", w.Result())
 }
+
+func TestConductor_MiddlewarePluginFailedNoLockLeak(t *testing.T) {
+	rpcClient := &RPCClientMock{
+		CallFunc: func(serviceMethod string, args any, reply any) error {
+			return errors.New("something failed")
+		},
+	}
+
+	c := Conductor{plugins: []Handler{{Method: "Test1.Mw1", Alive: true, client: rpcClient}}}
+
+	// trigger the call-error path which must release the read lock
+	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("handler must not be called on plugin failure")
+	}))
+	h.ServeHTTP(w, rr)
+	assert.Equal(t, 500, w.Result().StatusCode)
+
+	// a write-lock operation must not block on a leaked read lock
+	done := make(chan struct{})
+	go func() {
+		c.locked(func() { c.plugins = nil })
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("write lock blocked, read lock leaked on plugin call-error path")
+	}
+}
+
+func TestConductor_MiddlewareReleasesLockDuringCall(t *testing.T) {
+	callStarted := make(chan struct{})
+	release := make(chan struct{})
+	rpcClient := &RPCClientMock{
+		CallFunc: func(serviceMethod string, args any, reply any) error {
+			close(callStarted)
+			<-release // hold the call open so the test can probe the lock while it's in flight
+			return nil
+		},
+	}
+
+	c := Conductor{plugins: []Handler{{Method: "Test1.Mw1", Alive: true, client: rpcClient}}}
+
+	rr, err := http.NewRequest("GET", "http://127.0.0.1", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	served := make(chan struct{})
+	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(served) }))
+	go h.ServeHTTP(w, rr)
+
+	<-callStarted // plugin RPC is now blocking
+
+	// while the plugin call is in flight, a write-lock op must still proceed - the read lock must
+	// have been released before the blocking RPC, not held across it
+	locked := make(chan struct{})
+	go func() {
+		c.locked(func() {})
+		close(locked)
+	}()
+	select {
+	case <-locked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("write lock blocked while plugin call in flight - read lock held across RPC")
+	}
+
+	close(release) // let the plugin call finish
+	select {
+	case <-served:
+	case <-time.After(2 * time.Second):
+		t.Fatal("middleware did not reach next handler after plugin call returned")
+	}
+}

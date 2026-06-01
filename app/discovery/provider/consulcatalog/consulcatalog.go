@@ -71,7 +71,7 @@ func (cc *ConsulCatalog) events(ctx context.Context, eventsCh chan<- discovery.P
 	ticker := time.NewTicker(cc.refreshInterval)
 	defer ticker.Stop()
 	for {
-		err = cc.checkUpdates(eventsCh)
+		err = cc.checkUpdates(ctx, eventsCh)
 		if err != nil {
 			log.Printf("[ERROR] error update consul catalog data, %v", err)
 		}
@@ -84,7 +84,7 @@ func (cc *ConsulCatalog) events(ctx context.Context, eventsCh chan<- discovery.P
 	}
 }
 
-func (cc *ConsulCatalog) checkUpdates(eventsCh chan<- discovery.ProviderID) error {
+func (cc *ConsulCatalog) checkUpdates(ctx context.Context, eventsCh chan<- discovery.ProviderID) error {
 	services, err := cc.client.Get()
 	if err != nil {
 		return fmt.Errorf("unable to get services list, %w", err)
@@ -96,7 +96,10 @@ func (cc *ConsulCatalog) checkUpdates(eventsCh chan<- discovery.ProviderID) erro
 
 	cc.updateServices(services)
 
-	eventsCh <- discovery.PIConsulCatalog
+	select {
+	case eventsCh <- discovery.PIConsulCatalog:
+	case <-ctx.Done(): // don't block on send if discovery is shutting down
+	}
 
 	return nil
 }

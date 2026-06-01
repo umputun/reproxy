@@ -25,7 +25,10 @@ type Service struct {
 	mappers      map[string][]URLMapper
 	mappersCache map[string][]URLMapper
 	lock         sync.RWMutex
-	interval     time.Duration
+	// cacheLock guards mappersCache on the lazy read/write path in findMatchingMappers, which runs under
+	// lock.RLock; the wholesale cache reset in Run runs under the exclusive lock.Lock and so needs no cacheLock
+	cacheLock sync.RWMutex
+	interval  time.Duration
 }
 
 // URLMapper contains all info about source and destination routes
@@ -183,7 +186,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 
 	lastSrcMatch := ""
 	for _, srvName := range []string{srv, "*", ""} {
-		for _, m := range findMatchingMappers(s, srvName) {
+		for _, m := range s.findMatchingMappers(srvName) {
 
 			// if the first match found and the next src match is not identical we can stop as src match regexes presorted
 			if len(res.Routes) > 0 && m.SrcMatch.String() != lastSrcMatch {
@@ -231,13 +234,23 @@ func (s *Service) Match(srv, src string) (res Matches) {
 	return res
 }
 
-func findMatchingMappers(s *Service, srvName string) []URLMapper {
+// findMatchingMappers resolves srvName to its mappers. caller must hold s.lock.RLock for the s.mappers
+// access (Match does); mappersCache is guarded internally by s.cacheLock.
+func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 	// strict match - for backward compatibility
 	if mappers, isStrictMatch := s.mappers[srvName]; isStrictMatch {
 		return mappers
 	}
 
-	if cachedMapper, isCached := s.mappersCache[srvName]; isCached {
+	// separate RLock-read then Lock-write: two concurrent first-resolvers of the same uncached host may both
+	// compute and both write the key. the write is lock-guarded so there's no torn write, but s.mappers iteration
+	// order is nondeterministic, so if the host matches 2+ server patterns the resolvers may select different
+	// mapper slices and the cached value is last-writer-wins. this is consistent with the pre-existing
+	// nondeterministic match-selection order, not a new defect
+	s.cacheLock.RLock()
+	cachedMapper, isCached := s.mappersCache[srvName]
+	s.cacheLock.RUnlock()
+	if isCached {
 		return cachedMapper
 	}
 
@@ -251,7 +264,9 @@ func findMatchingMappers(s *Service, srvName string) []URLMapper {
 		if strings.HasPrefix(mapperServer, "*.") {
 			domainPattern := mapperServer[1:] // strip the '*'
 			if strings.HasSuffix(srvName, domainPattern) {
+				s.cacheLock.Lock()
 				s.mappersCache[srvName] = mapper
+				s.cacheLock.Unlock()
 				return mapper
 			}
 			continue
@@ -264,7 +279,9 @@ func findMatchingMappers(s *Service, srvName string) []URLMapper {
 		}
 
 		if re.MatchString(srvName) {
+			s.cacheLock.Lock()
 			s.mappersCache[srvName] = mapper
+			s.cacheLock.Unlock()
 			return mapper
 		}
 	}
@@ -558,6 +575,7 @@ func (m URLMapper) ping() (string, error) {
 		errMsg = fmt.Sprintf("failed to ping for health %s, %s", m.PingURL, errMsg)
 		return errMsg, fmt.Errorf("%s %s: %s, %v", m.Server, m.SrcMatch.String(), m.PingURL, errMsg)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("failed ping status for health %s (%s)", m.PingURL, resp.Status)
 		return errMsg, fmt.Errorf("%s %s: %s, %s", m.Server, m.SrcMatch.String(), m.PingURL, resp.Status)

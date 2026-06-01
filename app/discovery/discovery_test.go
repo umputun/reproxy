@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -338,6 +339,51 @@ func TestService_MatchServerRegex(t *testing.T) {
 			}
 			assert.Equal(t, tt.res.MatchType, res.MatchType)
 		})
+	}
+}
+
+func TestService_MatchConcurrent(t *testing.T) {
+	mockProvider := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "*.example.com", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy},
+				{Server: "(.*)\\.test-domain\\.com", SrcMatch: *regexp.MustCompile("^/(.*)"),
+					Dst: "http://127.0.0.2:8080/$1", MatchType: MTProxy},
+			}, nil
+		},
+	}
+	svc := NewService([]Provider{mockProvider}, time.Millisecond*100)
+	go func() { _ = svc.Run(t.Context()) }()
+
+	// wait until discovery populates mappers instead of relying on a fixed deadline (flaky under slow -race)
+	require.Eventually(t, func() bool {
+		return len(svc.Match("host.example.com", "/some").Routes) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// fire many concurrent Match calls for distinct uncached hostnames, each reaching the lazy
+	// cache write at the wildcard/regex branch; -race flags any unsynchronized map access
+	var wg sync.WaitGroup
+	dests := make([]string, 200)
+	for i := range 200 {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			host := fmt.Sprintf("host%d.example.com", n)
+			routes := svc.Match(host, "/some").Routes
+			if assert.Len(t, routes, 1) {
+				dests[n] = routes[0].Destination
+			}
+		}(i)
+	}
+	wg.Wait()
+	for _, d := range dests {
+		assert.Equal(t, "http://127.0.0.1:8080/some", d)
 	}
 }
 
@@ -714,26 +760,27 @@ func Test_ping(t *testing.T) {
 	}))
 	defer ts2.Close()
 
-	type args struct {
-		m URLMapper
-	}
 	tests := []struct {
 		name    string
-		args    args
-		want    string
+		m       URLMapper
+		wantMsg string
 		wantErr bool
 	}{
-		{name: "test server, expected OK", args: args{m: URLMapper{PingURL: ts.URL}}, want: "", wantErr: false},
-		{name: "random port, expected error", args: args{m: URLMapper{PingURL: fmt.Sprintf("127.0.0.1:%d", port)}}, want: "", wantErr: true},
-		{name: "error code != 200", args: args{m: URLMapper{PingURL: ts2.URL}}, want: "", wantErr: true},
+		{name: "test server, expected OK", m: URLMapper{PingURL: ts.URL}, wantMsg: "", wantErr: false},
+		{name: "transport error, unreachable URL", m: URLMapper{PingURL: fmt.Sprintf("http://127.0.0.1:%d", port)},
+			wantMsg: "failed to ping for health", wantErr: true},
+		{name: "non-200 status code", m: URLMapper{PingURL: ts2.URL}, wantMsg: "failed ping status for health", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.args.m.ping()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ping() error = %v, wantErr %v", err, tt.wantErr)
+			msg, err := tt.m.ping()
+			if !tt.wantErr {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantMsg, msg)
 				return
 			}
+			require.Error(t, err)
+			assert.Contains(t, msg, tt.wantMsg)
 		})
 	}
 }

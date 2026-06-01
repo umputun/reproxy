@@ -572,6 +572,31 @@ func TestDocker_ListPriority(t *testing.T) {
 	assert.Equal(t, discovery.MTStatic, res[1].MatchType)
 }
 
+func TestDocker_events_canceled(t *testing.T) {
+	d := Docker{
+		DockerClient: &DockerClientMock{
+			ListContainersFunc: func() ([]containerInfo, error) {
+				return []containerInfo{{ID: "1", Name: "1", State: "running", IP: "127.0.0.1", Ports: []int{12345}}}, nil
+			},
+		},
+		RefreshInterval: time.Hour,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // canceled before the send, unbuffered channel has no reader
+
+	events := make(chan discovery.ProviderID) // unbuffered, would block forever without ctx guard
+	done := make(chan error, 1)
+	go func() { done <- d.events(ctx, events) }()
+
+	select {
+	case err := <-done:
+		require.Error(t, err) // returns context.Canceled, not blocked on the send
+	case <-time.After(time.Second):
+		t.Fatal("events blocked on send despite canceled context")
+	}
+}
+
 func TestDocker_refresh(t *testing.T) {
 	containers := make(chan []containerInfo)
 
