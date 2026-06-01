@@ -693,6 +693,7 @@ func Test_RunErrorReturnDoesNotDeadlock(t *testing.T) {
 	opts.ErrorReport.Enabled = true
 	opts.ErrorReport.Template = "testdata/does-not-exist.html"
 
+	start := time.Now()
 	errCh := make(chan error, 1)
 	go func() { errCh <- run() }()
 
@@ -703,4 +704,9 @@ func Test_RunErrorReturnDoesNotDeadlock(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("run() did not return on early error path - deadlock waiting for discovery shutdown")
 	}
+
+	// the discovery shutdown wait is bounded at 5s; correct code cancels the ctx before the wait so svc.Run
+	// returns at once and run() returns in well under a second. a regression that ran discovery on
+	// context.Background would never close discoveryDone, forcing the full 5s timeout before run() returns.
+	assert.Less(t, time.Since(start), 3*time.Second, "run() too slow - discovery not canceled before the shutdown wait")
 }

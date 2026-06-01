@@ -86,9 +86,9 @@ func (c *Conductor) Run(ctx context.Context) error {
 	return nil
 }
 
-// Middleware hits all registered, alive-only plugins and modifies the original request accordingly
-// Failed plugin calls ignored. Status code from any plugin may stop the chain of calls if not 200. This is needed
-// to allow plugins like auth which has to terminate request in some cases.
+// Middleware hits all registered, alive-only plugins and modifies the original request accordingly.
+// A plugin call error terminates the chain with HTTP 500. A reply status code >= 400 also stops the
+// chain with that status, to allow plugins like auth which has to terminate the request in some cases.
 func (c *Conductor) Middleware(next http.Handler) http.Handler {
 
 	setHeaders := func(src, alt http.Header, overrideHeaders bool) {
