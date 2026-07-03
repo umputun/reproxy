@@ -168,6 +168,21 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 }
 
+// isDefaultServer reports whether server is the catch-all/default server key ("*" or "")
+func isDefaultServer(server string) bool {
+	return server == "*" || server == ""
+}
+
+// hasConcreteRoute reports whether any route is served by a concrete (non-default) server
+func hasConcreteRoute(routes []MatchedRoute) bool {
+	for _, r := range routes {
+		if !isDefaultServer(r.Mapper.Server) {
+			return true
+		}
+	}
+	return false
+}
+
 // Match url to all mappers. Returns Matches with potentially multiple destinations for MTProxy.
 // For MTStatic always a single match because fail-over doesn't supported for assets
 func (s *Service) Match(srv, src string) (res Matches) {
@@ -181,6 +196,25 @@ func (s *Service) Match(srv, src string) (res Matches) {
 		return dest
 	}
 
+	// if the match returns both default (catch-all) and concrete server routes, drop the default ones as the
+	// concrete server is a better match. if every matched route is on the default server keep them all, multiple
+	// routes for the same source on the catch-all server is a legit load-balancing setup.
+	dropDefaultsIfConcrete := func(routes []MatchedRoute) []MatchedRoute {
+		if len(routes) <= 1 {
+			return routes
+		}
+		concrete := make([]MatchedRoute, 0, len(routes))
+		for _, r := range routes {
+			if !isDefaultServer(r.Mapper.Server) {
+				concrete = append(concrete, r)
+			}
+		}
+		if len(concrete) > 0 && len(concrete) < len(routes) {
+			return concrete
+		}
+		return routes
+	}
+
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
@@ -188,8 +222,10 @@ func (s *Service) Match(srv, src string) (res Matches) {
 	for _, srvName := range []string{srv, "*", ""} {
 		for _, m := range s.findMatchingMappers(srvName) {
 
-			// if the first match found and the next src match is not identical we can stop as src match regexes presorted
+			// if the first match found and the next src match is not identical we can stop as src match regexes presorted.
+			// filter default routes here too, this early return otherwise bypasses the post-loop dedup below
 			if len(res.Routes) > 0 && m.SrcMatch.String() != lastSrcMatch {
+				res.Routes = dropDefaultsIfConcrete(res.Routes)
 				return res
 			}
 
@@ -208,6 +244,13 @@ func (s *Service) Match(srv, src string) (res Matches) {
 					wr += "/"
 				}
 				if src == m.AssetsWebRoot || strings.HasPrefix(src, wr) {
+					// a default-server assets route must not override a concrete server match found in
+					// an earlier bucket; return the concrete match instead of appending the catch-all
+					// assets (this branch returns directly and would otherwise skip the dedup below)
+					if isDefaultServer(m.Server) && hasConcreteRoute(res.Routes) {
+						res.Routes = dropDefaultsIfConcrete(res.Routes)
+						return res
+					}
 					res.MatchType = MTStatic
 					destSfx := ":norm"
 					if m.AssetsSPA {
@@ -221,16 +264,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 		}
 	}
 
-	// if match returns both default and concrete server(s), drop default as we have a better match with concrete
-	if len(res.Routes) > 1 {
-		for i := range res.Routes {
-			if res.Routes[i].Mapper.Server == "*" || res.Routes[i].Mapper.Server == "" {
-				res.Routes = append(res.Routes[:i], res.Routes[i+1:]...)
-				break
-			}
-		}
-	}
-
+	res.Routes = dropDefaultsIfConcrete(res.Routes)
 	return res
 }
 
@@ -256,7 +290,7 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 
 	for mapperServer, mapper := range s.mappers {
 		// * and "" should not be treated as regex and require exact match (above)
-		if mapperServer == "*" || mapperServer == "" {
+		if isDefaultServer(mapperServer) {
 			continue
 		}
 
@@ -325,7 +359,7 @@ func (s *Service) Servers() (servers []string) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	for key, ms := range s.mappers {
-		if key == "*" || key == "" {
+		if isDefaultServer(key) {
 			continue
 		}
 		for _, m := range ms {

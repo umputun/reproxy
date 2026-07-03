@@ -546,6 +546,162 @@ func TestService_Match192(t *testing.T) {
 	}
 }
 
+// multiple routes for the same source on the catch-all server is a load-balancing setup,
+// all of them should be returned when no concrete server matched
+func TestService_MatchCatchAllLoadBalancing(t *testing.T) {
+	p1 := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"),
+					Dst: "http://127.0.0.1:8080/$1", ProviderID: PIFile},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"),
+					Dst: "http://127.0.0.2:8080/$1", ProviderID: PIFile},
+				{Server: "example.com", SrcMatch: *regexp.MustCompile("^/api/(.*)"),
+					Dst: "http://127.0.0.3:8080/$1", ProviderID: PIFile},
+			}, nil
+		},
+	}
+
+	svc := NewService([]Provider{p1}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	err := svc.Run(ctx)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Len(t, svc.Mappers(), 3)
+
+	tbl := []struct {
+		name, server, src string
+		dests             []string
+	}{
+		{"both catch-all routes returned for unknown server", "some.example.ru", "/api/thing",
+			[]string{"http://127.0.0.1:8080/thing", "http://127.0.0.2:8080/thing"}},
+		{"concrete server drops catch-all routes", "example.com", "/api/thing",
+			[]string{"http://127.0.0.3:8080/thing"}},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			res := svc.Match(tt.server, tt.src)
+			require.Len(t, res.Routes, len(tt.dests), res.Routes)
+			dests := make([]string, 0, len(res.Routes))
+			for _, r := range res.Routes {
+				assert.True(t, r.Alive)
+				dests = append(dests, r.Destination)
+			}
+			assert.ElementsMatch(t, tt.dests, dests)
+			assert.Equal(t, MTProxy, res.MatchType)
+		})
+	}
+}
+
+// matchTestService builds a Service populated with the given mappers, ready for Match calls.
+func matchTestService(t *testing.T, mappers []URLMapper) *Service {
+	t.Helper()
+	p := &ProviderMock{
+		EventsFunc: func(_ context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) { return mappers, nil },
+	}
+	svc := NewService([]Provider{p}, 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	t.Cleanup(cancel)
+	require.ErrorIs(t, svc.Run(ctx), context.DeadlineExceeded)
+	return svc
+}
+
+// a concrete server match must drop same-source default routes at every return point of Match:
+// the presorted-src early return (a shorter default src following the matched one), the end-of-loop
+// dedup, and the MTStatic branch's own early return. all-default matches keep every route so
+// catch-all load balancing is preserved.
+func TestService_MatchDefaultConcreteDedup(t *testing.T) {
+	tbl := []struct {
+		name        string
+		mappers     []URLMapper
+		server, src string
+		wantDests   []string
+		wantType    MatchType
+	}{
+		{
+			name: "concrete drops star default via early return",
+			mappers: []URLMapper{
+				{Server: "example.com", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://concrete:8080/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://star:8080/$1"},
+				// shorter default src, sorts after the matched one and triggers the early return
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "http://star-root:8080/$1"},
+			},
+			server: "example.com", src: "/api/thing",
+			wantDests: []string{"http://concrete:8080/thing"}, wantType: MTProxy,
+		},
+		{
+			name: "concrete drops empty-server default via end-of-loop dedup",
+			mappers: []URLMapper{
+				{Server: "example.com", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://concrete:8080/$1"},
+				{Server: "", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://empty:8080/$1"},
+			},
+			server: "example.com", src: "/api/thing",
+			wantDests: []string{"http://concrete:8080/thing"}, wantType: MTProxy,
+		},
+		{
+			name: "multiple concretes survive, defaults dropped",
+			mappers: []URLMapper{
+				{Server: "example.com", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://c1:8080/$1"},
+				{Server: "example.com", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://c2:8080/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://star:8080/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "http://star-root:8080/$1"},
+			},
+			server: "example.com", src: "/api/thing",
+			wantDests: []string{"http://c1:8080/thing", "http://c2:8080/thing"}, wantType: MTProxy,
+		},
+		{
+			name: "all-default load balancing preserved via early return",
+			mappers: []URLMapper{
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://star1:8080/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: "http://star2:8080/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "http://star-root:8080/$1"},
+			},
+			server: "unknown.example.com", src: "/api/thing",
+			wantDests: []string{"http://star1:8080/thing", "http://star2:8080/thing"}, wantType: MTProxy,
+		},
+		{
+			name: "concrete proxy drops catch-all static (MTStatic branch)",
+			mappers: []URLMapper{
+				{Server: "example.com", SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "http://concrete:8080/$1"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: "/var/web",
+					MatchType: MTStatic, AssetsWebRoot: "/", AssetsLocation: "/var/web"},
+			},
+			server: "example.com", src: "/foo",
+			wantDests: []string{"http://concrete:8080/foo"}, wantType: MTProxy,
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			for i := range tt.mappers {
+				tt.mappers[i].ProviderID = PIFile
+			}
+			svc := matchTestService(t, tt.mappers)
+			res := svc.Match(tt.server, tt.src)
+			require.Len(t, res.Routes, len(tt.wantDests), res.Routes)
+			dests := make([]string, 0, len(res.Routes))
+			for _, r := range res.Routes {
+				dests = append(dests, r.Destination)
+			}
+			assert.ElementsMatch(t, tt.wantDests, dests)
+			assert.Equal(t, tt.wantType, res.MatchType)
+		})
+	}
+}
+
 func TestService_Servers(t *testing.T) {
 	p1 := &ProviderMock{
 		EventsFunc: func(ctx context.Context) <-chan ProviderID {
