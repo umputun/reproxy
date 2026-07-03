@@ -150,7 +150,7 @@ var opts struct {
 		Enabled       bool          `long:"enabled" env:"ENABLED" description:"enable file provider"`
 		Name          string        `long:"name" env:"NAME" default:"reproxy.yml" description:"file name"`
 		CheckInterval time.Duration `long:"interval" env:"INTERVAL" default:"3s" description:"file check interval"`
-		Delay         time.Duration `long:"delay" env:"DELAY" default:"500ms" description:"file event delay"`
+		Delay         time.Duration `long:"delay" env:"DELAY" default:"500ms" description:"reload only after the file has been unchanged for this long"`
 	} `group:"file" namespace:"file" env-namespace:"FILE"`
 
 	Static struct {

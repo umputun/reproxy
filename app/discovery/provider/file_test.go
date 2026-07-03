@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 	"os"
-	"sync"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -22,10 +22,13 @@ func TestFile_Events(t *testing.T) {
 	_ = tmp.Close()
 	defer os.Remove(tmp.Name())
 
+	// spacing (300ms) comfortably exceeds the debounce latency (delay 100ms + one poll of 50ms) so
+	// the three spaced writes are delivered as separate events, while the trailing rapid burst
+	// settles on a single modification time and coalesces into one
 	f := File{
 		FileName:      tmp.Name(),
-		CheckInterval: 100 * time.Millisecond,
-		Delay:         200 * time.Millisecond,
+		CheckInterval: 50 * time.Millisecond,
+		Delay:         100 * time.Millisecond,
 	}
 
 	go func() {
@@ -36,7 +39,7 @@ func TestFile_Events(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 
-		// all those event will be ignored, submitted too fast
+		// all those events will be coalesced with the write above, submitted too fast
 		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
 		assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
@@ -54,47 +57,162 @@ func TestFile_Events(t *testing.T) {
 	assert.Equal(t, 4, events)
 }
 
-func TestFile_Events_BusyListener(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+// a change made shortly after the initial event is delivered once the file settles; the old debounce
+// compared the mtime against the previously delivered mtime and could drop such a change entirely
+func TestFile_Events_ChangeWithinDelayDelivered(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	tmp, err := os.CreateTemp(os.TempDir(), "reproxy-events-busy")
-	require.NoError(t, err)
-	_ = tmp.Close()
-	defer os.Remove(tmp.Name())
+	name := filepath.Join(t.TempDir(), "within-delay.yml")
+	require.NoError(t, os.WriteFile(name, []byte("init"), 0o600))
 
 	f := File{
-		FileName:      tmp.Name(),
-		CheckInterval: 10 * time.Millisecond,
-		Delay:         20 * time.Millisecond,
+		FileName:      name,
+		CheckInterval: 50 * time.Millisecond,
+		Delay:         500 * time.Millisecond,
 	}
-
-	var wg sync.WaitGroup
-	wg.Go(func() {
-		for range 2 {
-			time.Sleep(30 * time.Millisecond)
-			assert.NoError(t, os.WriteFile(tmp.Name(), []byte("something"), 0o600))
-		}
-	})
 
 	ch := f.Events(ctx)
-	// exhaust creation and one write event
-	for range 2 {
-		t.Log("event")
-		<-ch
+
+	// wait for the initial event triggered by the existing file
+	select {
+	case <-ch:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the initial event")
 	}
 
-	// wait until last write definitely has happened
-	wg.Wait()
-	// stay busy for CheckInterval before accepting from channel
-	time.Sleep(10 * time.Millisecond)
+	// single write right after the initial event, within the delay window of the recorded modtime
+	require.NoError(t, os.WriteFile(name, []byte("something"), 0o600))
 
-	events := 0
-	for range ch {
-		t.Log("event")
-		events++
+	select {
+	case <-ch:
+	case <-ctx.Done():
+		t.Fatal("change made within the delay window was never delivered")
 	}
-	assert.Equal(t, 1, events)
+}
+
+// a missing configuration file logs a warning at startup and emits nothing while absent; the polling
+// loop keeps running through the stat errors and delivers an event once the file appears
+func TestFile_Events_MissingThenCreated(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	name := filepath.Join(t.TempDir(), "appears-later.yml")
+	f := File{
+		FileName:      name,
+		CheckInterval: 20 * time.Millisecond,
+		Delay:         40 * time.Millisecond,
+	}
+
+	ch := f.Events(ctx)
+
+	// while the file is absent no event is delivered, though the loop keeps polling (stat errors skipped)
+	select {
+	case _, ok := <-ch:
+		t.Fatalf("unexpected event/close while file absent (ok=%v)", ok)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	// the file appears after several failed polls; the loop must survive the stat errors and deliver it
+	require.NoError(t, os.WriteFile(name, []byte("something"), 0o600))
+
+	select {
+	case _, ok := <-ch:
+		require.True(t, ok, "channel closed instead of delivering the newly created file")
+	case <-ctx.Done():
+		t.Fatal("event for a file created mid-run was never delivered")
+	}
+}
+
+// drainOneEvent reads a single event from ch, failing if none arrives within timeout.
+func drainOneEvent(t *testing.T, ch <-chan discovery.ProviderID, timeout time.Duration) {
+	t.Helper()
+	select {
+	case _, ok := <-ch:
+		require.True(t, ok, "channel closed instead of delivering an event")
+	case <-time.After(timeout):
+		t.Fatal("expected an event, got none")
+	}
+}
+
+// assertDebouncedSingleEvent asserts, with a receiver already waiting, that no event arrives within
+// hold (proving delivery is actually debounced and not immediate), then exactly one event within
+// timeout, then no further event during quiet (a closed channel from ctx cancellation is not a second
+// event). hold must be shorter than the provider's delay.
+func assertDebouncedSingleEvent(t *testing.T, ch <-chan discovery.ProviderID, hold, timeout, quiet time.Duration) {
+	t.Helper()
+	select {
+	case <-ch:
+		t.Fatalf("event delivered before the debounce delay elapsed (within %v)", hold)
+	case <-time.After(hold):
+	}
+	select {
+	case _, ok := <-ch:
+		require.True(t, ok, "channel closed instead of delivering an event")
+	case <-time.After(timeout):
+		t.Fatal("expected a coalesced event after the file stabilized, got none")
+	}
+	select {
+	case _, ok := <-ch:
+		require.False(t, ok, "expected the writes to coalesce into a single event, got a second")
+	case <-time.After(quiet):
+	}
+}
+
+// rapid consecutive writes must be held for the delay and coalesce into a single delivered event,
+// not delivered per write
+func TestFile_Events_RapidWritesCoalesce(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	name := filepath.Join(t.TempDir(), "burst.yml")
+	require.NoError(t, os.WriteFile(name, []byte("init"), 0o600))
+	f := File{
+		FileName:      name,
+		CheckInterval: 20 * time.Millisecond,
+		Delay:         300 * time.Millisecond,
+	}
+
+	ch := f.Events(ctx)
+	drainOneEvent(t, ch, time.Second) // initial event from the existing file
+
+	// a burst of writes well within the delay window
+	for range 5 {
+		require.NoError(t, os.WriteFile(name, []byte("something"), 0o600))
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// nothing delivered for 150ms (< delay) after the burst, then exactly one coalesced event
+	assertDebouncedSingleEvent(t, ch, 150*time.Millisecond, time.Second, 400*time.Millisecond)
+}
+
+// future-dated modification times (clock skew or a timestamp-preserving restore) are debounced on the
+// host clock like any other change rather than delivered immediately: two future writes within the
+// delay window are held and coalesce into one event, and delivery is not stalled waiting for the wall
+// clock to reach the file's timestamp
+func TestFile_Events_FutureModTimeCoalesces(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	name := filepath.Join(t.TempDir(), "future.yml")
+	require.NoError(t, os.WriteFile(name, []byte("init"), 0o600))
+	f := File{
+		FileName:      name,
+		CheckInterval: 20 * time.Millisecond,
+		Delay:         300 * time.Millisecond,
+	}
+
+	ch := f.Events(ctx)
+	drainOneEvent(t, ch, time.Second) // initial event from the existing file
+
+	// two future-dated stamps within the delay window, far beyond any plausible clock skew
+	require.NoError(t, os.Chtimes(name, time.Now().Add(time.Hour), time.Now().Add(time.Hour)))
+	time.Sleep(40 * time.Millisecond)
+	require.NoError(t, os.Chtimes(name, time.Now().Add(2*time.Hour), time.Now().Add(2*time.Hour)))
+
+	// the old wall-clock-age debounce delivered future mtimes immediately; assert it is held for
+	// 150ms (< delay) with a receiver waiting, then delivered once
+	assertDebouncedSingleEvent(t, ch, 150*time.Millisecond, time.Second, 400*time.Millisecond)
 }
 
 func TestFile_List(t *testing.T) {
