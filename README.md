@@ -576,7 +576,7 @@ file:
       --file.enabled                enable file provider [$FILE_ENABLED]
       --file.name=                  file name (default: reproxy.yml) [$FILE_NAME]
       --file.interval=              file check interval (default: 3s) [$FILE_INTERVAL]
-      --file.delay=                 file event delay (default: 500ms) [$FILE_DELAY]
+      --file.delay=                 reload only after the file has been unchanged for this long (default: 500ms) [$FILE_DELAY]
 
 static:
       --static.enabled              enable static provider [$STATIC_ENABLED]

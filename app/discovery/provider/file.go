@@ -46,7 +46,9 @@ func (d *File) Events(ctx context.Context) <-chan discovery.ProviderID {
 
 	go func() {
 		tk := time.NewTicker(d.CheckInterval)
-		lastModif := time.Time{}
+		lastModif := time.Time{}   // last modification time delivered downstream
+		var pendingModif time.Time // newest observed but not-yet-delivered modification time
+		var pendingSince time.Time // host-clock time pendingModif was first observed
 		for {
 			select {
 			case <-tk.C:
@@ -54,16 +56,27 @@ func (d *File) Events(ctx context.Context) <-chan discovery.ProviderID {
 				if err != nil {
 					continue
 				}
-				if fi.ModTime() != lastModif {
-					// don't react on modification right away
-					if fi.ModTime().Sub(lastModif) < d.Delay {
-						continue
-					}
-					log.Printf("[DEBUG] file %s changed, %s -> %s", d.FileName,
-						lastModif.Format(time.RFC3339Nano), fi.ModTime().Format(time.RFC3339Nano))
-					if trySubmit(res) {
-						lastModif = fi.ModTime()
-					}
+				modif := fi.ModTime()
+				if modif.Equal(lastModif) {
+					continue // already delivered this modification
+				}
+				// debounce on the host clock measured from when a new modification time is first
+				// observed, not from the file mtime's age. a change is delivered once its mtime has
+				// held steady for the delay period; a newly observed mtime restarts the timer. this
+				// coalesces rapid writes and uses a single clock throughout, so it is immune to
+				// filesystem/host clock skew (future- or past-dated mtimes neither stall nor bypass).
+				if !modif.Equal(pendingModif) {
+					pendingModif = modif
+					pendingSince = time.Now()
+					continue
+				}
+				if time.Since(pendingSince) < d.Delay {
+					continue
+				}
+				log.Printf("[DEBUG] file %s changed, %s -> %s", d.FileName,
+					lastModif.Format(time.RFC3339Nano), modif.Format(time.RFC3339Nano))
+				if trySubmit(res) {
+					lastModif = modif
 				}
 			case <-ctx.Done():
 				close(res)
