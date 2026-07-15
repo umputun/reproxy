@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -33,7 +33,7 @@ func setupLogger() {
 func Test_Main(t *testing.T) {
 	setupLogger()
 
-	port := 40000 + int(rand.Int31n(10000))
+	port, releasePort := getFreePort(t)
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
@@ -50,6 +50,7 @@ func Test_Main(t *testing.T) {
 		assert.NoError(t, e)
 	}()
 
+	releasePort()
 	finished := make(chan struct{})
 	go func() {
 		main()
@@ -108,8 +109,8 @@ func Test_Main(t *testing.T) {
 func Test_MainWithSSL(t *testing.T) {
 	setupLogger()
 
-	port := 40000 + int(rand.Int31n(10000))
-	httpPort := 50000 + int(rand.Int31n(10000)) // use a high port for HTTP redirect
+	port, releasePort := getFreePort(t)
+	httpPort, releaseHTTPPort := getFreePort(t)
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
@@ -126,6 +127,8 @@ func Test_MainWithSSL(t *testing.T) {
 		assert.NoError(t, e)
 	}()
 
+	releasePort()
+	releaseHTTPPort()
 	finished := make(chan struct{})
 	go func() {
 		main()
@@ -170,8 +173,8 @@ func Test_MainWithSSL(t *testing.T) {
 func Test_MainWithPlugin(t *testing.T) {
 	setupLogger()
 
-	proxyPort := rand.Intn(10000) + 40000
-	conductorPort := rand.Intn(10000) + 40000
+	proxyPort, releaseProxyPort := getFreePort(t)
+	conductorPort, releaseConductorPort := getFreePort(t)
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
@@ -189,6 +192,8 @@ func Test_MainWithPlugin(t *testing.T) {
 		assert.NoError(t, e)
 	}()
 
+	releaseProxyPort()
+	releaseConductorPort()
 	finished := make(chan struct{})
 	go func() {
 		main()
@@ -202,8 +207,9 @@ func Test_MainWithPlugin(t *testing.T) {
 
 	waitForHTTPServerStart(proxyPort)
 
-	pluginPort := rand.Intn(10000) + 40000
+	pluginPort, releasePluginPort := getFreePort(t)
 	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"}}
+	releasePluginPort()
 	go func() {
 		if err := plugin.Do(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", conductorPort), &TestPlugin{}); err != nil {
 			assert.NotEqual(t, "proxy server closed, http: Server closed", err.Error())
@@ -340,6 +346,20 @@ func waitForHTTPServerStart(port int) {
 			return
 		}
 	}
+}
+
+// getFreePort reserves an available tcp port on 127.0.0.1 and keeps the listener
+// open so no other listener created during test setup (e.g. httptest.NewServer)
+// cannot grab the same port. call the returned release func immediately before
+// starting the server on the port; the listener is also closed on test cleanup.
+func getFreePort(t *testing.T) (port int, release func()) {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port = l.Addr().(*net.TCPAddr).Port
+	release = func() { _ = l.Close() }
+	t.Cleanup(release)
+	return port, release
 }
 
 type TestPlugin struct{}

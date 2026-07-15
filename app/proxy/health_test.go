@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -63,7 +62,7 @@ func Test_healthHandlerDeadlock(t *testing.T) {
 }
 
 func TestHttp_healthHandler(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port)}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -103,6 +102,7 @@ func TestHttp_healthHandler(t *testing.T) {
 
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -136,7 +136,7 @@ func TestHttp_healthHandler(t *testing.T) {
 }
 
 func TestHttp_pingHandler(t *testing.T) {
-	port := rand.Intn(10000) + 40000
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port)}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -154,6 +154,7 @@ func TestHttp_pingHandler(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -179,10 +180,7 @@ func TestHttp_pingForwardHealthChecks(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	port, releasePort := getFreePort(t)
 
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port)}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -203,6 +201,7 @@ func TestHttp_pingForwardHealthChecks(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()

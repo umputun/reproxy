@@ -28,7 +28,7 @@ import (
 )
 
 func TestHttp_Do(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}}
@@ -62,6 +62,7 @@ func TestHttp_Do(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -137,7 +138,7 @@ func TestHttp_Do(t *testing.T) {
 }
 
 func TestHttp_DoWithSSL(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("localhost:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter:  &ErrorReporter{Nice: true},
@@ -171,6 +172,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -251,7 +253,7 @@ func TestHttp_DoWithSSL(t *testing.T) {
 }
 
 func TestHttp_DoWithAssets(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", CacheControl: cc, Reporter: &ErrorReporter{Nice: false}}
@@ -280,6 +282,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -341,7 +344,7 @@ func TestHttp_DoWithAssets(t *testing.T) {
 }
 
 func TestHttp_DoWithAssetsCustom404(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", Assets404: "404.html",
@@ -371,6 +374,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -435,7 +439,7 @@ func TestHttp_DoWithAssetsCustom404(t *testing.T) {
 }
 
 func TestHttp_DoWithSpaAssets(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", AssetsSPA: true,
@@ -465,6 +469,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -540,7 +545,7 @@ func TestHttp_DoWithSpaAssets(t *testing.T) {
 }
 
 func TestHttp_DoWithAssetRules(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, CacheControl: cc, Reporter: &ErrorReporter{}}
@@ -572,6 +577,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -634,7 +640,7 @@ func TestHttp_DoWithAssetRules(t *testing.T) {
 }
 
 func TestHttp_DoWithRedirects(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	cc := NewCacheControl(time.Hour * 12)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, CacheControl: cc, Reporter: &ErrorReporter{}}
@@ -655,6 +661,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 	h.Matcher = svc
 	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -691,7 +698,7 @@ func TestHttp_DoWithRedirects(t *testing.T) {
 }
 
 func TestHttp_DoLimitedReq(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}, MaxBodySize: 10}
@@ -720,6 +727,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -756,7 +764,7 @@ func TestHttp_DoLimitedReq(t *testing.T) {
 }
 
 func TestHttp_health(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}}
@@ -786,6 +794,7 @@ func TestHttp_health(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -823,7 +832,7 @@ func TestHttp_health(t *testing.T) {
 }
 
 func TestHttp_withBasicAuth(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Signature: true, ProxyHeaders: []string{"hh1:vv1", "hh2:vv2"}, StdOutEnabled: true,
 		Reporter: &ErrorReporter{Nice: true}, BasicAuthEnabled: true, BasicAuthAllowed: []string{
@@ -856,6 +865,7 @@ func TestHttp_withBasicAuth(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -1068,7 +1078,7 @@ func TestHttp_discoveredServers(t *testing.T) {
 }
 
 func TestHttp_UpstreamConfig(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "response %s", r.URL.String())
@@ -1101,6 +1111,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		releasePort()
 		go func() {
 			_ = h.Run(ctx)
 		}()
@@ -1117,7 +1128,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 	})
 
 	t.Run("with custom upstream values", func(t *testing.T) {
-		port2 := getFreePort(t)
+		port2, releasePort2 := getFreePort(t)
 		h := Http{
 			Timeouts:                Timeouts{ResponseHeader: 200 * time.Millisecond},
 			Address:                 fmt.Sprintf("127.0.0.1:%d", port2),
@@ -1132,6 +1143,7 @@ func TestHttp_UpstreamConfig(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		releasePort2()
 		go func() {
 			_ = h.Run(ctx)
 		}()
@@ -1161,19 +1173,24 @@ func waitForServer(t *testing.T, addr string) {
 	}, 5*time.Second, 50*time.Millisecond, "server at %s did not become ready", addr)
 }
 
-// getFreePort returns a free TCP port allocated by the OS
-func getFreePort(t *testing.T) int {
+// getFreePort reserves an available tcp port on 127.0.0.1 and keeps the listener
+// open so no other listener created during test setup (e.g. httptest.NewServer)
+// cannot grab the same port. call the returned release func immediately before
+// binding a server to the port; the listener is also closed on test cleanup.
+func getFreePort(t *testing.T) (port int, release func()) {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	port = l.Addr().(*net.TCPAddr).Port
+	release = func() { _ = l.Close() }
+	t.Cleanup(release)
+	return port, release
 }
 
 // TestHttp_withPerRouteAuth_DefaultInit tests per-route auth works correctly.
 // the test verifies that per-route auth works correctly with the default setup.
 func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
 
 	h := Http{
@@ -1210,6 +1227,7 @@ func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
 
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -1237,7 +1255,7 @@ func TestHttp_withPerRouteAuth_DefaultInit(t *testing.T) {
 }
 
 func TestHttp_withPerRouteAuth(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
 
 	h := Http{
@@ -1282,6 +1300,7 @@ func TestHttp_withPerRouteAuth(t *testing.T) {
 
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -1330,7 +1349,7 @@ func TestHttp_withPerRouteAuth(t *testing.T) {
 }
 
 func TestHttp_withGlobalAndPerRouteAuth(t *testing.T) {
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	globalHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
 	routeHash := "$2y$05$TLQqHh6VT4JxysdKGPOlJeSkkMsv.Ku/G45i7ssIm80XuouCrES12"  // passwd2
 
@@ -1377,6 +1396,7 @@ func TestHttp_withGlobalAndPerRouteAuth(t *testing.T) {
 
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() {
 		_ = h.Run(ctx)
 	}()
@@ -1477,7 +1497,7 @@ func TestHttp_PerRouteTimeoutAndThrottle(t *testing.T) {
 	cfgPath := filepath.Join(t.TempDir(), "per_route.yml")
 	require.NoError(t, os.WriteFile(cfgPath, []byte(yaml), 0o600))
 
-	port := getFreePort(t)
+	port, releasePort := getFreePort(t)
 	h := Http{
 		Timeouts:  Timeouts{ResponseHeader: 2 * time.Second, Write: 5 * time.Second, ReadHeader: 5 * time.Second},
 		Address:   fmt.Sprintf("127.0.0.1:%d", port),
@@ -1496,6 +1516,7 @@ func TestHttp_PerRouteTimeoutAndThrottle(t *testing.T) {
 
 	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
 
+	releasePort()
 	go func() { _ = h.Run(ctx) }()
 	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
 
