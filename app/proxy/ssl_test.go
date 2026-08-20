@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caddyserver/certmagic"
 	log "github.com/go-pkgz/lgr"
 	"github.com/libdns/libdns"
 	"github.com/miekg/dns"
@@ -333,6 +334,21 @@ func TestSSL_ACME_DNSChallenge(t *testing.T) {
 		require.NoError(t, result.err)
 		assert.NotNil(t, result.cert)
 	}
+}
+
+func TestSSL_DNSPropagationTimeout(t *testing.T) {
+	p := Http{
+		SSLConfig: SSLConfig{
+			DNSProvider:           &dnsProviderMock{},
+			DNSPropagationTimeout: 5 * time.Minute,
+		},
+	}
+
+	m, ok := p.makeAutocertManager().(*cmmanager)
+	require.True(t, ok)
+	solver, ok := m.acme.DNS01Solver.(*certmagic.DNS01Solver)
+	require.True(t, ok)
+	assert.Equal(t, 5*time.Minute, solver.PropagationTimeout)
 }
 
 func TestSSL_DynamicFQDNs(t *testing.T) {

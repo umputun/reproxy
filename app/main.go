@@ -62,9 +62,10 @@ var opts struct {
 		NoHTTPRedirect bool     `long:"no-redirect" env:"NO_REDIRECT" description:"disable http to https redirect"`
 		FQDNs          []string `long:"fqdn" env:"ACME_FQDN" env-delim:"," description:"FQDN(s) for ACME certificates"`
 		DNS            struct {
-			Type       string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" choice:"digitalocean" choice:"hetzner" choice:"linode" choice:"godaddy" choice:"namecheap" choice:"scaleway" choice:"porkbun" choice:"dnsimple" choice:"duckdns" default:"none"` // nolint
-			TTL        time.Duration `long:"ttl" env:"TTL" default:"2m" description:"DNS record TTL"`
-			Cloudflare struct {
+			Type               string        `long:"type" env:"TYPE" description:"DNS provider type" choice:"none" choice:"cloudflare" choice:"route53" choice:"gandi" choice:"digitalocean" choice:"hetzner" choice:"linode" choice:"godaddy" choice:"namecheap" choice:"scaleway" choice:"porkbun" choice:"dnsimple" choice:"duckdns" default:"none"` // nolint
+			TTL                time.Duration `long:"ttl" env:"TTL" default:"2m" description:"DNS record TTL"`
+			PropagationTimeout time.Duration `long:"propagation-timeout" env:"PROPAGATION_TIMEOUT" default:"2m" description:"DNS propagation timeout"`
+			Cloudflare         struct {
 				APIToken string `long:"api-token" env:"API_TOKEN" description:"cloudflare api token"`
 			} `group:"cloudflare" namespace:"cloudflare" env-namespace:"CLOUDFLARE"`
 			Route53 struct {
@@ -519,6 +520,7 @@ func makeSSLConfig() (config proxy.SSLConfig, err error) {
 		config.RedirHTTPPort = redirHTTPPort(opts.SSL.RedirHTTPPort)
 		config.NoHTTPRedirect = opts.SSL.NoHTTPRedirect
 		config.TTL = opts.SSL.DNS.TTL
+		config.DNSPropagationTimeout = opts.SSL.DNS.PropagationTimeout
 		switch opts.SSL.DNS.Type {
 		case "cloudflare":
 			config.DNSProvider = &cloudflare.Provider{APIToken: opts.SSL.DNS.Cloudflare.APIToken}
