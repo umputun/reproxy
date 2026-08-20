@@ -5,12 +5,31 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 jobs:
+  test:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/test.yml
+
+  docker:
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      source_sha: ${{ github.sha }}
+      image_tag: ${{ github.ref_name }}
+      update_latest: true
+    secrets:
+      PKG_TOKEN: ${{ secrets.PKG_TOKEN }}
+      DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+
   goreleaser:
+    needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: check out code
         uses: actions/checkout@v6

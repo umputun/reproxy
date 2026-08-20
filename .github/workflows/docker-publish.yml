@@ -1,0 +1,194 @@
+name: publish docker images
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: commit to build
+        required: true
+        type: string
+      image_tag:
+        description: image tag to publish
+        required: true
+        type: string
+      update_latest:
+        description: move the latest tag to this image
+        required: true
+        type: boolean
+    secrets:
+      PKG_TOKEN:
+        required: true
+      DOCKER_HUB_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY_GHCR: ghcr.io
+  REGISTRY_DOCKER: docker.io
+  IMAGE_NAME: ${{ github.repository_owner }}/reproxy
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            artifact: linux-amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            artifact: linux-arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+
+      - name: set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: login to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.PKG_TOKEN }}
+
+      - name: login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: build and push to ghcr.io
+        id: build-ghcr
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            CI=github
+            GITHUB_SHA=${{ inputs.source_sha }}
+            GIT_BRANCH=${{ inputs.image_tag }}
+          outputs: type=image,name=${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: build and push to Docker Hub
+        id: build-dockerhub
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            CI=github
+            GITHUB_SHA=${{ inputs.source_sha }}
+            GIT_BRANCH=${{ inputs.image_tag }}
+          outputs: type=image,name=${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: export digests
+        run: |
+          mkdir -p /tmp/digests/ghcr /tmp/digests/dockerhub
+          digest_ghcr="${{ steps.build-ghcr.outputs.digest }}"
+          digest_dockerhub="${{ steps.build-dockerhub.outputs.digest }}"
+          touch "/tmp/digests/ghcr/${digest_ghcr#sha256:}"
+          touch "/tmp/digests/dockerhub/${digest_dockerhub#sha256:}"
+
+      - name: upload ghcr digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-ghcr-${{ matrix.artifact }}
+          path: /tmp/digests/ghcr/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: upload dockerhub digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-dockerhub-${{ matrix.artifact }}
+          path: /tmp/digests/dockerhub/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: download ghcr digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests/ghcr
+          pattern: digests-ghcr-*
+          merge-multiple: true
+
+      - name: download dockerhub digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests/dockerhub
+          pattern: digests-dockerhub-*
+          merge-multiple: true
+
+      - name: verify all digests present
+        run: |
+          expected=2
+          actual_ghcr=$(ls /tmp/digests/ghcr | wc -l)
+          actual_dockerhub=$(ls /tmp/digests/dockerhub | wc -l)
+          if [ "$actual_ghcr" -ne "$expected" ]; then
+            echo "Expected $expected ghcr digests, found $actual_ghcr"
+            ls -la /tmp/digests/ghcr
+            exit 1
+          fi
+          if [ "$actual_dockerhub" -ne "$expected" ]; then
+            echo "Expected $expected dockerhub digests, found $actual_dockerhub"
+            ls -la /tmp/digests/dockerhub
+            exit 1
+          fi
+          echo "All $expected digests present for both registries"
+
+      - name: set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: login to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.PKG_TOKEN }}
+
+      - name: login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: create manifest and push to ghcr.io
+        working-directory: /tmp/digests/ghcr
+        env:
+          TAG: ${{ inputs.image_tag }}
+          IS_LATEST: ${{ inputs.update_latest }}
+        run: |
+          tags="-t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${TAG}"
+          if [ "${IS_LATEST}" == "true" ]; then
+            tags="$tags -t ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:latest"
+          fi
+          docker buildx imagetools create $tags \
+            $(printf '${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: create manifest and push to Docker Hub
+        working-directory: /tmp/digests/dockerhub
+        env:
+          TAG: ${{ inputs.image_tag }}
+          IS_LATEST: ${{ inputs.update_latest }}
+        run: |
+          tags="-t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:${TAG}"
+          if [ "${IS_LATEST}" == "true" ]; then
+            tags="$tags -t ${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}:latest"
+          fi
+          docker buildx imagetools create $tags \
+            $(printf '${{ env.REGISTRY_DOCKER }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
