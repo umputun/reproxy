@@ -359,7 +359,9 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0] // drop port
 		}
-		matches := h.Match(server, r.URL.EscapedPath()) // get all matches for the server:path pair
+		// normalize from decoded Path so alternate encodings cannot bypass route auth or IP policies
+		canonicalPath := (&url.URL{Path: r.URL.Path}).EscapedPath()
+		matches := h.Match(server, canonicalPath) // get all matches for the server:path pair
 		match, ok := getMatch(matches, h.LBSelector)
 		if !ok {
 			next.ServeHTTP(w, r)
