@@ -225,6 +225,8 @@ Reproxy automatically determines which challenge method to use based on your con
 
 You don't need to explicitly select a challenge type - just configure a DNS provider if you want to use DNS-01 challenges.
 
+DNS propagation checks time out after 2 minutes by default. Increase this with `--ssl.dns.propagation-timeout=5m` for zones that publish challenge records slowly. The `--ssl.dns.ttl` option controls the record TTL and does not change the propagation timeout.
+
 #### Currently Supported DNS Providers
 
 Reproxy currently includes support for the following DNS providers:

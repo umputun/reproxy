@@ -493,10 +493,12 @@ func Test_makeSSLConfig(t *testing.T) {
 	t.Run("ssl type auto with cloudflare dns", func(t *testing.T) {
 		opts.SSL.Type = "auto"
 		opts.SSL.DNS.Type = "cloudflare"
+		opts.SSL.DNS.PropagationTimeout = 5 * time.Minute
 		opts.SSL.DNS.Cloudflare.APIToken = "test-token"
 		cfg, err := makeSSLConfig()
 		require.NoError(t, err)
 		assert.NotNil(t, cfg.DNSProvider)
+		assert.Equal(t, 5*time.Minute, cfg.DNSPropagationTimeout)
 	})
 
 	t.Run("ssl type auto with route53 dns", func(t *testing.T) {

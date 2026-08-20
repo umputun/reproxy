@@ -39,12 +39,13 @@ type SSLConfig struct {
 	RedirHTTPPort  int
 	NoHTTPRedirect bool // disable http to https redirect server
 
-	ACMEDirectory string                // URL of the ACME directory to use
-	ACMELocation  string                // directory where the obtained certificates are stored
-	ACMEEmail     string                // email address to use for the ACME account
-	FQDNs         []string              // list of fully qualified domain names to manage certificates for
-	DNSProvider   certmagic.DNSProvider // provider to use for DNS-01 challenges
-	TTL           time.Duration         // TTL to use when setting DNS records for DNS-01 challenges
+	ACMEDirectory         string                // URL of the ACME directory to use
+	ACMELocation          string                // directory where the obtained certificates are stored
+	ACMEEmail             string                // email address to use for the ACME account
+	FQDNs                 []string              // list of fully qualified domain names to manage certificates for
+	DNSProvider           certmagic.DNSProvider // provider to use for DNS-01 challenges
+	TTL                   time.Duration         // TTL to use when setting DNS records for DNS-01 challenges
+	DNSPropagationTimeout time.Duration         // maximum time to wait for DNS-01 challenge records to propagate
 }
 
 // httpToHTTPSRouter creates new router which does redirect from http to https server
@@ -177,10 +178,11 @@ func (h *Http) makeAutocertManager() AutocertManager {
 	if h.SSLConfig.DNSProvider != nil {
 		acme.DNS01Solver = &certmagic.DNS01Solver{
 			DNSManager: certmagic.DNSManager{
-				DNSProvider: h.SSLConfig.DNSProvider,
-				TTL:         h.SSLConfig.TTL,
-				Logger:      logger,
-				Resolvers:   h.dnsResolvers,
+				DNSProvider:        h.SSLConfig.DNSProvider,
+				TTL:                h.SSLConfig.TTL,
+				PropagationTimeout: h.SSLConfig.DNSPropagationTimeout,
+				Logger:             logger,
+				Resolvers:          h.dnsResolvers,
 			},
 		}
 	}
