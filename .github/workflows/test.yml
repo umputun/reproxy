@@ -49,12 +49,12 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: "latest"
+          version: "v2.12.2"
 
       - name: golangci-lint on example directory
         uses: golangci/golangci-lint-action@v9
         with:
-          version: "latest"
+          version: "v2.12.2"
           args: --config ../../.golangci.yml
           working-directory: examples/plugin
 
