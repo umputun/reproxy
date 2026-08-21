@@ -5,6 +5,7 @@
 package discovery
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"net/http"
@@ -21,14 +22,23 @@ import (
 
 // Service implements discovery with multiple providers and url matcher
 type Service struct {
-	providers    []Provider
-	mappers      map[string][]URLMapper
-	mappersCache map[string][]URLMapper
-	lock         sync.RWMutex
+	providers     []Provider
+	mappers       map[string][]URLMapper
+	mappersCache  map[string]*list.Element
+	cacheOrder    *list.List
+	serverRegexps map[string]*regexp.Regexp
+	lock          sync.RWMutex
 	// cacheLock guards mappersCache on the lazy read/write path in findMatchingMappers, which runs under
 	// lock.RLock; the wholesale cache reset in Run runs under the exclusive lock.Lock and so needs no cacheLock
 	cacheLock sync.RWMutex
 	interval  time.Duration
+}
+
+const mappersCacheCapacity = 1024
+
+type mapperCacheEntry struct {
+	server  string
+	mappers []URLMapper
 }
 
 // URLMapper contains all info about source and destination routes
@@ -159,9 +169,22 @@ func (s *Service) Run(ctx context.Context) error {
 			}
 			s.lock.Lock()
 			s.mappers = make(map[string][]URLMapper)
-			s.mappersCache = make(map[string][]URLMapper)
+			s.mappersCache = make(map[string]*list.Element)
+			s.cacheOrder = list.New()
+			s.serverRegexps = make(map[string]*regexp.Regexp)
 			for _, m := range lst {
 				s.mappers[m.Server] = append(s.mappers[m.Server], m)
+			}
+			for server := range s.mappers {
+				if isDefaultServer(server) || strings.HasPrefix(server, "*.") {
+					continue
+				}
+				re, err := regexp.Compile(server)
+				if err != nil {
+					log.Printf("[WARN] invalid regexp %s: %s", server, err)
+					continue
+				}
+				s.serverRegexps[server] = re
 			}
 			s.lock.Unlock()
 		}
@@ -281,9 +304,7 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 	// order is nondeterministic, so if the host matches 2+ server patterns the resolvers may select different
 	// mapper slices and the cached value is last-writer-wins. this is consistent with the pre-existing
 	// nondeterministic match-selection order, not a new defect
-	s.cacheLock.RLock()
-	cachedMapper, isCached := s.mappersCache[srvName]
-	s.cacheLock.RUnlock()
+	cachedMapper, isCached := s.cachedMappers(srvName)
 	if isCached {
 		return cachedMapper
 	}
@@ -298,29 +319,57 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 		if strings.HasPrefix(mapperServer, "*.") {
 			domainPattern := mapperServer[1:] // strip the '*'
 			if strings.HasSuffix(srvName, domainPattern) {
-				s.cacheLock.Lock()
-				s.mappersCache[srvName] = mapper
-				s.cacheLock.Unlock()
+				s.cacheMappers(srvName, mapper)
 				return mapper
 			}
 			continue
 		}
 
-		re, err := regexp.Compile(mapperServer)
-		if err != nil {
-			log.Printf("[WARN] invalid regexp %s: %s", mapperServer, err)
+		re, ok := s.serverRegexps[mapperServer]
+		if !ok {
 			continue
 		}
 
 		if re.MatchString(srvName) {
-			s.cacheLock.Lock()
-			s.mappersCache[srvName] = mapper
-			s.cacheLock.Unlock()
+			s.cacheMappers(srvName, mapper)
 			return mapper
 		}
 	}
 
 	return nil
+}
+
+func (s *Service) cachedMappers(server string) ([]URLMapper, bool) {
+	s.cacheLock.Lock()
+	defer s.cacheLock.Unlock()
+
+	elem, ok := s.mappersCache[server]
+	if !ok {
+		return nil, false
+	}
+	s.cacheOrder.MoveToFront(elem)
+	return elem.Value.(mapperCacheEntry).mappers, true
+}
+
+func (s *Service) cacheMappers(server string, mappers []URLMapper) {
+	s.cacheLock.Lock()
+	defer s.cacheLock.Unlock()
+
+	if elem, ok := s.mappersCache[server]; ok {
+		entry := elem.Value.(mapperCacheEntry)
+		entry.mappers = mappers
+		elem.Value = entry
+		s.cacheOrder.MoveToFront(elem)
+		return
+	}
+	elem := s.cacheOrder.PushFront(mapperCacheEntry{server: server, mappers: mappers})
+	s.mappersCache[server] = elem
+	if s.cacheOrder.Len() <= mappersCacheCapacity {
+		return
+	}
+	oldest := s.cacheOrder.Back()
+	delete(s.mappersCache, oldest.Value.(mapperCacheEntry).server)
+	s.cacheOrder.Remove(oldest)
 }
 
 // ScheduleHealthCheck starts background loop with health-check

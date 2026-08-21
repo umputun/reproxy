@@ -387,6 +387,41 @@ func TestService_MatchConcurrent(t *testing.T) {
 	}
 }
 
+func TestService_MappersCacheBoundedLRU(t *testing.T) {
+	svc := matchTestService(t, []URLMapper{{
+		Server: "*.example.com", SrcMatch: *regexp.MustCompile("^/(.*)"),
+		Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy,
+	}})
+
+	for i := range mappersCacheCapacity {
+		host := fmt.Sprintf("host-%d.example.com", i)
+		require.Len(t, svc.Match(host, "/some").Routes, 1)
+	}
+
+	require.Len(t, svc.Match("host-0.example.com", "/some").Routes, 1)
+	require.Len(t, svc.Match("overflow.example.com", "/some").Routes, 1)
+
+	svc.cacheLock.RLock()
+	defer svc.cacheLock.RUnlock()
+	assert.Len(t, svc.mappersCache, mappersCacheCapacity)
+	assert.Contains(t, svc.mappersCache, "host-0.example.com")
+	assert.NotContains(t, svc.mappersCache, "host-1.example.com")
+}
+
+func TestService_ServerRegexCompiledAtInstall(t *testing.T) {
+	svc := matchTestService(t, []URLMapper{
+		{Server: "(.*)\\.example\\.com", SrcMatch: *regexp.MustCompile("^/"), Dst: "http://127.0.0.1"},
+		{Server: "[", SrcMatch: *regexp.MustCompile("^/"), Dst: "http://127.0.0.2"},
+	})
+
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	re, ok := svc.serverRegexps["(.*)\\.example\\.com"]
+	require.True(t, ok)
+	assert.True(t, re.MatchString("host.example.com"))
+	assert.NotContains(t, svc.serverRegexps, "[")
+}
+
 func TestService_MatchServerRegexInvalidateCache(t *testing.T) {
 	res := make(chan ProviderID)
 	serverRegex := "test-(.*)"
