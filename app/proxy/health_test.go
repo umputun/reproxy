@@ -64,7 +64,7 @@ func Test_healthHandlerDeadlock(t *testing.T) {
 func TestHttp_healthHandler(t *testing.T) {
 	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port)}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -107,8 +107,7 @@ func TestHttp_healthHandler(t *testing.T) {
 		_ = h.Run(ctx)
 	}()
 
-	// wait for discovery service to load mappers
-	time.Sleep(50 * time.Millisecond)
+	require.Eventually(t, func() bool { return len(svc.Mappers()) == 5 }, time.Second, 10*time.Millisecond)
 
 	client := http.Client{}
 	var resp *http.Response
