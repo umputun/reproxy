@@ -1348,6 +1348,76 @@ func TestHttp_withPerRouteAuth(t *testing.T) {
 	})
 }
 
+func TestHttp_EncodedPathRoutePolicy(t *testing.T) {
+	port, releasePort := getFreePort(t)
+	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprint(w, r.URL.EscapedPath())
+	}))
+	defer upstream.Close()
+
+	p := &mockAuthProvider{mappers: []discovery.URLMapper{
+		{
+			Server: "*", SrcMatch: *regexp.MustCompile("^/api/private/(.*)"), Dst: upstream.URL + "/private/$1",
+			MatchType: discovery.MTProxy, AuthUsers: []string{"test:" + authHash},
+		},
+		{
+			Server: "*", SrcMatch: *regexp.MustCompile("^/api/remote/(.*)"), Dst: upstream.URL + "/remote/$1",
+			MatchType: discovery.MTProxy, OnlyFromIPs: []string{"192.0.2.1"},
+		},
+		{
+			Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: upstream.URL + "/$1",
+			MatchType: discovery.MTProxy,
+		},
+	}}
+
+	svc := discovery.NewService([]discovery.Provider{p}, 10*time.Millisecond)
+	go func() { _ = svc.Run(ctx) }()
+	require.Eventually(t, func() bool { return len(svc.Mappers()) == 3 }, time.Second, 10*time.Millisecond)
+
+	h := Http{
+		Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard, Reporter: &ErrorReporter{Nice: true}, Matcher: svc,
+		Metrics: mgmt.NewMetrics(mgmt.MetricsConfig{}), OnlyFrom: NewOnlyFrom(OFRemoteAddr),
+	}
+	releasePort()
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string
+	}{
+		{name: "encoded slash uppercase uses auth route", path: "/api/private%2Fsecret", wantStatus: http.StatusUnauthorized},
+		{name: "encoded slash lowercase uses auth route", path: "/api/private%2fsecret", wantStatus: http.StatusUnauthorized},
+		{name: "encoded unreserved uses auth route", path: "/api/%70rivate/secret", wantStatus: http.StatusUnauthorized},
+		{name: "encoded slash uses remote allow-list route", path: "/api/remote%2Fsecret", wantStatus: http.StatusForbidden},
+		{name: "space and percent pass through", path: "/api/te%20st%25value", wantStatus: http.StatusOK, wantBody: "/te%20st%25value"},
+	}
+
+	client := http.Client{Timeout: time.Second}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", port, tt.path), http.NoBody)
+			require.NoError(t, err)
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+			if tt.wantBody != "" {
+				body, readErr := io.ReadAll(resp.Body)
+				require.NoError(t, readErr)
+				assert.Equal(t, tt.wantBody, string(body))
+			}
+		})
+	}
+}
+
 func TestHttp_withGlobalAndPerRouteAuth(t *testing.T) {
 	port, releasePort := getFreePort(t)
 	globalHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
