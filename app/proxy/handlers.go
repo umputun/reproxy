@@ -114,7 +114,50 @@ func gzipHandler(enabled bool) func(next http.Handler) http.Handler {
 	}
 
 	log.Printf("[DEBUG] gzip enabled")
-	return handlers.CompressHandler
+	return func(next http.Handler) http.Handler {
+		// a panic unwinding through CompressHandler runs its deferred close, which commits a 200
+		// before any outer recoverer can write the 500, so the recover has to sit inside it
+		next = R.Recoverer(log.Default())(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hadAcceptEncoding := r.Header.Get("Accept-Encoding") != ""
+			handlers.CompressHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// gorilla drops Accept-Encoding from the request only when it compresses; a preset
+				// Content-Encoding on a non-compressing writer must be left alone
+				if hadAcceptEncoding && r.Header.Get("Accept-Encoding") == "" {
+					w = &encodingKeeper{ResponseWriter: w, encoding: w.Header().Get("Content-Encoding")}
+				}
+				next.ServeHTTP(w, r)
+			})).ServeHTTP(w, r)
+		})
+	}
+}
+
+// encodingKeeper restores Content-Encoding on error responses. The compressing writer encodes every
+// write regardless, but the stdlib file server clears Content-Encoding in its error path (go 1.23+),
+// leaving clients with compressed bytes labeled as plain text. 304 is left alone: the header is
+// cleared there on purpose and no body follows.
+type encodingKeeper struct {
+	http.ResponseWriter
+	encoding string
+}
+
+func (w *encodingKeeper) WriteHeader(status int) {
+	if status >= http.StatusBadRequest && w.encoding != "" && w.Header().Get("Content-Encoding") == "" {
+		w.Header().Set("Content-Encoding", w.encoding)
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+// Flush delegates to the compressing writer so streamed responses are not held back.
+func (w *encodingKeeper) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap exposes the compressing writer to http.ResponseController.
+func (w *encodingKeeper) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 func signatureHandler(enabled bool, version string) func(next http.Handler) http.Handler {

@@ -2,7 +2,10 @@ package proxy
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -12,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/go-pkgz/lgr"
+	R "github.com/go-pkgz/rest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -804,4 +809,147 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 		}
 		assert.Equal(t, http.StatusTooManyRequests, second[5], "rate=5 cache entry rejects 6th from a separate IP, proving new limiter at rate 5 (not reused rate-2 entry)")
 	})
+}
+
+func Test_gzipHandler_ErrorKeepsEncoding(t *testing.T) {
+	// regression for #264: stdlib file server clears content-encoding on errors while the body stays compressed
+	fs, err := (&Http{}).fileServer("/", "testdata", false, []byte("custom 404 page"))
+	require.NoError(t, err)
+	fsDefault404, err := (&Http{}).fileServer("/", "testdata", false, nil)
+	require.NoError(t, err)
+	dropAndFail := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Del("Content-Encoding")
+		http.Error(w, "boom", http.StatusInternalServerError)
+	})
+	dropAndNotModified := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Del("Content-Encoding")
+		w.WriteHeader(http.StatusNotModified)
+	})
+
+	tbl := []struct {
+		name     string
+		enabled  bool
+		next     http.Handler
+		path     string
+		hdrs     map[string]string
+		preset   string
+		status   int
+		encoding string
+		body     string
+	}{
+		{name: "custom 404 gzip", enabled: true, next: fs, path: "/missing.html", hdrs: map[string]string{"Accept-Encoding": "gzip"},
+			status: http.StatusNotFound, encoding: "gzip", body: "custom 404 page"},
+		{name: "default 404 gzip", enabled: true, next: fsDefault404, path: "/missing.html", hdrs: map[string]string{"Accept-Encoding": "gzip"},
+			status: http.StatusNotFound, encoding: "gzip", body: "404 page not found\n"},
+		{name: "416 gzip", enabled: true, next: fs, path: "/1.html", hdrs: map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=100-200"},
+			status: http.StatusRequestedRangeNotSatisfiable, encoding: "gzip", body: "invalid range: failed to overlap\n"},
+		{name: "500 deflate", enabled: true, next: dropAndFail, path: "/", hdrs: map[string]string{"Accept-Encoding": "deflate"},
+			status: http.StatusInternalServerError, encoding: "deflate", body: "boom\n"},
+		{name: "gzip disabled", enabled: false, next: fs, path: "/missing.html", hdrs: map[string]string{"Accept-Encoding": "gzip"},
+			status: http.StatusNotFound, encoding: "", body: "custom 404 page"},
+		{name: "no accept-encoding", enabled: true, next: fs, path: "/missing.html",
+			status: http.StatusNotFound, encoding: "", body: "custom 404 page"},
+		{name: "unsupported encoding with preset header", enabled: true, next: dropAndFail, path: "/",
+			hdrs: map[string]string{"Accept-Encoding": "br"}, preset: "gzip", status: http.StatusInternalServerError, encoding: "", body: "boom\n"},
+		{name: "upgrade with preset header", enabled: true, next: dropAndFail, path: "/",
+			hdrs: map[string]string{"Accept-Encoding": "gzip", "Upgrade": "websocket"}, preset: "gzip", status: http.StatusInternalServerError, encoding: "", body: "boom\n"},
+		{name: "no accept-encoding with preset header", enabled: true, next: dropAndFail, path: "/", preset: "gzip",
+			status: http.StatusInternalServerError, encoding: "", body: "boom\n"},
+		{name: "304 stays cleared", enabled: true, next: dropAndNotModified, path: "/", hdrs: map[string]string{"Accept-Encoding": "gzip"},
+			status: http.StatusNotModified, encoding: "", body: ""},
+		{name: "200 gzip", enabled: true, next: fs, path: "/1.html", hdrs: map[string]string{"Accept-Encoding": "gzip"},
+			status: http.StatusOK, encoding: "gzip", body: "test html"},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "http://example.com"+tt.path, http.NoBody)
+			for k, v := range tt.hdrs {
+				req.Header.Set(k, v)
+			}
+			wr := httptest.NewRecorder()
+			if tt.preset != "" {
+				wr.Header().Set("Content-Encoding", tt.preset)
+			}
+			gzipHandler(tt.enabled)(tt.next).ServeHTTP(wr, req)
+
+			assert.Equal(t, tt.status, wr.Code)
+			assert.Equal(t, tt.encoding, wr.Result().Header.Get("Content-Encoding"))
+			if tt.status == http.StatusNotModified {
+				return // recorder keeps the empty gzip stream a real server drops for 304
+			}
+			body := wr.Body.Bytes()
+			switch tt.encoding {
+			case "gzip":
+				zr, err := gzip.NewReader(bytes.NewReader(body))
+				require.NoError(t, err)
+				body, err = io.ReadAll(zr)
+				require.NoError(t, err)
+			case "deflate":
+				var err error
+				body, err = io.ReadAll(flate.NewReader(bytes.NewReader(body)))
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.body, string(body))
+		})
+	}
+}
+
+func Test_gzipHandler_PanicRecovered(t *testing.T) {
+	// regression: the compressor's deferred close committed a 200 before an outer recoverer could write the 500
+	panicking := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })
+	handler := R.Recoverer(log.Default())(gzipHandler(true)(panicking))
+
+	req := httptest.NewRequest("GET", "http://example.com/anything", http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	wr := httptest.NewRecorder()
+	handler.ServeHTTP(wr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, wr.Code)
+	assert.Equal(t, "gzip", wr.Result().Header.Get("Content-Encoding"))
+	zr, err := gzip.NewReader(bytes.NewReader(wr.Body.Bytes()))
+	require.NoError(t, err)
+	body, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	assert.Equal(t, "Internal Server Error\n", string(body))
+}
+
+func Test_gzipHandler_StreamingFlush(t *testing.T) {
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
+	handler := gzipHandler(true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("first chunk\n"))
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			assert.NoError(t, err)
+			return
+		}
+		<-release
+		_, _ = w.Write([]byte("second chunk\n"))
+	}))
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+	defer releaseHandler()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", ts.URL, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := ts.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+
+	zr, err := gzip.NewReader(resp.Body)
+	require.NoError(t, err)
+	first := make([]byte, len("first chunk\n"))
+	_, err = io.ReadFull(zr, first)
+	require.NoError(t, err)
+	assert.Equal(t, "first chunk\n", string(first))
+
+	releaseHandler()
+	rest, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	assert.Equal(t, "second chunk\n", string(rest))
 }
