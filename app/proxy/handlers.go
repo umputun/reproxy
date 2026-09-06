@@ -115,6 +115,9 @@ func gzipHandler(enabled bool) func(next http.Handler) http.Handler {
 
 	log.Printf("[DEBUG] gzip enabled")
 	return func(next http.Handler) http.Handler {
+		// a panic unwinding through CompressHandler runs its deferred close, which commits a 200
+		// before any outer recoverer can write the 500, so the recover has to sit inside it
+		next = R.Recoverer(log.Default())(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			hadAcceptEncoding := r.Header.Get("Accept-Encoding") != ""
 			handlers.CompressHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

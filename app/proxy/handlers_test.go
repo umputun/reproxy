@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/go-pkgz/lgr"
+	R "github.com/go-pkgz/rest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -891,6 +893,25 @@ func Test_gzipHandler_ErrorKeepsEncoding(t *testing.T) {
 			assert.Equal(t, tt.body, string(body))
 		})
 	}
+}
+
+func Test_gzipHandler_PanicRecovered(t *testing.T) {
+	// regression: the compressor's deferred close committed a 200 before an outer recoverer could write the 500
+	panicking := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })
+	handler := R.Recoverer(log.Default())(gzipHandler(true)(panicking))
+
+	req := httptest.NewRequest("GET", "http://example.com/anything", http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	wr := httptest.NewRecorder()
+	handler.ServeHTTP(wr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, wr.Code)
+	assert.Equal(t, "gzip", wr.Result().Header.Get("Content-Encoding"))
+	zr, err := gzip.NewReader(bytes.NewReader(wr.Body.Bytes()))
+	require.NoError(t, err)
+	body, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	assert.Equal(t, "Internal Server Error\n", string(body))
 }
 
 func Test_gzipHandler_StreamingFlush(t *testing.T) {
