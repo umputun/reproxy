@@ -922,10 +922,10 @@ func Test_gzipHandler_StreamingFlush(t *testing.T) {
 
 	zr, err := gzip.NewReader(resp.Body)
 	require.NoError(t, err)
-	buf := make([]byte, 64)
-	n, err := zr.Read(buf)
+	first := make([]byte, len("first chunk\n"))
+	_, err = io.ReadFull(zr, first)
 	require.NoError(t, err)
-	assert.Equal(t, "first chunk\n", string(buf[:n]))
+	assert.Equal(t, "first chunk\n", string(first))
 
 	releaseHandler()
 	rest, err := io.ReadAll(zr)
