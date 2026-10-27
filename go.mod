@@ -7,7 +7,7 @@ require (
 	github.com/didip/tollbooth/v7 v7.0.2
 	github.com/go-pkgz/lgr v0.12.3
 	github.com/go-pkgz/repeater v1.2.0
-	github.com/go-pkgz/rest v1.21.0
+	github.com/go-pkgz/rest v1.24.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31
@@ -24,7 +24,7 @@ require (
 	github.com/libdns/scaleway v0.2.4
 	github.com/miekg/dns v1.1.72
 	github.com/prometheus/client_golang v1.23.2
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/umputun/go-flags v1.5.1
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.51.0
@@ -51,7 +51,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/digitalocean/godo v1.189.0 // indirect
 	github.com/dnsimple/dnsimple-go/v8 v8.3.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -64,7 +63,6 @@ require (
 	github.com/linode/linodego v1.69.0 // indirect
 	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect

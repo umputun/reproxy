@@ -134,8 +134,8 @@ func gzipHandler(enabled bool, exclude []string) func(next http.Handler) http.Ha
 			}
 			cw := &compressWriter{ResponseWriter: w, encoding: negotiateEncoding(r.Header.Values("Accept-Encoding")),
 				exclude: patterns, head: r.Method == http.MethodHead}
-			defer cw.finish()
 			next.ServeHTTP(cw, r)
+			cw.finish() // not deferred, a response aborted with http.ErrAbortHandler must stay unfinished
 		})
 	}
 }

@@ -1899,3 +1899,80 @@ func TestHttp_DoWithGzip(t *testing.T) {
 		assert.Equal(t, "test", string(body))
 	})
 }
+
+func TestHttp_UpstreamAbortReachesClient(t *testing.T) {
+	// regression: the recoverer swallowed http.ErrAbortHandler and ended a truncated body as a complete response
+	var release atomic.Pointer[chan struct{}]
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, brw, err := http.NewResponseController(w).Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.Close()
+		chunk := strings.Repeat("partial body line\n", 500)
+		_, _ = fmt.Fprintf(brw, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n%x\r\n%s\r\n",
+			len(chunk), chunk)
+		_ = brw.Flush()
+		<-*release.Load()
+	}))
+	defer ds.Close()
+
+	port, releasePort := getFreePort(t)
+	h := Http{Timeouts: Timeouts{ResponseHeader: time.Second}, Address: fmt.Sprintf("127.0.0.1:%d", port), AccessLog: io.Discard,
+		GzEnabled: true, GzExclude: testGzipExclude, Reporter: &ErrorReporter{}}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{"127.0.0.1,^/up/(.*)," + ds.URL + "/$1,"}},
+	}, time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(50 * time.Millisecond)
+	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
+	releasePort()
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	tbl := []struct {
+		name     string
+		accept   string
+		encoding string
+	}{
+		{name: "compressed", accept: "gzip", encoding: "gzip"},
+		{name: "plain", accept: "identity", encoding: ""},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			ch := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseUpstream := func() { releaseOnce.Do(func() { close(ch) }) }
+			release.Store(&ch)
+			defer releaseUpstream()
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/up/drop", port), http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Accept-Encoding", tt.accept)
+			resp, err := (&http.Client{Transport: &http.Transport{DisableCompression: true}, Timeout: 5 * time.Second}).Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, tt.encoding, resp.Header.Get("Content-Encoding"))
+
+			var rd io.Reader = resp.Body
+			if tt.encoding == "gzip" {
+				zr, zerr := gzip.NewReader(resp.Body)
+				require.NoError(t, zerr)
+				rd = zr
+			}
+			prefix := make([]byte, 100)
+			_, err = io.ReadFull(rd, prefix)
+			require.NoError(t, err)
+			assert.Equal(t, strings.Repeat("partial body line\n", 6)[:100], string(prefix))
+
+			releaseUpstream()
+			rest, err := io.ReadAll(rd)
+			require.ErrorIs(t, err, io.ErrUnexpectedEOF, "client must see the truncation")
+			assert.NotContains(t, string(rest), "Internal Server Error")
+		})
+	}
+}
