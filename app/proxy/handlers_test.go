@@ -2,14 +2,20 @@ package proxy
 
 import (
 	"bytes"
-	"compress/flate"
 	"compress/gzip"
+	"compress/zlib"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
+	"net/http/httputil"
+	"net/textproto"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -450,7 +456,7 @@ func Test_validateBasicAuthCredentials(t *testing.T) {
 
 func Test_gzipHandler(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
-		handler := gzipHandler(false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := gzipHandler(false, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte("test response"))
 		}))
 		req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
@@ -462,7 +468,7 @@ func Test_gzipHandler(t *testing.T) {
 	})
 
 	t.Run("enabled with gzip accept", func(t *testing.T) {
-		handler := gzipHandler(true)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// write enough data to trigger compression
 			data := make([]byte, 1024)
 			for i := range data {
@@ -479,7 +485,7 @@ func Test_gzipHandler(t *testing.T) {
 	})
 
 	t.Run("enabled without gzip accept", func(t *testing.T) {
-		handler := gzipHandler(true)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte("test response"))
 		}))
 		req := httptest.NewRequest("GET", "http://example.com", http.NoBody)
@@ -841,8 +847,9 @@ func Test_gzipHandler_ErrorKeepsEncoding(t *testing.T) {
 			status: http.StatusNotFound, encoding: "gzip", body: "custom 404 page"},
 		{name: "default 404 gzip", enabled: true, next: fsDefault404, path: "/missing.html", hdrs: map[string]string{"Accept-Encoding": "gzip"},
 			status: http.StatusNotFound, encoding: "gzip", body: "404 page not found\n"},
-		{name: "416 gzip", enabled: true, next: fs, path: "/1.html", hdrs: map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=100-200"},
-			status: http.StatusRequestedRangeNotSatisfiable, encoding: "gzip", body: "invalid range: failed to overlap\n"},
+		{name: "416 with content-range stays plain", enabled: true, next: fs, path: "/1.html",
+			hdrs:   map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=100-200"},
+			status: http.StatusRequestedRangeNotSatisfiable, encoding: "", body: "invalid range: failed to overlap\n"},
 		{name: "500 deflate", enabled: true, next: dropAndFail, path: "/", hdrs: map[string]string{"Accept-Encoding": "deflate"},
 			status: http.StatusInternalServerError, encoding: "deflate", body: "boom\n"},
 		{name: "gzip disabled", enabled: false, next: fs, path: "/missing.html", hdrs: map[string]string{"Accept-Encoding": "gzip"},
@@ -871,26 +878,14 @@ func Test_gzipHandler_ErrorKeepsEncoding(t *testing.T) {
 			if tt.preset != "" {
 				wr.Header().Set("Content-Encoding", tt.preset)
 			}
-			gzipHandler(tt.enabled)(tt.next).ServeHTTP(wr, req)
+			gzipHandler(tt.enabled, testGzipExclude)(tt.next).ServeHTTP(wr, req)
 
 			assert.Equal(t, tt.status, wr.Code)
 			assert.Equal(t, tt.encoding, wr.Result().Header.Get("Content-Encoding"))
 			if tt.status == http.StatusNotModified {
 				return // recorder keeps the empty gzip stream a real server drops for 304
 			}
-			body := wr.Body.Bytes()
-			switch tt.encoding {
-			case "gzip":
-				zr, err := gzip.NewReader(bytes.NewReader(body))
-				require.NoError(t, err)
-				body, err = io.ReadAll(zr)
-				require.NoError(t, err)
-			case "deflate":
-				var err error
-				body, err = io.ReadAll(flate.NewReader(bytes.NewReader(body)))
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tt.body, string(body))
+			assert.Equal(t, tt.body, decodeBody(t, tt.encoding, wr.Body.Bytes()))
 		})
 	}
 }
@@ -898,7 +893,7 @@ func Test_gzipHandler_ErrorKeepsEncoding(t *testing.T) {
 func Test_gzipHandler_PanicRecovered(t *testing.T) {
 	// regression: the compressor's deferred close committed a 200 before an outer recoverer could write the 500
 	panicking := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })
-	handler := R.Recoverer(log.Default())(gzipHandler(true)(panicking))
+	handler := R.Recoverer(log.Default())(gzipHandler(true, testGzipExclude)(panicking))
 
 	req := httptest.NewRequest("GET", "http://example.com/anything", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
@@ -918,7 +913,7 @@ func Test_gzipHandler_StreamingFlush(t *testing.T) {
 	release := make(chan struct{})
 	var releaseOnce sync.Once
 	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
-	handler := gzipHandler(true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("first chunk\n"))
 		if err := http.NewResponseController(w).Flush(); err != nil {
 			assert.NoError(t, err)
@@ -952,4 +947,396 @@ func Test_gzipHandler_StreamingFlush(t *testing.T) {
 	rest, err := io.ReadAll(zr)
 	require.NoError(t, err)
 	assert.Equal(t, "second chunk\n", string(rest))
+}
+
+var testGzipExclude = []string{"audio/*", "video/*", "image/jpeg", "image/png", "font/woff2", "application/zip"}
+
+func decodeBody(t *testing.T, encoding string, body []byte) string {
+	t.Helper()
+	switch encoding {
+	case "gzip":
+		zr, err := gzip.NewReader(bytes.NewReader(body))
+		require.NoError(t, err)
+		res, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		return string(res)
+	case "deflate":
+		zr, err := zlib.NewReader(bytes.NewReader(body))
+		require.NoError(t, err)
+		res, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		return string(res)
+	}
+	return string(body)
+}
+
+func Test_gzipHandler_ResponseAware(t *testing.T) {
+	pngSig := "\x89PNG\r\n\x1a\n" + strings.Repeat("\x00", 32)
+	tbl := []struct {
+		name     string
+		accept   string
+		exclude  []string
+		hdrs     map[string]string
+		status   int
+		body     string
+		encoding string
+		raw      bool
+		wantHdrs map[string]string
+	}{
+		{name: "html compressed", accept: "gzip", hdrs: map[string]string{"Content-Type": "text/html"}, body: "<html>hi</html>",
+			encoding: "gzip"},
+		{name: "mp3 excluded", accept: "gzip", hdrs: map[string]string{"Content-Type": "audio/mpeg", "Content-Length": "6", "Accept-Ranges": "bytes"},
+			body: "ID3abc", wantHdrs: map[string]string{"Content-Length": "6", "Accept-Ranges": "bytes"}},
+		{name: "video prefix excluded", accept: "gzip", hdrs: map[string]string{"Content-Type": "video/mp4"}, body: "data"},
+		{name: "excluded with params and case", accept: "gzip", hdrs: map[string]string{"Content-Type": "Audio/MPEG; foo=bar"}, body: "data"},
+		{name: "png excluded", accept: "gzip", hdrs: map[string]string{"Content-Type": "image/png"}, body: "data"},
+		{name: "svg compressed", accept: "gzip", hdrs: map[string]string{"Content-Type": "image/svg+xml"}, body: "<svg/>", encoding: "gzip"},
+		{name: "pdf compressed", accept: "gzip", hdrs: map[string]string{"Content-Type": "application/pdf"}, body: "%PDF-1.4", encoding: "gzip"},
+		{name: "octet-stream compressed", accept: "gzip", hdrs: map[string]string{"Content-Type": "application/octet-stream"}, body: "bytes",
+			encoding: "gzip"},
+		{name: "partial content left alone", accept: "gzip", status: http.StatusPartialContent,
+			hdrs: map[string]string{"Content-Type": "text/plain", "Content-Range": "bytes 0-3/10", "Content-Length": "4"}, body: "0123",
+			wantHdrs: map[string]string{"Content-Range": "bytes 0-3/10", "Content-Length": "4"}},
+		{name: "content-range on 200 left alone", accept: "gzip", hdrs: map[string]string{"Content-Type": "text/plain", "Content-Range": "bytes 0-3/4"},
+			body: "0123"},
+		{name: "upstream encoding passed through", accept: "gzip", hdrs: map[string]string{"Content-Type": "text/plain", "Content-Encoding": "br"},
+			body: "brotli-bytes", encoding: "br", raw: true},
+		{name: "compressed drops length and ranges, weakens etag", accept: "gzip",
+			hdrs: map[string]string{"Content-Type": "text/plain", "Content-Length": "5", "Accept-Ranges": "bytes", "ETag": `"abc"`}, body: "hello",
+			encoding: "gzip", wantHdrs: map[string]string{"Content-Length": "", "Accept-Ranges": "", "ETag": `W/"abc"`}},
+		{name: "weak etag kept", accept: "gzip", hdrs: map[string]string{"Content-Type": "text/plain", "ETag": `W/"abc"`}, body: "hello",
+			encoding: "gzip", wantHdrs: map[string]string{"ETag": `W/"abc"`}},
+		{name: "plain keeps strong etag", accept: "gzip", hdrs: map[string]string{"Content-Type": "image/png", "ETag": `"abc"`}, body: "x",
+			wantHdrs: map[string]string{"ETag": `"abc"`}},
+		{name: "sniffed html compressed", accept: "gzip", body: "<html><body>hi</body></html>", encoding: "gzip",
+			wantHdrs: map[string]string{"Content-Type": "text/html; charset=utf-8"}},
+		{name: "sniffed png excluded", accept: "gzip", body: pngSig, wantHdrs: map[string]string{"Content-Type": "image/png"}},
+		{name: "no content", accept: "gzip", status: http.StatusNoContent, hdrs: map[string]string{"Content-Type": "text/plain"}},
+		{name: "status without body or type", accept: "gzip", status: http.StatusCreated},
+		{name: "custom list replaces default", accept: "gzip", exclude: []string{"text/*"}, hdrs: map[string]string{"Content-Type": "text/html"},
+			body: "<html/>"},
+		{name: "custom list compresses audio", accept: "gzip", exclude: []string{"text/*"}, hdrs: map[string]string{"Content-Type": "audio/mpeg"},
+			body: "data", encoding: "gzip"},
+		{name: "empty list compresses everything", accept: "gzip", exclude: []string{}, hdrs: map[string]string{"Content-Type": "audio/mpeg"},
+			body: "data", encoding: "gzip"},
+		{name: "empty entries ignored", accept: "gzip", exclude: []string{""}, hdrs: map[string]string{"Content-Type": "audio/mpeg"},
+			body: "data", encoding: "gzip"},
+		{name: "gzip with q-value", accept: "gzip;q=0.5", hdrs: map[string]string{"Content-Type": "text/plain"}, body: "hello", encoding: "gzip"},
+		{name: "gzip refused falls to deflate", accept: "gzip;q=0, deflate", hdrs: map[string]string{"Content-Type": "text/plain"}, body: "hello",
+			encoding: "deflate"},
+		{name: "gzip refused only", accept: "gzip;q=0", hdrs: map[string]string{"Content-Type": "text/plain"}, body: "hello"},
+		{name: "uppercase token", accept: "GZIP", hdrs: map[string]string{"Content-Type": "text/plain"}, body: "hello", encoding: "gzip"},
+		{name: "identity only", accept: "identity;q=1, *;q=0", hdrs: map[string]string{"Content-Type": "text/plain"}, body: "hello"},
+		{name: "deflate", accept: "deflate", hdrs: map[string]string{"Content-Type": "text/plain"}, body: "hello", encoding: "deflate"},
+		{name: "upstream gzip without type not sniffed", accept: "gzip", hdrs: map[string]string{"Content-Encoding": "gzip"},
+			body: "\x1f\x8b\x08\x00raw", encoding: "gzip", raw: true, wantHdrs: map[string]string{"Content-Type": ""}},
+		{name: "existing vary kept", accept: "gzip", hdrs: map[string]string{"Content-Type": "text/plain", "Vary": "Origin"}, body: "hello",
+			encoding: "gzip", wantHdrs: map[string]string{"Vary": "Origin"}},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			exclude := testGzipExclude
+			if tt.exclude != nil {
+				exclude = tt.exclude
+			}
+			handler := gzipHandler(true, exclude)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tt.accept, r.Header.Get("Accept-Encoding"), "request encoding must reach upstream")
+				for k, v := range tt.hdrs {
+					w.Header().Set(k, v)
+				}
+				if tt.status != 0 {
+					w.WriteHeader(tt.status)
+				}
+				if tt.body != "" {
+					_, _ = w.Write([]byte(tt.body))
+				}
+			}))
+			req := httptest.NewRequest("GET", "http://example.com/", http.NoBody)
+			req.Header.Set("Accept-Encoding", tt.accept)
+			wr := httptest.NewRecorder()
+			handler.ServeHTTP(wr, req)
+
+			resp := wr.Result()
+			wantStatus := tt.status
+			if wantStatus == 0 {
+				wantStatus = http.StatusOK
+			}
+			assert.Equal(t, wantStatus, resp.StatusCode)
+			assert.Equal(t, tt.encoding, resp.Header.Get("Content-Encoding"))
+			assert.Contains(t, resp.Header.Values("Vary"), "Accept-Encoding")
+			for k, v := range tt.wantHdrs {
+				assert.Equal(t, v, resp.Header.Get(k), "header %s", k)
+			}
+			if tt.raw || (tt.encoding == "" && tt.body == "") {
+				assert.Equal(t, tt.body, wr.Body.String())
+				return
+			}
+			assert.Equal(t, tt.body, decodeBody(t, tt.encoding, wr.Body.Bytes()))
+		})
+	}
+}
+
+func Test_gzipHandler_ServeContentAccessLog(t *testing.T) {
+	tbl := []struct {
+		name     string
+		file     string
+		ctype    string
+		body     string
+		encoding string
+	}{
+		{name: "compressible", file: "a.txt", ctype: "text/plain", body: strings.Repeat("hello ", 100), encoding: "gzip"},
+		{name: "excluded", file: "a.mp3", ctype: "audio/mpeg", body: strings.Repeat("x", 600)},
+		{name: "sniffed", file: "blob", body: "<html><body>" + strings.Repeat("hi ", 300) + "</body></html>", encoding: "gzip"},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			var logMu sync.Mutex
+			logWr := writerFunc(func(p []byte) (int, error) {
+				logMu.Lock()
+				defer logMu.Unlock()
+				return logBuf.Write(p)
+			})
+			handler := accessLogHandler(logWr)(gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.ctype != "" {
+					w.Header().Set("Content-Type", tt.ctype)
+				}
+				http.ServeContent(w, r, tt.file, time.Time{}, strings.NewReader(tt.body))
+			})))
+			ts := httptest.NewServer(handler)
+			defer ts.Close()
+			req, err := http.NewRequest("GET", ts.URL, http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Accept-Encoding", "gzip")
+			resp, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			resp.Body.Close()
+			ts.Close()
+
+			assert.Equal(t, tt.encoding, resp.Header.Get("Content-Encoding"))
+			assert.Equal(t, tt.body, decodeBody(t, tt.encoding, body))
+			logMu.Lock()
+			defer logMu.Unlock()
+			assert.Contains(t, logBuf.String(), fmt.Sprintf(`" 200 %d "`, len(body)), "access log must count bytes sent")
+		})
+	}
+}
+
+func Test_gzipHandler_Head(t *testing.T) {
+	tbl := []struct {
+		name     string
+		file     string
+		ctype    string
+		encoding string
+		length   string
+		write    bool
+	}{
+		{name: "compressible", file: "a.txt", ctype: "text/plain", encoding: "gzip", length: ""},
+		{name: "excluded", file: "a.mp3", ctype: "audio/mpeg", encoding: "", length: "3000"},
+		{name: "handler writes body", ctype: "text/plain", encoding: "gzip", length: "", write: true},
+		{name: "handler writes excluded body", ctype: "audio/mpeg", encoding: "", length: "600", write: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tt.ctype)
+				if tt.write {
+					_, _ = w.Write([]byte(strings.Repeat("hello ", 100)))
+					return
+				}
+				http.ServeContent(w, r, tt.file, time.Time{}, strings.NewReader(strings.Repeat("hello ", 500)))
+			}))
+			ts := httptest.NewServer(handler)
+			defer ts.Close()
+			req, err := http.NewRequest("HEAD", ts.URL, http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Accept-Encoding", "gzip")
+			resp, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, tt.encoding, resp.Header.Get("Content-Encoding"))
+			assert.Equal(t, tt.length, resp.Header.Get("Content-Length"))
+			assert.Equal(t, []string{"Accept-Encoding"}, resp.Header.Values("Vary"))
+		})
+	}
+}
+
+func Test_gzipHandler_ResponseControllerReachesUnderlying(t *testing.T) {
+	rec := newDeadlineRecorder()
+	deadline := time.Now().Add(time.Minute)
+	handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		assert.NoError(t, http.NewResponseController(w).SetWriteDeadline(deadline))
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("hello"))
+	}))
+	req := httptest.NewRequest("GET", "http://example.com/", http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	handler.ServeHTTP(rec, req)
+
+	_, writes := rec.recorded()
+	assert.Equal(t, []time.Time{deadline}, writes)
+	assert.Equal(t, "hello", decodeBody(t, "gzip", rec.Body.Bytes()))
+}
+
+type writerFunc func(p []byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
+
+func Test_gzipHandler_InformationalThenFinal(t *testing.T) {
+	handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", "</style.css>; rel=preload")
+		w.WriteHeader(http.StatusEarlyHints)
+		w.Header().Del("Link")
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("ETag", `"v1"`)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<html>final</html>"))
+	}))
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	var got1xx []int
+	trace := &httptrace.ClientTrace{Got1xxResponse: func(code int, _ textproto.MIMEHeader) error {
+		got1xx = append(got1xx, code)
+		return nil
+	}}
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(t.Context(), trace), "GET", ts.URL, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, []int{http.StatusEarlyHints}, got1xx)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+	assert.Equal(t, `W/"v1"`, resp.Header.Get("ETag"))
+	assert.Equal(t, "<html>final</html>", decodeBody(t, "gzip", body))
+}
+
+func Test_gzipHandler_FlushBeforeWrite(t *testing.T) {
+	tbl := []struct {
+		name     string
+		ctype    string
+		encoding string
+	}{
+		{name: "typed stream compressed", ctype: "text/event-stream", encoding: "gzip"},
+		{name: "untyped stream plain", ctype: "", encoding: ""},
+		{name: "excluded stream plain", ctype: "audio/mpeg", encoding: ""},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
+			handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tt.ctype != "" {
+					w.Header().Set("Content-Type", tt.ctype)
+				}
+				w.WriteHeader(http.StatusOK)
+				if err := http.NewResponseController(w).Flush(); err != nil {
+					assert.NoError(t, err)
+					return
+				}
+				<-release
+				_, _ = w.Write([]byte("data: late\n\n"))
+			}))
+			ts := httptest.NewServer(handler)
+			defer ts.Close()
+			defer releaseHandler()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, "GET", ts.URL, http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Accept-Encoding", "gzip")
+			resp, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, tt.encoding, resp.Header.Get("Content-Encoding"))
+
+			releaseHandler()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Equal(t, "data: late\n\n", decodeBody(t, tt.encoding, body))
+		})
+	}
+}
+
+func Test_gzipHandler_FirstFinalStatusWins(t *testing.T) {
+	handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusEarlyHints)
+		_, _ = w.Write([]byte("<html>created</html>"))
+	}))
+	req := httptest.NewRequest("GET", "http://example.com/", http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	wr := httptest.NewRecorder()
+	handler.ServeHTTP(wr, req)
+
+	assert.Equal(t, http.StatusCreated, wr.Code)
+	assert.Equal(t, "gzip", wr.Header().Get("Content-Encoding"))
+	assert.Equal(t, "<html>created</html>", decodeBody(t, "gzip", wr.Body.Bytes()))
+}
+
+func Test_gzipHandler_SuppressedContentTypeNotSniffed(t *testing.T) {
+	handler := gzipHandler(true, testGzipExclude)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header()["Content-Type"] = nil
+		_, _ = w.Write([]byte("<html><body>no type on purpose</body></html>"))
+	}))
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+	req, err := http.NewRequest("GET", ts.URL, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	_, hasType := resp.Header["Content-Type"]
+	assert.False(t, hasType)
+	assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+	assert.Equal(t, "<html><body>no type on purpose</body></html>", decodeBody(t, "gzip", body))
+}
+
+func Test_gzipHandler_VaryAfterProxiedInformational(t *testing.T) {
+	// reverse proxy clears response headers after forwarding a 1xx, which dropped a vary set up front
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "gzip", r.Header.Get("Accept-Encoding"))
+		w.Header().Set("Link", "</style.css>; rel=preload")
+		w.WriteHeader(http.StatusEarlyHints)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("after hints"))
+	}))
+	defer upstream.Close()
+	upstreamURL, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+	ts := httptest.NewServer(gzipHandler(true, testGzipExclude)(httputil.NewSingleHostReverseProxy(upstreamURL)))
+	defer ts.Close()
+
+	req, err := http.NewRequest("GET", ts.URL, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "gzip")
+	resp, err := (&http.Transport{DisableCompression: true}).RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+	assert.Equal(t, []string{"Accept-Encoding"}, resp.Header.Values("Vary"))
+	assert.Equal(t, "after hints", decodeBody(t, "gzip", body))
 }

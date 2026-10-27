@@ -93,6 +93,7 @@ Providers are processed in order: static → file → docker → consul-catalog.
 - Middleware chain built with `github.com/go-pkgz/rest.Wrap()`
 - Mocks generated with moq, stored in same package with `_mock.go` suffix
 - Tests use testify assertions
+- Response writers inside the access-log middleware (e.g. gzip's `compressWriter`) must route body bytes through `Write` and must not implement `io.ReaderFrom`: gorilla's combined logger counts bytes only in its `Write` hook, so a `ReadFrom` path logs size 0
 
 ## Environment Detection
 

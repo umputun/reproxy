@@ -341,7 +341,11 @@ supported codes:
 
 ## More options
 
-- `--gzip`   enables gzip compression for responses.
+- `--gzip`   enables gzip (or deflate) compression for responses. The decision is made per response, from its final headers:
+  - media types matching `--gzip-exclude` are sent as is. The value is a comma-separated list of exact types (`image/png`) or prefixes (`audio/*`). The default skips audio, video, compressed images (jpeg, png, gif, webp, avif), woff fonts and common archives. A custom list replaces the default, and an empty value (`--gzip-exclude=`) turns exclusions off.
+  - partial responses (`206`, or any response with `Content-Range`) are never compressed, so `Range` requests keep working.
+  - reproxy does not recompress responses that already carry `Content-Encoding`. The client's `Accept-Encoding` is forwarded to the upstream, so an upstream that compresses on its own decides for its responses, and the exclude list applies only to compression done by reproxy.
+  - a compressed response removes `Accept-Ranges` and the original `Content-Length`, and a strong `ETag` becomes weak (`W/"..."`), because its bytes differ from the original.
 - `--max=N`  allows to set the maximum size of request (default 64k). Setting it to `0` disables the size check.
 - `--timeout.*` various timeouts for both server and proxy transport. See `timeout` section in [All Application Options](#all-application-options). A zero or negative value means there will be no timeout.
 - `--insecure` disables SSL verification on the destination host. This is useful for the self-signed certificates.
@@ -527,6 +531,7 @@ This is the list of all options supporting multiple elements:
   -l, --listen=                     listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without) [$LISTEN]
   -m, --max=                        max request size (default: 64K) [$MAX_SIZE]
   -g, --gzip                        enable gz compression [$GZIP]
+      --gzip-exclude=               comma-separated media types never gz compressed, exact or type/*; empty disables exclusions (default: audio/*,video/*,image/jpeg,image/png,image/gif,image/webp,image/avif,font/woff,font/woff2,application/zip,application/gzip,application/x-gzip,application/x-7z-compressed,application/x-rar-compressed,application/vnd.rar,application/x-bzip2,application/x-xz,application/zstd) [$GZIP_EXCLUDE]
   -x, --header=                     outgoing proxy headers to add [$HEADER]
       --drop-header=                incoming headers to drop [$DROP_HEADERS]
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
