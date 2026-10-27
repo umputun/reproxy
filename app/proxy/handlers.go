@@ -1,8 +1,8 @@
 package proxy
 
 import (
-	"compress/flate"
 	"compress/gzip"
+	"compress/zlib"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -279,7 +279,7 @@ func (w *compressWriter) decide() {
 		case w.encoding == "gzip":
 			w.comp = gzip.NewWriter(w.ResponseWriter)
 		default:
-			w.comp, _ = flate.NewWriter(w.ResponseWriter, flate.DefaultCompression)
+			w.comp = zlib.NewWriter(w.ResponseWriter) // http "deflate" is the zlib format, not a raw deflate stream
 		}
 	}
 	w.addVary()

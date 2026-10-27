@@ -2,8 +2,8 @@ package proxy
 
 import (
 	"bytes"
-	"compress/flate"
 	"compress/gzip"
+	"compress/zlib"
 	"context"
 	"fmt"
 	"io"
@@ -885,19 +885,7 @@ func Test_gzipHandler_ErrorKeepsEncoding(t *testing.T) {
 			if tt.status == http.StatusNotModified {
 				return // recorder keeps the empty gzip stream a real server drops for 304
 			}
-			body := wr.Body.Bytes()
-			switch tt.encoding {
-			case "gzip":
-				zr, err := gzip.NewReader(bytes.NewReader(body))
-				require.NoError(t, err)
-				body, err = io.ReadAll(zr)
-				require.NoError(t, err)
-			case "deflate":
-				var err error
-				body, err = io.ReadAll(flate.NewReader(bytes.NewReader(body)))
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tt.body, string(body))
+			assert.Equal(t, tt.body, decodeBody(t, tt.encoding, wr.Body.Bytes()))
 		})
 	}
 }
@@ -973,7 +961,9 @@ func decodeBody(t *testing.T, encoding string, body []byte) string {
 		require.NoError(t, err)
 		return string(res)
 	case "deflate":
-		res, err := io.ReadAll(flate.NewReader(bytes.NewReader(body)))
+		zr, err := zlib.NewReader(bytes.NewReader(body))
+		require.NoError(t, err)
+		res, err := io.ReadAll(zr)
 		require.NoError(t, err)
 		return string(res)
 	}
