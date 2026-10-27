@@ -35,6 +35,7 @@ type Http struct { // nolint golint
 	AssetsSPA        bool
 	MaxBodySize      int64
 	GzEnabled        bool
+	GzExclude        []string // media types never compressed, exact or "type/*"
 	ProxyHeaders     []string
 	DropHeader       []string
 	SSLConfig        SSLConfig
@@ -150,8 +151,8 @@ func (h *Http) Run(ctx context.Context) error {
 		headersHandler(h.ProxyHeaders, h.DropHeader), // add response headers and delete some request headers
 		accessLogHandler(h.AccessLog),                // apache-format log file
 		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
-		maxReqSizeHandler(h.MaxBodySize), // limit request max size
-		gzipHandler(h.GzEnabled),         // gzip response
+		maxReqSizeHandler(h.MaxBodySize),      // limit request max size
+		gzipHandler(h.GzEnabled, h.GzExclude), // gzip response
 	)
 
 	// no FQDNs defined, use the list of discovered servers

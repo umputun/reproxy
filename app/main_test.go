@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/umputun/go-flags"
 
 	"github.com/umputun/reproxy/app/proxy"
 	"github.com/umputun/reproxy/lib"
@@ -409,6 +411,37 @@ func Test_splitAtCommas(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_gzipExcludeFlag(t *testing.T) {
+	defaults := []string{"audio/*", "video/*", "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif", "font/woff",
+		"font/woff2", "application/zip", "application/gzip", "application/x-gzip", "application/x-7z-compressed",
+		"application/x-rar-compressed", "application/vnd.rar", "application/x-bzip2", "application/x-xz", "application/zstd"}
+	tbl := []struct {
+		name string
+		args []string
+		env  *string
+		want []string
+	}{
+		{name: "defaults", want: defaults},
+		{name: "cli replaces defaults", args: []string{"--gzip-exclude=text/*,image/svg+xml"}, want: []string{"text/*", "image/svg+xml"}},
+		{name: "empty cli disables exclusions", args: []string{"--gzip-exclude="}, want: []string{""}},
+		{name: "env replaces defaults", env: new("text/*,image/svg+xml"), want: []string{"text/*", "image/svg+xml"}},
+		{name: "empty env disables exclusions", env: new(""), want: []string{""}},
+		{name: "cli over env", args: []string{"--gzip-exclude=font/woff2"}, env: new("text/*"), want: []string{"font/woff2"}},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != nil {
+				t.Setenv("GZIP_EXCLUDE", *tt.env)
+			}
+			local := opts
+			local.GzipExclude = ""
+			_, err := flags.NewParser(&local, flags.Default).ParseArgs(tt.args)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, strings.Split(local.GzipExclude, ","))
+		})
+	}
 }
 
 func Test_makeBasicAuth(t *testing.T) {

@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -108,56 +110,230 @@ func stdoutLogHandler(enable bool, lh func(next http.Handler) http.Handler) func
 	}
 }
 
-func gzipHandler(enabled bool) func(next http.Handler) http.Handler {
+// gzipHandler compresses responses for clients that accept gzip or deflate, skipping media types that
+// match an exclude pattern, exact "audio/mpeg" or prefix "audio/*".
+func gzipHandler(enabled bool, exclude []string) func(next http.Handler) http.Handler {
 	if !enabled {
 		return passThroughHandler
 	}
 
-	log.Printf("[DEBUG] gzip enabled")
+	patterns := make([]string, 0, len(exclude))
+	for _, p := range exclude {
+		if p = strings.ToLower(strings.TrimSpace(p)); p != "" {
+			patterns = append(patterns, p)
+		}
+	}
+	log.Printf("[DEBUG] gzip enabled, excluded types: %v", patterns)
 	return func(next http.Handler) http.Handler {
-		// a panic unwinding through CompressHandler runs its deferred close, which commits a 200
-		// before any outer recoverer can write the 500, so the recover has to sit inside it
+		// recover before finalizing compression so the panic response uses the same encoding
 		next = R.Recoverer(log.Default())(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			hadAcceptEncoding := r.Header.Get("Accept-Encoding") != ""
-			handlers.CompressHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// gorilla drops Accept-Encoding from the request only when it compresses; a preset
-				// Content-Encoding on a non-compressing writer must be left alone
-				if hadAcceptEncoding && r.Header.Get("Accept-Encoding") == "" {
-					w = &encodingKeeper{ResponseWriter: w, encoding: w.Header().Get("Content-Encoding")}
-				}
+			if r.Header.Get("Upgrade") != "" {
 				next.ServeHTTP(w, r)
-			})).ServeHTTP(w, r)
+				return
+			}
+			cw := &compressWriter{ResponseWriter: w, encoding: negotiateEncoding(r.Header.Values("Accept-Encoding")),
+				exclude: patterns, head: r.Method == http.MethodHead}
+			defer cw.finish()
+			next.ServeHTTP(cw, r)
 		})
 	}
 }
 
-// encodingKeeper restores Content-Encoding on error responses. The compressing writer encodes every
-// write regardless, but the stdlib file server clears Content-Encoding in its error path (go 1.23+),
-// leaving clients with compressed bytes labeled as plain text. 304 is left alone: the header is
-// cleared there on purpose and no body follows.
-type encodingKeeper struct {
-	http.ResponseWriter
-	encoding string
-}
-
-func (w *encodingKeeper) WriteHeader(status int) {
-	if status >= http.StatusBadRequest && w.encoding != "" && w.Header().Get("Content-Encoding") == "" {
-		w.Header().Set("Content-Encoding", w.encoding)
+// negotiateEncoding picks gzip, then deflate, from Accept-Encoding values, skipping codings with q=0.
+func negotiateEncoding(values []string) string {
+	var gz, fl bool
+	for _, v := range values {
+		for part := range strings.SplitSeq(v, ",") {
+			name, params, _ := strings.Cut(part, ";")
+			name = strings.ToLower(strings.TrimSpace(name))
+			if (name != "gzip" && name != "deflate") || zeroQuality(params) {
+				continue
+			}
+			gz = gz || name == "gzip"
+			fl = fl || name == "deflate"
+		}
 	}
-	w.ResponseWriter.WriteHeader(status)
+	switch {
+	case gz:
+		return "gzip"
+	case fl:
+		return "deflate"
+	}
+	return ""
 }
 
-// Flush delegates to the compressing writer so streamed responses are not held back.
-func (w *encodingKeeper) Flush() {
+func zeroQuality(params string) bool {
+	for param := range strings.SplitSeq(params, ";") {
+		k, v, _ := strings.Cut(param, "=")
+		if !strings.EqualFold(strings.TrimSpace(k), "q") {
+			continue
+		}
+		q, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return err == nil && q == 0
+	}
+	return false
+}
+
+type flushWriteCloser interface {
+	io.WriteCloser
+	Flush() error
+}
+
+// compressWriter holds the status until the response headers are final, then commits either a
+// compressed or a plain response exactly once.
+type compressWriter struct {
+	http.ResponseWriter
+	encoding    string   // negotiated coding, empty when the client accepts none
+	exclude     []string // lowercased media type patterns
+	head        bool
+	status      int // first final status, 0 until the handler sets one
+	decided     bool
+	compressing bool
+	comp        flushWriteCloser // nil for plain responses and for HEAD
+}
+
+// WriteHeader passes informational statuses through and keeps the first final status.
+func (w *compressWriter) WriteHeader(code int) {
+	if w.decided {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+	if code >= 100 && code < 200 && code != http.StatusSwitchingProtocols {
+		if w.status == 0 {
+			w.ResponseWriter.WriteHeader(code)
+		}
+		return
+	}
+	if w.status != 0 {
+		return
+	}
+	w.status = code
+	if w.typeKnown() || !w.bodyAllowed(code) {
+		w.decide()
+	}
+}
+
+// Write sniffs the content type from the first bytes when the handler set none, the same way
+// net/http would, so the exclude list sees it.
+func (w *compressWriter) Write(b []byte) (int, error) {
+	if !w.decided {
+		if !w.typeKnown() {
+			if len(b) == 0 {
+				return 0, nil
+			}
+			w.Header().Set("Content-Type", http.DetectContentType(b))
+		}
+		w.decide()
+	}
+	if w.comp != nil {
+		return w.comp.Write(b) //nolint:wrapcheck // pass-through writer keeps the underlying error
+	}
+	if w.compressing {
+		return len(b), nil // for HEAD, net/http would derive Content-Length from these plain bytes
+	}
+	return w.ResponseWriter.Write(b) //nolint:wrapcheck // pass-through writer keeps the underlying error
+}
+
+// Flush commits the headers if still pending, which goes out plain when there is no type to judge.
+func (w *compressWriter) Flush() {
+	if !w.decided {
+		w.decide()
+	}
+	if w.comp != nil {
+		_ = w.comp.Flush()
+	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
 }
 
-// Unwrap exposes the compressing writer to http.ResponseController.
-func (w *encodingKeeper) Unwrap() http.ResponseWriter {
+// Unwrap exposes the underlying writer to http.ResponseController.
+func (w *compressWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+// typeKnown is true when the handler set a Content-Type, even a deliberately empty one, or the body
+// is already encoded and must not be sniffed.
+func (w *compressWriter) typeKnown() bool {
+	_, ok := w.Header()["Content-Type"]
+	return ok || w.Header().Get("Content-Encoding") != ""
+}
+
+func (w *compressWriter) decide() {
+	w.decided = true
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	h := w.Header()
+	if w.compressible() {
+		h.Set("Content-Encoding", w.encoding)
+		h.Del("Content-Length")
+		h.Del("Accept-Ranges")
+		if etag := h.Get("ETag"); strings.HasPrefix(etag, `"`) {
+			h.Set("ETag", "W/"+etag) // compressed bytes differ, a strong validator would let If-Range match them
+		}
+		w.compressing = true
+		switch {
+		case w.head: // an empty compressed stream would become the advertised Content-Length
+		case w.encoding == "gzip":
+			w.comp = gzip.NewWriter(w.ResponseWriter)
+		default:
+			w.comp, _ = flate.NewWriter(w.ResponseWriter, flate.DefaultCompression)
+		}
+	}
+	w.addVary()
+	w.ResponseWriter.WriteHeader(w.status)
+}
+
+func (w *compressWriter) compressible() bool {
+	h := w.Header()
+	if w.encoding == "" || !w.bodyAllowed(w.status) || w.status == http.StatusPartialContent {
+		return false
+	}
+	if h.Get("Content-Encoding") != "" || h.Get("Content-Range") != "" {
+		return false
+	}
+	if _, ok := h["Content-Type"]; !ok {
+		return false
+	}
+	mediaType, _, _ := strings.Cut(h.Get("Content-Type"), ";")
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	for _, p := range w.exclude {
+		if mediaType == p || (strings.HasSuffix(p, "/*") && strings.HasPrefix(mediaType, p[:len(p)-1])) {
+			return false
+		}
+	}
+	return true
+}
+
+// addVary sets Vary at commit time because the reverse proxy clears response headers after a 1xx.
+func (w *compressWriter) addVary() {
+	for _, v := range w.Header().Values("Vary") {
+		for token := range strings.SplitSeq(v, ",") {
+			if t := strings.TrimSpace(token); t == "*" || strings.EqualFold(t, "Accept-Encoding") {
+				return
+			}
+		}
+	}
+	w.Header().Add("Vary", "Accept-Encoding")
+}
+
+// finish commits a status set without a body and closes the compressor. A handler that wrote nothing
+// at all is left to net/http's default response.
+func (w *compressWriter) finish() {
+	if !w.decided && w.status != 0 {
+		w.decide()
+	}
+	if w.comp != nil {
+		if err := w.comp.Close(); err != nil {
+			log.Printf("[DEBUG] failed to close %s writer: %v", w.encoding, err)
+		}
+	}
+}
+
+func (w *compressWriter) bodyAllowed(code int) bool {
+	return code >= 200 && code != http.StatusNoContent && code != http.StatusNotModified
 }
 
 func signatureHandler(enabled bool, version string) func(next http.Handler) http.Handler {

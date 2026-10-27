@@ -43,6 +43,7 @@ var opts struct {
 	Listen              string   `short:"l" long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8080/8443 under docker, 127.0.0.1:80/443 without)"`
 	MaxSize             string   `short:"m" long:"max" env:"MAX_SIZE" default:"64K" description:"max request size"`
 	GzipEnabled         bool     `short:"g" long:"gzip" env:"GZIP" description:"enable gz compression"`
+	GzipExclude         string   `long:"gzip-exclude" env:"GZIP_EXCLUDE" description:"comma-separated media types never gz compressed, exact or type/*; empty disables exclusions" default:"audio/*,video/*,image/jpeg,image/png,image/gif,image/webp,image/avif,font/woff,font/woff2,application/zip,application/gzip,application/x-gzip,application/x-7z-compressed,application/x-rar-compressed,application/vnd.rar,application/x-bzip2,application/x-xz,application/zstd"`
 	ProxyHeaders        []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
 	DropHeaders         []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
@@ -347,6 +348,7 @@ func run() error {
 		AssetsSPA:      opts.Assets.SPA,
 		CacheControl:   cacheControl,
 		GzEnabled:      opts.GzipEnabled,
+		GzExclude:      strings.Split(opts.GzipExclude, ","),
 		SSLConfig:      sslConfig,
 		Insecure:       opts.Insecure,
 		ProxyHeaders:   proxyHeaders,

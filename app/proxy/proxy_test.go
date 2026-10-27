@@ -1,8 +1,11 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -15,6 +18,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1671,5 +1675,227 @@ func TestHttp_PerRouteTimeoutAndThrottle(t *testing.T) {
 		defer resp2.Body.Close()
 		assert.Equal(t, http.StatusTooManyRequests, resp2.StatusCode, "second rapid request should be throttled")
 		assert.Less(t, elapsed, 200*time.Millisecond, "429 must arrive well within sane bound regardless of upstream latency")
+	})
+}
+
+func TestHttp_DoWithGzip(t *testing.T) {
+	mp3 := make([]byte, 100_000)
+	_, err := rand.Read(mp3)
+	require.NoError(t, err)
+	txt := []byte(strings.Repeat("compressible text line\n", 4000))
+	var gzTxt bytes.Buffer
+	gw := gzip.NewWriter(&gzTxt)
+	_, err = gw.Write(txt)
+	require.NoError(t, err)
+	require.NoError(t, gw.Close())
+
+	var lastAccept atomic.Value
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseSSE := func() { releaseOnce.Do(func() { close(release) }) }
+
+	mux := http.NewServeMux()
+	serveFile := func(name, ctype string, data []byte) {
+		mux.HandleFunc("/"+name, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", ctype)
+			w.Header().Set("ETag", `"`+name+`-v1"`)
+			http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
+		})
+	}
+	serveFile("a.mp3", "audio/mpeg", mp3)
+	serveFile("a.txt", "text/plain; charset=utf-8", txt)
+	mux.HandleFunc("/pregz", func(w http.ResponseWriter, r *http.Request) {
+		lastAccept.Store(r.Header.Get("Accept-Encoding"))
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			_, _ = w.Write(txt)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(gzTxt.Bytes())
+	})
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: one\n\n"))
+		_ = http.NewResponseController(w).Flush()
+		<-release
+		_, _ = w.Write([]byte("data: two\n\n"))
+	})
+	mux.HandleFunc("/upgrade", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "echo", r.Header.Get("Upgrade"))
+		conn, brw, err := http.NewResponseController(w).Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.Close()
+		_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: echo\r\n\r\n")
+		_ = brw.Flush()
+		line, _ := brw.ReadString('\n')
+		_, _ = brw.WriteString("echo " + line)
+		_ = brw.Flush()
+	})
+	ds := httptest.NewServer(mux)
+	defer ds.Close()
+	defer releaseSSE()
+
+	port, releasePort := getFreePort(t)
+	h := Http{Timeouts: Timeouts{ResponseHeader: time.Second}, Address: fmt.Sprintf("127.0.0.1:%d", port), AccessLog: io.Discard,
+		AssetsWebRoot: "/static", AssetsLocation: "testdata", GzEnabled: true, GzExclude: testGzipExclude, Reporter: &ErrorReporter{},
+		CacheControl: NewCacheControl(time.Hour)}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{"127.0.0.1,^/up/(.*)," + ds.URL + "/$1,"}},
+	}, time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(50 * time.Millisecond)
+	h.Matcher = svc
+	h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
+	releasePort()
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	rawClient := &http.Client{Transport: &http.Transport{DisableCompression: true}, Timeout: 5 * time.Second}
+	get := func(t *testing.T, path string, hdrs map[string]string) (*http.Response, []byte) {
+		t.Helper()
+		req, err := http.NewRequest("GET", baseURL+path, http.NoBody)
+		require.NoError(t, err)
+		for k, v := range hdrs {
+			req.Header.Set(k, v)
+		}
+		resp, err := rawClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp, body
+	}
+
+	t.Run("excluded media served plain with ranges", func(t *testing.T) {
+		resp, body := get(t, "/up/a.mp3", map[string]string{"Accept-Encoding": "gzip, deflate"})
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, "100000", resp.Header.Get("Content-Length"))
+		assert.Equal(t, "bytes", resp.Header.Get("Accept-Ranges"))
+		assert.Equal(t, `"a.mp3-v1"`, resp.Header.Get("ETag"))
+		assert.Equal(t, mp3, body)
+	})
+
+	t.Run("range on excluded media", func(t *testing.T) {
+		resp, body := get(t, "/up/a.mp3", map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=1000-1999"})
+		assert.Equal(t, http.StatusPartialContent, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, "bytes 1000-1999/100000", resp.Header.Get("Content-Range"))
+		assert.Equal(t, mp3[1000:2000], body)
+	})
+
+	t.Run("range on compressible type", func(t *testing.T) {
+		resp, body := get(t, "/up/a.txt", map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=10-99"})
+		assert.Equal(t, http.StatusPartialContent, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, fmt.Sprintf("bytes 10-99/%d", len(txt)), resp.Header.Get("Content-Range"))
+		assert.Equal(t, txt[10:100], body)
+	})
+
+	t.Run("multipart range on compressible type", func(t *testing.T) {
+		resp, body := get(t, "/up/a.txt", map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=0-9,20-29"})
+		assert.Equal(t, http.StatusPartialContent, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Contains(t, resp.Header.Get("Content-Type"), "multipart/byteranges")
+		assert.Contains(t, string(body), string(txt[20:30]))
+	})
+
+	t.Run("compressible type compressed with weak etag and no ranges", func(t *testing.T) {
+		resp, body := get(t, "/up/a.txt", map[string]string{"Accept-Encoding": "gzip"})
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.Empty(t, resp.Header.Get("Accept-Ranges"))
+		assert.Equal(t, strconv.Itoa(len(body)), resp.Header.Get("Content-Length"))
+		assert.Equal(t, `W/"a.txt-v1"`, resp.Header.Get("ETag"))
+		assert.Equal(t, []string{"Accept-Encoding"}, resp.Header.Values("Vary"))
+		assert.Equal(t, string(txt), decodeBody(t, "gzip", body))
+	})
+
+	t.Run("if-range with weak etag returns full response", func(t *testing.T) {
+		resp, body := get(t, "/up/a.txt", map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=10-99", "If-Range": `W/"a.txt-v1"`})
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, string(txt), decodeBody(t, "gzip", body))
+	})
+
+	t.Run("client without gzip gets plain", func(t *testing.T) {
+		resp, body := get(t, "/up/a.txt", nil)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, "bytes", resp.Header.Get("Accept-Ranges"))
+		assert.Equal(t, txt, body)
+	})
+
+	t.Run("upstream compressed response passes through once", func(t *testing.T) {
+		resp, body := get(t, "/up/pregz", map[string]string{"Accept-Encoding": "gzip"})
+		assert.Equal(t, "gzip", lastAccept.Load())
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.Empty(t, resp.Header.Get("Content-Type"))
+		assert.Equal(t, gzTxt.Bytes(), body)
+	})
+
+	t.Run("upstream gzip decoded for client without gzip", func(t *testing.T) {
+		resp, body := get(t, "/up/pregz", nil)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, txt, body)
+	})
+
+	t.Run("event stream flushed through compression", func(t *testing.T) {
+		req, err := http.NewRequest("GET", baseURL+"/up/sse", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err := rawClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+		first := make([]byte, len("data: one\n\n"))
+		_, err = io.ReadFull(zr, first)
+		require.NoError(t, err)
+		assert.Equal(t, "data: one\n\n", string(first))
+		releaseSSE()
+		rest, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		assert.Equal(t, "data: two\n\n", string(rest))
+	})
+
+	t.Run("upgrade bypasses compression", func(t *testing.T) {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+		require.NoError(t, err)
+		defer conn.Close()
+		require.NoError(t, conn.SetDeadline(time.Now().Add(5*time.Second)))
+		_, err = fmt.Fprintf(conn, "GET /up/upgrade HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nConnection: Upgrade\r\nUpgrade: echo\r\n"+
+			"Accept-Encoding: gzip\r\n\r\n", port)
+		require.NoError(t, err)
+		br := bufio.NewReader(conn)
+		resp, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		_, err = conn.Write([]byte("ping\n"))
+		require.NoError(t, err)
+		line, err := br.ReadString('\n')
+		require.NoError(t, err)
+		assert.Equal(t, "echo ping\n", line)
+	})
+
+	t.Run("static asset compressed and range plain", func(t *testing.T) {
+		resp, body := get(t, "/static/1.html", map[string]string{"Accept-Encoding": "gzip"})
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, "test html", decodeBody(t, "gzip", body))
+
+		resp, body = get(t, "/static/1.html", map[string]string{"Accept-Encoding": "gzip", "Range": "bytes=0-3"})
+		assert.Equal(t, http.StatusPartialContent, resp.StatusCode)
+		assert.Empty(t, resp.Header.Get("Content-Encoding"))
+		assert.Equal(t, "test", string(body))
 	})
 }
