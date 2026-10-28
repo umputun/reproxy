@@ -137,21 +137,21 @@ func (h *Http) Run(ctx context.Context) error {
 	}()
 
 	handler := R.Wrap(h.proxyHandler(),
-		R.Recoverer(log.Default()),                   // recover on errors
-		signatureHandler(h.Signature, h.Version),     // send app signature
-		h.pingHandler,                                // respond to /ping
-		h.healthMiddleware,                           // respond to /health
-		h.matchHandler,                               // set matched routes to context
-		routeTimeoutHandler,                          // apply per-route request deadline if set on matched mapper
-		h.OnlyFrom.Handler,                           // limit source (remote) IPs if defined
-		perRouteAuthHandler,                          // per-route basic auth (if route has auth configured)
-		h.basicAuthHandler(),                         // global basic auth (skipped if per-route auth is set)
-		limiterSystemHandler(h.ThrottleSystem),       // limit total requests/sec
-		limiterUserHandler(h.ThrottleUser),           // req/seq per user/route match
-		h.mgmtHandler(),                              // handles /metrics and /routes for prometheus
-		h.pluginHandler(),                            // prc to external plugins
-		headersHandler(h.ProxyHeaders, h.DropHeader), // add response headers and delete some request headers
-		accessLogHandler(h.AccessLog),                // apache-format log file
+		R.Recoverer(log.Default()),                           // recover on errors
+		signatureHandler(h.Signature, h.Version),             // send app signature
+		h.pingHandler,                                        // respond to /ping
+		h.healthMiddleware,                                   // respond to /health
+		h.matchHandler,                                       // set matched routes to context
+		routeTimeoutHandler,                                  // apply per-route request deadline if set on matched mapper
+		h.OnlyFrom.Handler,                                   // limit source (remote) IPs if defined
+		perRouteAuthHandler,                                  // per-route basic auth (if route has auth configured)
+		h.basicAuthHandler(),                                 // global basic auth (skipped if per-route auth is set)
+		limiterSystemHandler(h.ThrottleSystem),               // limit total requests/sec
+		limiterUserHandler(h.ThrottleUser, h.TrustedProxies), // req/seq per user/route match
+		h.mgmtHandler(),                                      // handles /metrics and /routes for prometheus
+		h.pluginHandler(),                                    // prc to external plugins
+		headersHandler(h.ProxyHeaders, h.DropHeader),         // add response headers and delete some request headers
+		accessLogHandler(h.AccessLog),                        // apache-format log file
 		stdoutLogHandler(h.StdOutEnabled, logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]")).Handler),
 		maxReqSizeHandler(h.MaxBodySize),      // limit request max size
 		gzipHandler(h.GzEnabled, h.GzExclude), // gzip response

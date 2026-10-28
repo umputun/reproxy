@@ -269,6 +269,8 @@ When reproxy runs behind another proxy, a CDN or a load balancer, pass its addre
 
 The fronting proxy must append the address it received the request from to `X-Forwarded-For`, for example nginx with `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`, and must overwrite or remove client-supplied `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and `X-Forwarded-Port`, because reproxy passes those through from it as is. An incoming `X-Real-IP` is never used, so a proxy that sets only `X-Real-IP` has to be configured to set `X-Forwarded-For` too. Every host inside a trusted range can report any client address, so keep the list to the actual proxies.
 
+Behind Cloudflare, list [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) in `--trusted-proxy`. Without it, backends see Cloudflare's address in `X-Real-IP`, the `X-Forwarded-Proto` and `X-Forwarded-Port` set by Cloudflare are dropped (see [#172](https://github.com/umputun/reproxy/issues/172)), and per-user throttling groups clients by Cloudflare peer address instead of visitor address.
+
 The opposite function, setting outgoing header(s) supported as well. It can be useful in many cases, for example enforcing some custom CORS rules, security related headers and so on. This can be done with `--header` parameter (can be repeated) or env `HEADER`. For example, this is how it can be done with the docker compose:
 
 ```yaml
@@ -399,6 +401,8 @@ Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any 
 ## Throttling 
 
 Reproxy allows to define system level max req/sec value for the overall system activity as well as per user. 0 values (default) treated as unlimited.
+
+The user is identified by the client address, the same one reproxy sends in `X-Real-IP` (see [client address and forwarded headers](#client-address-and-forwarded-headers)), so a client can't escape the limit by changing `X-Forwarded-For` or `X-Real-IP`.
 
 User activity limited for both matched and unmatched routes. All unmatched routes considered as a "single destination group" and get a common limiter which is `rate*3`. It means if 10 (req/sec) defined with `--throttle.user=10` the end user will be able to perform up to 30 request pers second for either static assets or unmatched routes. For matched routes this limiter maintained per destination (route), i.e. request proxied to s1.example.com/api will allow 10 r/s and the request proxied to s2.example.com will allow another 10 r/s.
 

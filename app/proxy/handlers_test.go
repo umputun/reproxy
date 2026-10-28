@@ -202,7 +202,7 @@ func Test_limiterSystemHandler(t *testing.T) {
 func Test_limiterClientHandlerNoMatches(t *testing.T) {
 
 	var passed atomic.Int32
-	handler := limiterUserHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiterUserHandler(10, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		passed.Add(1)
 	}))
 
@@ -228,7 +228,7 @@ func Test_limiterClientHandlerNoMatches(t *testing.T) {
 
 func Test_limiterClientHandlerWithMatches(t *testing.T) {
 	var passed atomic.Int32
-	handler := limiterUserHandler(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limiterUserHandler(10, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		passed.Add(1)
 	}))
 
@@ -677,6 +677,69 @@ func Test_routeTimeoutHandler(t *testing.T) {
 	})
 }
 
+func Test_limiterUserHandler_ClientAddress(t *testing.T) {
+	trusted, err := ParseTrustedProxies([]string{"10.0.0.0/8"})
+	require.NoError(t, err)
+	modes := []struct {
+		name       string
+		globalRate int
+		throttle   int
+	}{{name: "per-route", throttle: 1}, {name: "global", globalRate: 1}}
+	tbl := []struct {
+		name       string
+		trusted    TrustedProxies
+		remoteAddr string
+		header     string
+		values     []string
+		want       []int
+	}{
+		{name: "trusted proxy, distinct clients", trusted: trusted, remoteAddr: "10.0.0.2:1234", header: "X-Forwarded-For",
+			values: []string{"203.0.113.1", "203.0.113.2"}, want: []int{http.StatusOK, http.StatusOK}},
+		{name: "trusted proxy, same client", trusted: trusted, remoteAddr: "10.0.0.2:1234", header: "X-Forwarded-For",
+			values: []string{"203.0.113.1", "203.0.113.1"}, want: []int{http.StatusOK, http.StatusTooManyRequests}},
+		{name: "trusted proxy, untrusted intermediate hop", trusted: trusted, remoteAddr: "10.0.0.2:1234",
+			header: "X-Forwarded-For", values: []string{"203.0.113.1, 198.51.100.9", "203.0.113.2, 198.51.100.9"},
+			want: []int{http.StatusOK, http.StatusTooManyRequests}},
+		{name: "trusted chain, distinct clients behind trusted hop", trusted: trusted, remoteAddr: "10.0.0.2:1234",
+			header: "X-Forwarded-For", values: []string{"203.0.113.1, 198.51.100.9, 10.0.0.3", "203.0.113.1, 198.51.100.10, 10.0.0.3"},
+			want: []int{http.StatusOK, http.StatusOK}},
+		{name: "trusted chain, rotating spoofed prefix", trusted: trusted, remoteAddr: "10.0.0.2:1234",
+			header: "X-Forwarded-For", values: []string{"203.0.113.1, 198.51.100.9, 10.0.0.3", "203.0.113.2, 198.51.100.9, 10.0.0.3"},
+			want: []int{http.StatusOK, http.StatusTooManyRequests}},
+		{name: "untrusted peer, rotating spoofed xff", trusted: trusted, remoteAddr: "198.51.100.7:1234",
+			header: "X-Forwarded-For", values: []string{"203.0.113.1", "203.0.113.2"},
+			want: []int{http.StatusOK, http.StatusTooManyRequests}},
+		{name: "no trusted proxies, rotating spoofed xff", remoteAddr: "10.0.0.2:1234", header: "X-Forwarded-For",
+			values: []string{"203.0.113.1", "203.0.113.2"}, want: []int{http.StatusOK, http.StatusTooManyRequests}},
+		{name: "no trusted proxies, rotating spoofed x-real-ip", remoteAddr: "10.0.0.2:1234", header: "X-Real-IP",
+			values: []string{"203.0.113.1", "203.0.113.2"}, want: []int{http.StatusOK, http.StatusTooManyRequests}},
+	}
+
+	for _, mode := range modes {
+		for _, tt := range tbl {
+			t.Run(mode.name+", "+tt.name, func(t *testing.T) {
+				handler := limiterUserHandler(mode.globalRate, tt.trusted)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				mapper := discovery.URLMapper{Server: "*", SrcMatch: *regexp.MustCompile("^/foo$"), Dst: "http://up",
+					Throttle: mode.throttle}
+				got := make([]int, 0, len(tt.values))
+				for _, v := range tt.values {
+					req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
+					req.RemoteAddr = tt.remoteAddr
+					req.Header.Set(tt.header, v)
+					ctx := context.WithValue(req.Context(), ctxMatch, discovery.MatchedRoute{Mapper: mapper})
+					ctx = context.WithValue(ctx, ctxMatchType, discovery.MTProxy)
+					rec := httptest.NewRecorder()
+					handler.ServeHTTP(rec, req.WithContext(ctx))
+					got = append(got, rec.Code)
+				}
+				assert.Equal(t, tt.want, got)
+			})
+		}
+	}
+}
+
 func Test_limiterUserHandler_PerRoute(t *testing.T) {
 	makeReq := func(remoteAddr string, mapper discovery.URLMapper, matchType discovery.MatchType) *http.Request {
 		req := httptest.NewRequest("GET", "http://example.com/foo", http.NoBody)
@@ -688,7 +751,7 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 
 	t.Run("route throttle fires after burst", func(t *testing.T) {
 		var passed atomic.Int32
-		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := limiterUserHandler(0, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			passed.Add(1)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -708,7 +771,7 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 
 	t.Run("key isolation across routes", func(t *testing.T) {
 		var passed atomic.Int32
-		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := limiterUserHandler(0, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			passed.Add(1)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -727,7 +790,7 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 
 	t.Run("per-user budget preserved", func(t *testing.T) {
 		var passed atomic.Int32
-		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := limiterUserHandler(0, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			passed.Add(1)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -747,7 +810,7 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 
 	t.Run("fallback to global when route throttle is zero", func(t *testing.T) {
 		var passed atomic.Int32
-		handler := limiterUserHandler(5)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := limiterUserHandler(5, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			passed.Add(1)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -765,7 +828,7 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 
 	t.Run("per-route works when global is zero", func(t *testing.T) {
 		var passed atomic.Int32
-		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := limiterUserHandler(0, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			passed.Add(1)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -786,7 +849,7 @@ func Test_limiterUserHandler_PerRoute(t *testing.T) {
 
 	t.Run("rate-change cache key", func(t *testing.T) {
 		var passed atomic.Int32
-		handler := limiterUserHandler(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := limiterUserHandler(0, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			passed.Add(1)
 			w.WriteHeader(http.StatusOK)
 		}))
