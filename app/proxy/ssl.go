@@ -76,7 +76,7 @@ func (h *Http) httpChallengeOnlyRouter(m AutocertManager) http.Handler {
 
 func (h *Http) redirectHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server := strings.Split(r.Host, ":")[0]
+		server, _, _ := strings.Cut(r.Host, ":")
 		// use standard HTTPS port by default
 		httpsPort := 443
 		// no need to specify the port if it's the standard HTTPS port
@@ -246,7 +246,6 @@ func (h *Http) makeHTTPSServer(address string, router http.Handler) *http.Server
 
 func (h *Http) makeTLSConfig() *tls.Config {
 	return &tls.Config{
-		PreferServerCipherSuites: true,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,

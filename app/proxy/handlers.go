@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/didip/tollbooth/v7"
-	"github.com/didip/tollbooth/v7/libstring"
 	"github.com/didip/tollbooth/v7/limiter"
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
@@ -366,8 +365,9 @@ func limiterSystemHandler(reqSec int) func(next http.Handler) http.Handler {
 // it applies a per-route limiter at that rate keyed by [ip, dst]. Otherwise it falls back
 // to the global limiter at reqSec, keyed by [ip] and, for MTProxy matches only, [ip, dst].
 // A request rejected by either limit returns 429. reqSec = 0 disables the global path while
-// per-route overrides still apply.
-func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
+// per-route overrides still apply. The ip is the client address resolved through trusted, so a
+// client can't pick its own bucket with X-Forwarded-For or X-Real-IP.
+func limiterUserHandler(reqSec int, trusted TrustedProxies) func(next http.Handler) http.Handler {
 	var routeLimiters sync.Map // map[string]*limiter.Limiter, keyed by server\x00srcMatch\x00rate
 	var globalLmt *limiter.Limiter
 	if reqSec > 0 {
@@ -381,6 +381,12 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 		}
 		actual, _ := routeLimiters.LoadOrStore(key, tollbooth.NewLimiter(float64(m.Throttle), nil))
 		return actual.(*limiter.Limiter)
+	}
+	clientKey := func(r *http.Request) string {
+		if ip := trusted.clientIP(r); ip != "" {
+			return ip
+		}
+		return r.RemoteAddr
 	}
 
 	return func(h http.Handler) http.Handler {
@@ -396,8 +402,7 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 
 			if matched && match.Mapper.Throttle > 0 {
 				lmt := getRouteLimiter(match.Mapper)
-				ip := libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)
-				if httpError := tollbooth.LimitByKeys(lmt, []string{ip, match.Mapper.Dst}); httpError != nil {
+				if httpError := tollbooth.LimitByKeys(lmt, []string{clientKey(r), match.Mapper.Dst}); httpError != nil {
 					http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 					return
 				}
@@ -410,7 +415,7 @@ func limiterUserHandler(reqSec int) func(next http.Handler) http.Handler {
 				return
 			}
 			lmt := globalLmt
-			keys := []string{libstring.RemoteIP(lmt.GetIPLookups(), lmt.GetForwardedForIndexFromBehind(), r)}
+			keys := []string{clientKey(r)}
 			if matched {
 				if matchType, ok := r.Context().Value(ctxMatchType).(discovery.MatchType); ok && matchType == discovery.MTProxy {
 					keys = append(keys, match.Mapper.Dst)

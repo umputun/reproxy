@@ -139,6 +139,16 @@ func TestHttp_Do(t *testing.T) {
 		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 	})
+
+	t.Run("unparsable query passed as is", func(t *testing.T) {
+		resp, err := client.Get("http://localhost:" + strconv.Itoa(port) + "/api/something?a=1;b=2&c=%zz")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "response /123/something?a=1;b=2&c=%zz", string(body))
+	})
 }
 
 func TestHttp_DoWithSSL(t *testing.T) {
@@ -253,6 +263,16 @@ func TestHttp_DoWithSSL(t *testing.T) {
 		assert.Equal(t, "v1", resp.Header.Get("h1"))
 		assert.Equal(t, "vv1", resp.Header.Get("hh1"))
 		assert.Equal(t, "vv2", resp.Header.Get("hh2"))
+	})
+
+	t.Run("forwarded headers nominated in Connection", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "https://localhost:"+strconv.Itoa(port)+"/api/something", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Connection", "X-Real-IP, X-Forwarded-Proto, X-Forwarded-Port")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
 
@@ -1385,7 +1405,7 @@ func TestHttp_EncodedPathRoutePolicy(t *testing.T) {
 	h := Http{
 		Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
 		AccessLog: io.Discard, Reporter: &ErrorReporter{Nice: true}, Matcher: svc,
-		Metrics: mgmt.NewMetrics(mgmt.MetricsConfig{}), OnlyFrom: NewOnlyFrom(OFRemoteAddr),
+		Metrics: mgmt.NewMetrics(mgmt.MetricsConfig{}), OnlyFrom: NewOnlyFrom(nil),
 	}
 	releasePort()
 	go func() { _ = h.Run(ctx) }()
@@ -1973,6 +1993,160 @@ func TestHttp_UpstreamAbortReachesClient(t *testing.T) {
 			rest, err := io.ReadAll(rd)
 			require.ErrorIs(t, err, io.ErrUnexpectedEOF, "client must see the truncation")
 			assert.NotContains(t, string(rest), "Internal Server Error")
+		})
+	}
+}
+
+func TestHttp_ForwardedHeaders(t *testing.T) {
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "xri=%s|xff=%s|xfh=%s|xfp=%s|xfport=%s|fwd=%s", r.Header.Get("X-Real-IP"),
+			strings.Join(r.Header.Values("X-Forwarded-For"), ";"), strings.Join(r.Header.Values("X-Forwarded-Host"), ";"),
+			r.Header.Get("X-Forwarded-Proto"), r.Header.Get("X-Forwarded-Port"), r.Header.Get("Forwarded"))
+	}))
+	defer ds.Close()
+
+	svc := discovery.NewService([]discovery.Provider{&provider.Static{Rules: []string{"*,^/api/(.*)," + ds.URL + "/$1,"}}},
+		time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(50 * time.Millisecond)
+
+	client := http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+	startProxy := func(t *testing.T, trusted TrustedProxies, ssl bool) (baseURL, host string) {
+		port, releasePort := getFreePort(t)
+		h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+			AccessLog: io.Discard, Reporter: &ErrorReporter{Nice: true}, Matcher: svc,
+			Metrics: mgmt.NewMetrics(mgmt.MetricsConfig{}), TrustedProxies: trusted}
+		scheme := "http"
+		if ssl {
+			h.SSLConfig = SSLConfig{SSLMode: SSLStatic, Cert: "testdata/localhost.crt", Key: "testdata/localhost.key",
+				NoHTTPRedirect: true}
+			scheme = "https"
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		t.Cleanup(cancel)
+		releasePort()
+		go func() { _ = h.Run(ctx) }()
+		host = "127.0.0.1:" + strconv.Itoa(port)
+		require.Eventually(t, func() bool {
+			resp, err := client.Get(scheme + "://" + host + "/ping")
+			if err != nil {
+				return false
+			}
+			resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}, 5*time.Second, 10*time.Millisecond, "server failed to start")
+		return scheme + "://" + host, host
+	}
+
+	type testCase struct {
+		name    string
+		headers map[string][]string
+		want    string
+	}
+	runCases := func(t *testing.T, baseURL string, tbl []testCase) {
+		for _, tt := range tbl {
+			t.Run(tt.name, func(t *testing.T) {
+				req, err := http.NewRequest("GET", baseURL+"/api/something", http.NoBody)
+				require.NoError(t, err)
+				for k, vals := range tt.headers {
+					for _, v := range vals {
+						req.Header.Add(k, v)
+					}
+				}
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, string(body))
+			})
+		}
+	}
+
+	t.Run("untrusted client", func(t *testing.T) {
+		baseURL, host := startProxy(t, nil, false)
+		runCases(t, baseURL, []testCase{
+			{name: "no forwarded headers", want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "spoofed xff", headers: map[string][]string{"X-Forwarded-For": {"6.6.6.6"}},
+				want: "xri=127.0.0.1|xff=6.6.6.6, 127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "spoofed xff in two fields", headers: map[string][]string{"X-Forwarded-For": {"6.6.6.6", "7.7.7.7"}},
+				want: "xri=127.0.0.1|xff=6.6.6.6, 7.7.7.7, 127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "spoofed x-real-ip", headers: map[string][]string{"X-Real-Ip": {"7.7.7.7"}},
+				want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "spoofed host, proto, port and forwarded", headers: map[string][]string{"X-Forwarded-Host": {"evil.example.com"},
+				"X-Forwarded-Proto": {"https"}, "X-Forwarded-Port": {"443"}, "Forwarded": {"for=6.6.6.6"}},
+				want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "forwarded headers nominated in Connection",
+				headers: map[string][]string{"Connection": {"X-Real-IP, X-Forwarded-Host, X-Forwarded-For"}},
+				want:    "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "spoofed xff nominated in Connection", headers: map[string][]string{"X-Forwarded-For": {"6.6.6.6"},
+				"Connection": {"X-Forwarded-For"}},
+				want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+		})
+	})
+
+	t.Run("untrusted client, tls", func(t *testing.T) {
+		baseURL, host := startProxy(t, nil, true)
+		runCases(t, baseURL, []testCase{
+			{name: "no forwarded headers", want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=https|xfport=443|fwd="},
+			{name: "spoofed proto and port", headers: map[string][]string{"X-Forwarded-Proto": {"http"}, "X-Forwarded-Port": {"80"}},
+				want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=https|xfport=443|fwd="},
+			{name: "forwarded headers nominated in Connection",
+				headers: map[string][]string{"Connection": {"X-Real-IP, X-Forwarded-Proto, X-Forwarded-Port"}},
+				want:    "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=https|xfport=443|fwd="},
+		})
+	})
+
+	trusted, err := ParseTrustedProxies([]string{"127.0.0.1"})
+	require.NoError(t, err)
+
+	t.Run("trusted proxy", func(t *testing.T) {
+		baseURL, host := startProxy(t, trusted, false)
+		runCases(t, baseURL, []testCase{
+			{name: "no forwarded headers", want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "client from xff", headers: map[string][]string{"X-Forwarded-For": {"6.6.6.6, 203.0.113.9"}},
+				want: "xri=203.0.113.9|xff=6.6.6.6, 203.0.113.9, 127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+			{name: "host, proto, port and forwarded kept", headers: map[string][]string{"X-Forwarded-Host": {"front.example.com"},
+				"X-Forwarded-Proto": {"https"}, "X-Forwarded-Port": {"443"}, "Forwarded": {"for=203.0.113.9"}},
+				want: "xri=127.0.0.1|xff=127.0.0.1|xfh=front.example.com;" + host + "|xfp=https|xfport=443|fwd=for=203.0.113.9"},
+			{name: "headers nominated in Connection not kept", headers: map[string][]string{"X-Forwarded-For": {"203.0.113.9"},
+				"X-Forwarded-Host": {"front.example.com"}, "Connection": {"X-Forwarded-Host, X-Forwarded-For"}},
+				want: "xri=203.0.113.9|xff=127.0.0.1|xfh=" + host + "|xfp=|xfport=|fwd="},
+		})
+	})
+
+	t.Run("trusted proxy, tls", func(t *testing.T) {
+		baseURL, host := startProxy(t, trusted, true)
+		runCases(t, baseURL, []testCase{
+			{name: "no forwarded headers", want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=https|xfport=443|fwd="},
+			{name: "proto and port kept", headers: map[string][]string{"X-Forwarded-Proto": {"http"}, "X-Forwarded-Port": {"8080"}},
+				want: "xri=127.0.0.1|xff=127.0.0.1|xfh=" + host + "|xfp=http|xfport=8080|fwd="},
+		})
+	})
+}
+
+func TestHttp_setXRealIP(t *testing.T) {
+	tbl := []struct {
+		name       string
+		remoteAddr string
+		realIP     string
+		want       string
+	}{
+		{name: "peer overrides client header", remoteAddr: "203.0.113.9:1234", realIP: "7.7.7.7", want: "203.0.113.9"},
+		{name: "zoned peer overrides client header", remoteAddr: "[fe80::1%en0]:1234", realIP: "7.7.7.7", want: "fe80::1"},
+		{name: "unparsable peer drops client header", remoteAddr: "garbage", realIP: "7.7.7.7", want: ""},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			h := Http{}
+			in := httptest.NewRequest(http.MethodGet, "http://example.com/", http.NoBody)
+			in.RemoteAddr = tt.remoteAddr
+			out := in.Clone(t.Context())
+			out.Header.Set("X-Real-IP", tt.realIP)
+			h.setXRealIP(in, out)
+			assert.Equal(t, tt.want, out.Header.Get("X-Real-IP"))
 		})
 	}
 }

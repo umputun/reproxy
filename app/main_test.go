@@ -444,6 +444,51 @@ func Test_gzipExcludeFlag(t *testing.T) {
 	}
 }
 
+func Test_makeTrustedProxies(t *testing.T) {
+	setupLogger()
+	tbl := []struct {
+		name    string
+		args    []string
+		env     string
+		want    []string
+		wantErr string
+	}{
+		{name: "none", want: []string{}},
+		{name: "cli", args: []string{"--trusted-proxy=10.0.0.0/8", "--trusted-proxy=192.168.1.5"},
+			want: []string{"10.0.0.0/8", "192.168.1.5/32"}},
+		{name: "env", env: "10.0.0.0/8,2001:db8::/32", want: []string{"10.0.0.0/8", "2001:db8::/32"}},
+		{name: "invalid entry", args: []string{"--trusted-proxy=proxy.example.com"}, wantErr: "invalid trusted proxy"},
+		{name: "legacy flag without trusted proxies", args: []string{"--remote-lookup-headers"},
+			wantErr: "--remote-lookup-headers is no longer supported"},
+		{name: "legacy flag with trusted proxies", args: []string{"--remote-lookup-headers", "--trusted-proxy=10.0.0.0/8"},
+			want: []string{"10.0.0.0/8"}},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv("TRUSTED_PROXIES", tt.env)
+			}
+			saved := opts
+			t.Cleanup(func() { opts = saved })
+			opts.TrustedProxies, opts.RemoteLookupHeaders = nil, false
+			_, err := flags.NewParser(&opts, flags.Default).ParseArgs(tt.args)
+			require.NoError(t, err)
+
+			res, err := makeTrustedProxies()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			got := make([]string, 0, len(res))
+			for _, p := range res {
+				got = append(got, p.String())
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func Test_makeBasicAuth(t *testing.T) {
 	setupLogger()
 
