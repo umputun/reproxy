@@ -47,7 +47,8 @@ var opts struct {
 	ProxyHeaders        []string `short:"x" long:"header" description:"outgoing proxy headers to add"` // env HEADER split in code to allow , inside ""
 	DropHeaders         []string `long:"drop-header" env:"DROP_HEADERS" description:"incoming headers to drop" env-delim:","`
 	AuthBasicHtpasswd   string   `long:"basic-htpasswd" env:"BASIC_HTPASSWD" description:"htpasswd file for basic auth"`
-	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"enable remote lookup headers, trust only behind a trusted proxy"`
+	RemoteLookupHeaders bool     `long:"remote-lookup-headers" env:"REMOTE_LOOKUP_HEADERS" description:"deprecated, use --trusted-proxy"`
+	TrustedProxies      []string `long:"trusted-proxy" env:"TRUSTED_PROXIES" description:"proxy IP or CIDR allowed to set X-Forwarded-For/Host/Proto/Port" env-delim:","`
 	LBType              string   `long:"lb-type" env:"LB_TYPE" description:"load balancer type" choice:"random" choice:"failover" choice:"roundrobin" default:"random"` // nolint
 	Insecure            bool     `long:"insecure" env:"INSECURE" description:"skip SSL certificate verification for the destination host"`
 	KeepHost            bool     `long:"keep-host" env:"KEEP_HOST" description:"pass the Host header from the client as-is, instead of rewriting it"`
@@ -337,6 +338,11 @@ func run() error {
 		return fmt.Errorf("failed to load basic auth: %w", baErr)
 	}
 
+	trustedProxies, tpErr := makeTrustedProxies()
+	if tpErr != nil {
+		return fmt.Errorf("failed to make trusted proxies: %w", tpErr)
+	}
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -376,7 +382,8 @@ func run() error {
 		BasicAuthEnabled:        len(basicAuthAllowed) > 0,
 		BasicAuthAllowed:        basicAuthAllowed,
 		KeepHost:                opts.KeepHost,
-		OnlyFrom:                makeOnlyFromMiddleware(),
+		OnlyFrom:                proxy.NewOnlyFrom(trustedProxies),
+		TrustedProxies:          trustedProxies,
 		UpstreamMaxIdleConns:    opts.Upstream.MaxIdleConns,
 		UpstreamMaxConnsPerHost: opts.Upstream.MaxConnsPerHost,
 	}
@@ -592,11 +599,20 @@ func makeLBSelector() proxy.LBSelector {
 	}
 }
 
-func makeOnlyFromMiddleware() *proxy.OnlyFrom {
-	if opts.RemoteLookupHeaders {
-		return proxy.NewOnlyFrom(proxy.OFRealIP, proxy.OFForwarded, proxy.OFRemoteAddr)
+// makeTrustedProxies refuses --remote-lookup-headers without --trusted-proxy: ignoring it would make
+// the allowlist see the fronting proxy's address, which may itself be allowed.
+func makeTrustedProxies() (proxy.TrustedProxies, error) {
+	trusted, err := proxy.ParseTrustedProxies(opts.TrustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("parse --trusted-proxy: %w", err)
 	}
-	return proxy.NewOnlyFrom(proxy.OFRemoteAddr)
+	if opts.RemoteLookupHeaders && len(trusted) == 0 {
+		return nil, errors.New("--remote-lookup-headers is no longer supported, set --trusted-proxy to the fronting proxy addresses")
+	}
+	if opts.RemoteLookupHeaders {
+		log.Printf("[WARN] --remote-lookup-headers is ignored, client address comes from --trusted-proxy")
+	}
+	return trusted, nil
 }
 
 func makeErrorReporter() (proxy.Reporter, error) {

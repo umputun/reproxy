@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,7 @@ type Http struct { // nolint golint
 	Reporter         Reporter
 	LBSelector       LBSelector
 	OnlyFrom         *OnlyFrom
+	TrustedProxies   TrustedProxies
 	BasicAuthEnabled bool
 	BasicAuthAllowed []string
 
@@ -241,11 +243,14 @@ const (
 func (h *Http) proxyHandler() http.HandlerFunc {
 
 	reverseProxy := &httputil.ReverseProxy{
-		Director: func(r *http.Request) {
-			ctx := r.Context()
+		// rewrite runs after hop-by-hop removal, so a client can't strip these headers via Connection
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			in, r := pr.In, pr.Out
+			ctx := in.Context()
 			uu := ctx.Value(ctxURL).(*url.URL)
 			keepHost := ctx.Value(ctxKeepHost).(bool)
-			r.Header.Add("X-Forwarded-Host", r.Host)
+			r.URL.RawQuery = in.URL.RawQuery // rewrite mode drops unparsable query params, pass them as sent
+			h.setForwardedHeaders(in, r)
 			scheme := "http"
 			if h.SSLConfig.SSLMode == SSLAuto || h.SSLConfig.SSLMode == SSLStatic {
 				h.setHeaderIfNotExists(r, "X-Forwarded-Proto", "https")
@@ -261,7 +266,7 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			} else {
 				log.Printf("[DEBUG] keep host %s", r.Host)
 			}
-			h.setXRealIP(r)
+			h.setXRealIP(in, r)
 		},
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: h.Timeouts.ResponseHeader,
@@ -481,23 +486,42 @@ func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
 	}
 }
 
-func (h *Http) setXRealIP(r *http.Request) {
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		// use the left-most non-private client IP address
-		// if there is no any non-private IP address, use the left-most address
-		r.Header.Set("X-Real-IP", preferPublicIP(strings.Split(forwarded, ",")))
+func (h *Http) setXRealIP(in, out *http.Request) {
+	ip := h.TrustedProxies.clientIP(in)
+	if ip == "" {
+		out.Header.Del("X-Real-IP")
 		return
 	}
+	out.Header.Set("X-Real-IP", ip)
+}
 
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return
+// setForwardedHeaders sets X-Forwarded-For/Host and drops X-Forwarded-Port of an untrusted peer.
+// Rewrite has already removed incoming Forwarded and X-Forwarded-For/Host/Proto from out, so the
+// ones from a trusted proxy are copied back from in, skipping any the sender named in Connection.
+func (h *Http) setForwardedHeaders(in, out *http.Request) {
+	hopByHop := map[string]bool{}
+	for _, v := range in.Header.Values("Connection") {
+		for name := range strings.SplitSeq(v, ",") {
+			hopByHop[http.CanonicalHeaderKey(strings.TrimSpace(name))] = true
+		}
 	}
-	userIP := net.ParseIP(ip)
-	if userIP == nil {
-		return
+	if h.TrustedProxies.trustedPeer(in) {
+		for _, k := range []string{"Forwarded", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port"} {
+			if vals := in.Header.Values(k); len(vals) > 0 && !hopByHop[k] {
+				out.Header[k] = slices.Clone(vals)
+			}
+		}
+	} else {
+		out.Header.Del("X-Forwarded-Port")
 	}
-	r.Header.Set("X-Real-IP", ip)
+	if peer, _, err := net.SplitHostPort(in.RemoteAddr); err == nil {
+		xff := peer
+		if prior := in.Header.Values("X-Forwarded-For"); len(prior) > 0 && !hopByHop["X-Forwarded-For"] {
+			xff = strings.Join(prior, ", ") + ", " + peer
+		}
+		out.Header.Set("X-Forwarded-For", xff)
+	}
+	out.Header.Add("X-Forwarded-Host", in.Host)
 }
 
 // discoveredServers gets the list of servers discovered by providers.

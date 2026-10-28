@@ -201,7 +201,7 @@ In case if rules set as a part of docker compose environment, destination with t
 
 ## SSL support
 
-SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s). In `auto` and `static` SSL mode, Reproxy will automatically add the `X-Forwarded-Proto` and `X-Forwarded-Port` headers. These headers are useful for services behind the proxy to know the original protocol (http or https) and port number used by the client.
+SSL mode (by default none) can be set to `auto` (ACME/LE certificates), `static` (existing certificate) or `none`. If `auto` turned on SSL certificate will be issued automatically for all discovered server names. User can override it by setting `--ssl.fqdn` value(s). In `auto` and `static` SSL mode, Reproxy will automatically add the `X-Forwarded-Proto` and `X-Forwarded-Port` headers, replacing values sent by a client that is not a [trusted proxy](#client-address-and-forwarded-headers). These headers are useful for services behind the proxy to know the original protocol (http or https) and port number used by the client.
 
 When using ACME with discovery providers (docker, file, consul), SSL certificates are automatically obtained for newly discovered servers without requiring a reproxy restart.
 
@@ -258,6 +258,16 @@ The DNS-01 challenge is especially useful when:
 ## Headers 
 
 Reproxy allows to sanitize (remove) incoming headers by passing `--drop-header` parameter (can be repeated). This parameter can be useful to make sure some of the headers, set internally by the services, can't be set/faked by the end user. For example if some of the services, responsible for the auth, sets `X-Auth-User` and `X-Auth-Token` it is likely makes sense to drop those headers from the incoming requests by passing `--drop-header=X-Auth-User --drop-header=X-Auth-Token` parameter or via environment `DROP_HEADERS=X-Auth-User,X-Auth-Token`
+
+### Client address and forwarded headers
+
+Reproxy sets `X-Real-IP` on every proxied request to the client address, overwriting any value sent by the client, and appends the connection's remote address to `X-Forwarded-For`.
+
+By default the client address is the remote address of the connection, and incoming `X-Forwarded-For` is not used for it. Incoming `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and `X-Forwarded-Port` are dropped. Reproxy adds `X-Forwarded-Host` with the requested host, and in `auto` and `static` SSL mode it sets `X-Forwarded-Proto: https` and `X-Forwarded-Port: 443`.
+
+When reproxy runs behind another proxy, a CDN or a load balancer, pass its addresses with `--trusted-proxy` (repeatable, IP or CIDR, env `TRUSTED_PROXIES=10.0.0.0/8,192.168.1.5`). For a request whose remote address is in that list, reproxy reads `X-Forwarded-For` from right to left, skips trusted addresses, and uses the first address that is not trusted as the client address. If every address is trusted, it uses the left-most one. If it meets an empty or malformed entry first, it stops and uses the remote address. `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and `X-Forwarded-Port` from a trusted proxy are kept, except the ones it lists in `Connection`.
+
+The fronting proxy must append the address it received the request from to `X-Forwarded-For`, for example nginx with `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`, and must overwrite or remove client-supplied `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and `X-Forwarded-Port`, because reproxy passes those through from it as is. An incoming `X-Real-IP` is never used, so a proxy that sets only `X-Real-IP` has to be configured to set `X-Forwarded-For` too. Every host inside a trusted range can report any client address, so keep the list to the actual proxies.
 
 The opposite function, setting outgoing header(s) supported as well. It can be useful in many cases, for example enforcing some custom CORS rules, security related headers and so on. This can be done with `--header` parameter (can be repeated) or env `HEADER`. For example, this is how it can be done with the docker compose:
 
@@ -463,9 +473,9 @@ Reproxy allows restricting access to the routes with a list of comma-separated s
 
 To restrict access to the routes, user should set appropriate keys for the routes, i.e. `reproxy.remote` for docker and consul, and `remote` for file provider. The value should be a list of comma-separated subnets or ips or subnets. For example `127.0.0.1, 192.168.1.0/24`. For more details see [docker provider](#docker-provider) and [consul catalog provider](#consul-catalog-provider) sections.
 
-By default, reproxy will check the remote address from the client's request. However, in some cases, it won't work as expected, for example behind of other proxy, or with docker bridge network. This can be altered with `--remote-lookup-headers` parameter allowing check the value of the header `X-Real-IP` or `X-Forwarded-For` (in this order) and use it for the check. If the header is not set, the check will be performed against the remote address of the client. These headers are supplied by the client and are trivially spoofable, so this parameter must only be enabled when reproxy runs behind a trusted fronting proxy that always sets and overwrites these headers.
+The check uses the same client address reproxy sends to the backend in `X-Real-IP`, see [client address and forwarded headers](#client-address-and-forwarded-headers). Without `--trusted-proxy` this is the remote address of the connection. Behind another proxy, set `--trusted-proxy` to that proxy's address and the check uses the client address it reports in `X-Forwarded-For`.
 
-Checking headers should be used with caution, as it is possible to fake them. When `--remote-lookup-headers` is enabled, the IP allowlist relies entirely on this trust assumption: a client sending `X-Real-IP` or `X-Forwarded-For` with an allowed address can otherwise bypass the restriction. Enable this option only if reproxy is behind a trusted proxy that controls these headers and you can guarantee they are not faked.
+`--remote-lookup-headers` is deprecated. It used to read `X-Real-IP` and `X-Forwarded-For` from any sender, which let a client pick its own address. Reproxy refuses to start when it is set without `--trusted-proxy`, because ignoring it could let the fronting proxy's own address pass the allowlist on behalf of every client. With `--trusted-proxy` set, it is ignored.
 
 
 ## Plugins support
@@ -524,6 +534,7 @@ This is the list of all options supporting multiple elements:
 - `static.rule` (`$STATIC_RULES`)
 - `header` (`$HEADER`)
 - `drop-header` (`$DROP_HEADERS`)
+- `trusted-proxy` (`$TRUSTED_PROXIES`)
 
 ## All Application Options
 
@@ -537,7 +548,8 @@ This is the list of all options supporting multiple elements:
       --basic-htpasswd=             htpasswd file for basic auth [$BASIC_HTPASSWD]      
       --lb-type=[random|failover|roundrobin]   load balancer type (default: random) [$LB_TYPE]
       --signature                   enable reproxy signature headers [$SIGNATURE]
-      --remote-lookup-headers       enable remote lookup headers, trust only behind a trusted proxy [$REMOTE_LOOKUP_HEADERS]
+      --remote-lookup-headers       deprecated, use --trusted-proxy [$REMOTE_LOOKUP_HEADERS]
+      --trusted-proxy=              proxy IP or CIDR allowed to set X-Forwarded-For/Host/Proto/Port [$TRUSTED_PROXIES]
       --keep-host                   keep original Host header as default when proxying [$KEEP_HOST]
       --insecure                    skip SSL verification on destination host [$INSECURE]
       --dbg                         debug mode [$DEBUG]
