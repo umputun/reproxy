@@ -489,6 +489,8 @@ The core functionality of reproxy can be extended with external plugins. Each pl
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 
 
+`X-Real-IP`, `X-Forwarded-For`, `Forwarded` and `X-Forwarded-Host/Proto/Port` set through `HeadersIn` are handled like the ones sent by the client, see [client address and forwarded headers](#client-address-and-forwarded-headers). For example, `X-Forwarded-Proto` set by a plugin reaches the backend only when the request came from a trusted proxy.
+
 By default headers set by a plugin will be mixed with the original headers. In case if plugin need to control all the headers, for example drop some of them, `OverrideHeaders*` field can be set by a plugin indicating to the core reproxy process the need to overwrite all the headers instead of mixing them in.
 
 - `OverrideHeadersIn` - indicates plugin responsible for all incoming headers.
