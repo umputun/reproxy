@@ -331,10 +331,11 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 		return cachedMapper
 	}
 
-	// host names are case-insensitive, so a differently cased host must still hit its exact server
-	// before any wildcard or regex server can claim it
+	// host names are case-insensitive and "example.com." is the same host as "example.com", so such a
+	// spelling must still hit its exact server before any wildcard or regex server can claim it
+	host := strings.TrimSuffix(srvName, ".")
 	for mapperServer, mapper := range s.mappers {
-		if !isDefaultServer(mapperServer) && strings.EqualFold(mapperServer, srvName) {
+		if !isDefaultServer(mapperServer) && strings.EqualFold(strings.TrimSuffix(mapperServer, "."), host) {
 			s.cacheMappers(srvName, mapper)
 			return mapper
 		}
@@ -348,8 +349,8 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 
 		// handle *.example.com simple patterns
 		if strings.HasPrefix(mapperServer, "*.") {
-			domainPattern := strings.ToLower(mapperServer[1:]) // strip the '*'
-			if strings.HasSuffix(strings.ToLower(srvName), domainPattern) {
+			domainPattern := strings.ToLower(strings.TrimSuffix(mapperServer[1:], ".")) // strip the '*'
+			if strings.HasSuffix(strings.ToLower(host), domainPattern) {
 				s.cacheMappers(srvName, mapper)
 				return mapper
 			}

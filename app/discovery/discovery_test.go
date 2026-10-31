@@ -420,6 +420,12 @@ func TestService_MatchServerCase(t *testing.T) {
 					Dst: "http://${host.1}:8004/$1", MatchType: MTProxy},
 				{Server: "admin.example.net", SrcMatch: *regexp.MustCompile("^/(.*)$"),
 					Dst: "http://127.0.0.1:8005/$1", MatchType: MTProxy},
+				{Server: "dotted.example.org.", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8006/$1", MatchType: MTProxy},
+				{Server: "*.wild.example.org.", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8007/$1", MatchType: MTProxy},
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8009/$1", MatchType: MTProxy},
 			}, nil
 		},
 	}
@@ -440,6 +446,13 @@ func TestService_MatchServerCase(t *testing.T) {
 		{name: "mixed case config key", server: "mixed.example.org", dest: "http://127.0.0.1:8003/x"},
 		{name: "exact host wins over case-insensitive regex", server: "ADMIN.example.net", dest: "http://127.0.0.1:8005/x"},
 		{name: "regex capture keeps request case", server: "APP.example.net", dest: "http://APP:8004/x"},
+		{name: "exact host with trailing dot", server: "admin.example.com.", dest: "http://127.0.0.1:8001/x"},
+		{name: "dotted config key, plain host", server: "dotted.example.org", dest: "http://127.0.0.1:8006/x"},
+		{name: "dotted config key, dotted host", server: "dotted.example.org.", dest: "http://127.0.0.1:8006/x"},
+		{name: "wildcard with trailing dot host", server: "other.example.com.", dest: "http://127.0.0.1:8002/x"},
+		{name: "dotted wildcard key, plain host", server: "a.wild.example.org", dest: "http://127.0.0.1:8007/x"},
+		{name: "dotted wildcard key, dotted host", server: "a.wild.example.org.", dest: "http://127.0.0.1:8007/x"},
+		{name: "unknown host falls back to catch-all", server: "unknown.test", dest: "http://127.0.0.1:8009/x"},
 	}
 	for _, tt := range tbl {
 		t.Run(tt.name, func(t *testing.T) {
