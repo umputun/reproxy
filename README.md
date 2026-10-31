@@ -36,7 +36,7 @@ Server (host) can be set as FQDN, i.e. `s.example.com`, `*` (catch all) or a reg
 
 For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`.
 
-Before route matching, reproxy rejects with 400 a request whose decoded path contains a `.` or `..` segment or repeated slashes (`//`). A backslash counts as a slash, and a segment is judged by its part before `;`, so `..;` and `..\` are rejected too. A single trailing slash is allowed.
+Before route matching, reproxy rejects with 400 a request whose decoded path contains a `.` or `..` segment, repeated slashes (`//`), a `;` or a backslash. A single trailing slash is allowed.
 
 The host substitution is supported in the destination URL. For example, `/files/${host}` will be replaced with the matched host name. `$host` (without braces) can also be used.
 

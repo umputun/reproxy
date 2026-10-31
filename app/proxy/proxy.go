@@ -409,17 +409,19 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 	})
 }
 
-// unsafePath reports whether the decoded path has a "." or ".." segment, or an empty segment other than
-// a single trailing slash. A backslash counts as a separator and a segment is judged by its part before
-// ";", as some upstreams treat "\" as "/" and strip ";params" before normalizing.
+// unsafePath reports whether the decoded path has a ";" or "\", a "." or ".." segment, or an empty
+// segment other than a single trailing slash. Some upstreams strip ";params" or treat "\" as "/", so
+// either would let a path skip the route the upstream resolves it to.
 func (h *Http) unsafePath(p string) bool {
-	segments := strings.Split(strings.ReplaceAll(strings.TrimPrefix(p, "/"), `\`, "/"), "/")
+	if strings.ContainsAny(p, `;\`) {
+		return true
+	}
+	segments := strings.Split(strings.TrimPrefix(p, "/"), "/")
 	for i, seg := range segments {
-		base, _, _ := strings.Cut(seg, ";")
-		if base == "." || base == ".." {
+		if seg == "." || seg == ".." {
 			return true
 		}
-		if base == "" && i != len(segments)-1 {
+		if seg == "" && i != len(segments)-1 {
 			return true
 		}
 	}
