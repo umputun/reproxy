@@ -1113,6 +1113,54 @@ func TestHttp_matchHandlerInvalidHost(t *testing.T) {
 	}
 }
 
+func TestHttp_matchHandlerUnsafePath(t *testing.T) {
+	tbl := []struct {
+		name, target string
+		code         int
+		matched      bool
+	}{
+		{name: "root", target: "/", code: http.StatusOK, matched: true},
+		{name: "plain path", target: "/api/x", code: http.StatusOK, matched: true},
+		{name: "trailing slash", target: "/api/x/", code: http.StatusOK, matched: true},
+		{name: "encoded slash inside a segment", target: "/api/a%2fb", code: http.StatusOK, matched: true},
+		{name: "dots inside a name", target: "/api/..x/.well-known", code: http.StatusOK, matched: true},
+		{name: "path parameter on a name", target: "/api/private;v=1/secret.txt", code: http.StatusBadRequest},
+		{name: "path parameter as last segment", target: "/app/;jsessionid=1", code: http.StatusBadRequest},
+		{name: "encoded backslash inside a name", target: "/api/private%5csecret.txt", code: http.StatusBadRequest},
+		{name: "parent with path parameter", target: "/api/public/..;/private/x", code: http.StatusBadRequest},
+		{name: "current with path parameter", target: "/api/public/.;v=1/x", code: http.StatusBadRequest},
+		{name: "empty segment with path parameter", target: "/api/;/private/x", code: http.StatusBadRequest},
+		{name: "parent with encoded backslash", target: "/api/public/..%5cprivate/x", code: http.StatusBadRequest},
+		{name: "double encoded backslash", target: "/api/%5c%5cprivate/x", code: http.StatusBadRequest},
+		{name: "parent segment", target: "/api/public/../private/x", code: http.StatusBadRequest},
+		{name: "current segment", target: "/api/./x", code: http.StatusBadRequest},
+		{name: "encoded parent and slash", target: "/api/public/%2e%2e%2fprivate/x", code: http.StatusBadRequest},
+		{name: "parent as last segment", target: "/api/%2e%2e", code: http.StatusBadRequest},
+		{name: "double slash", target: "/api//private/x", code: http.StatusBadRequest},
+		{name: "encoded slash next to a slash", target: "/api/%2fprivate/x", code: http.StatusBadRequest},
+		{name: "leading double slash", target: "//api/x", code: http.StatusBadRequest},
+		{name: "trailing double slash", target: "/api/x//", code: http.StatusBadRequest},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			matched := false
+			matcherMock := &MatcherMock{MatchFunc: func(srv, src string) discovery.Matches {
+				matched = true
+				return discovery.Matches{}
+			}}
+			h := Http{Matcher: matcherMock, LBSelector: &FailoverSelector{}, Reporter: &ErrorReporter{Nice: false}}
+			handler := h.matchHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+			req := httptest.NewRequest("GET", tt.target, http.NoBody)
+			wr := httptest.NewRecorder()
+			handler.ServeHTTP(wr, req)
+			assert.Equal(t, tt.code, wr.Code)
+			assert.Equal(t, tt.matched, matched)
+		})
+	}
+}
+
 func TestHttp_discoveredServers(t *testing.T) {
 	calls := 0
 	m := &MatcherMock{ServersFunc: func() []string {

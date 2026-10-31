@@ -37,15 +37,16 @@ _Without `lgr.Caller*` it will drop `{caller}` part_
 - `lgr.Trace` - turn trace mode on to allow messages with "TRACE" abd "DEBUG" levels both (filtered otherwise)
 - `lgr.Out(io.Writer)` - sets the output writer, default `os.Stdout`
 - `lgr.Err(io.Writer)` - sets the error writer, default `os.Stderr`
-- `lgr.CallerFile` - adds the caller file info
-- `lgr.CallerFunc` - adds the caller function info
-- `lgr.CallerPkg` - adds the caller package
+- `lgr.CallerFile` - adds the caller file info (only affects lgr's native text format, not slog output)
+- `lgr.CallerFunc` - adds the caller function info (only affects lgr's native text format, not slog output)
+- `lgr.CallerPkg` - adds the caller package (only affects lgr's native text format, not slog output)
 - `lgr.LevelBraces` - wraps levels with "[" and "]"
 - `lgr.Msec` - adds milliseconds to timestamp
 - `lgr.Format` - sets a custom template, overwrite all other formatting modifiers.
-- `lgr.Secret(secret ...)` - sets list of the secrets to hide from the logging outputs.
+- `lgr.Secret(secret ...)` - sets list of the secrets to hide from the logging outputs, see "secrets".
 - `lgr.Map(mapper)` - sets mapper functions to change elements of the logging output based on levels.
 - `lgr.StackTraceOnError` - turns on stack trace for ERROR level.
+- `lgr.SlogHandler(h slog.Handler)` - delegates logging to the provided slog handler.
 
 example: `l := lgr.New(lgr.Debug, lgr.Msec)`
 
@@ -70,6 +71,28 @@ User can make a custom template and pass it directly to `lgr.Format`. For exampl
 
 _Note: formatter (predefined or custom) adds measurable overhead - the cost will depend on the version of Go, but is between 30
  and 50% in recent tests with 1.12. You can validate this in your environment via benchmarks: `go test -bench=. -run=Bench`_
+
+### secrets
+
+`lgr.Secret(secret ...)` sets the values to replace with `******` when the logger is created. The list can be changed later, while the logger is in use and other goroutines log:
+
+- `l.AddSecrets(secret ...)` and `l.RemoveSecrets(secret ...)` change the list of a logger made by `lgr.New`.
+- `lgr.AddSecrets(secret ...)` and `lgr.RemoveSecrets(secret ...)` change the package-level list. It is hidden by the global logger and by the std logger set with `lgr.SetupStdLogger`, in addition to the secrets each of them got with `lgr.Secret`, and it stays in effect after `lgr.Setup`, `lgr.SetupStdLogger` and `lgr.SetupWithSlog` calls. Loggers made by `lgr.New` don't use the package-level list.
+
+```go
+lgr.Setup(lgr.Secret(dbPassword))
+lgr.SetupStdLogger(lgr.Secret(dbPassword))
+// later, for example on config reload
+lgr.AddSecrets(newToken, newPassword) // hidden in both lgr.Printf and std log.Printf output
+```
+
+Things to know:
+
+- Empty and whitespace-only values are ignored. Adding a value twice is the same as adding it once, and a single remove drops it.
+- The list of a logger and the package-level list are independent. A value present in both stays hidden until removed from both.
+- A line being logged at the moment of the change may still be written with the previous list.
+- Longer values are replaced first, so a secret containing another secret is hidden as a whole. Secrets that only partially overlap are replaced one after another, and a part of one of them may stay visible.
+- Secrets are hidden in the message passed to the logger. `lgr.FromSlogHandler` adds no masking of its own, the output is masked only if the wrapped handler passes it to a masking logger. Attributes added by a slog handler set with `lgr.SlogHandler` are not processed.
 
 ### levels
 
@@ -106,15 +129,87 @@ example with [fatih/color](https://github.com/fatih/color):
 ```
 ### adaptors
 
-`lgr` logger can be converted to `io.Writer` or `*log.Logger`
+`lgr` logger can be converted to `io.Writer`, `*log.Logger`, or `slog.Handler`
 
 - `lgr.ToWriter(l lgr.L, level string) io.Writer` - makes io.Writer forwarding write ops to underlying `lgr.L`
 - `lgr.ToStdLogger(l lgr.L, level string) *log.Logger` - makes standard logger on top of `lgr.L`
+- `lgr.ToSlogHandler(l lgr.L) slog.Handler` - converts lgr.L to a slog.Handler for use with slog
 
 _`level` parameter is optional, if defined (non-empty) will enforce the level._
 
 - `lgr.SetupStdLogger(opts ...Option)` initializes std global logger (`log.std`) with lgr logger and given options. 
 All standard methods like `log.Print`, `log.Println`, `log.Fatal` and so on will be forwarder to lgr.
+- `lgr.SetupWithSlog(logger *slog.Logger)` sets up the global logger with a slog logger.
+
+### slog integration
+
+In addition to the standard logger interface, lgr provides seamless integration with Go's `log/slog` package:
+
+#### Using lgr with slog
+
+```go
+// Create lgr logger
+lgrLogger := lgr.New(lgr.Debug, lgr.Msec)
+
+// Convert to slog handler and create slog logger
+handler := lgr.ToSlogHandler(lgrLogger)
+logger := slog.New(handler)
+
+// Use standard slog API with lgr formatting
+logger.Info("message", "key1", "value1")
+// Output: 2023/09/15 10:34:56.789 INFO  message key1="value1" 
+```
+
+#### Using slog with lgr interface
+
+```go
+// Create slog handler
+jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+
+// Wrap it with lgr interface
+logger := lgr.FromSlogHandler(jsonHandler)
+
+// Use lgr API with slog backend
+logger.Logf("INFO message with %s", "structured data")
+// Output: {"time":"2023-09-15T10:34:56.789Z","level":"INFO","msg":"message with structured data"}
+```
+
+#### Using slog directly in lgr
+
+```go
+// Create a logger that uses slog directly
+jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+logger := lgr.New(lgr.SlogHandler(jsonHandler))
+
+// Use lgr API with slog backend
+logger.Logf("INFO message")
+// Output: {"time":"2023-09-15T10:34:56.789Z","level":"INFO","msg":"message"}
+```
+
+#### JSON output with caller information
+
+To get caller information in JSON output when using slog handlers, create the handler with `AddSource: true`:
+
+```go
+// Create JSON handler with source information (caller info)
+jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    AddSource: true,  // This enables caller information in JSON output
+})
+
+// Use handler with lgr
+logger := lgr.New(lgr.SlogHandler(jsonHandler))
+
+logger.Logf("INFO message with caller info")
+// Output will include source file, line and function in JSON
+```
+
+Note: The lgr caller options (`lgr.CallerFile`, `lgr.CallerFunc`, `lgr.CallerPkg`) only work with lgr's native text format
+and don't affect JSON output from slog handlers. To include caller information in JSON logs:
+
+1. For slog JSON handlers: Create the handler with `AddSource: true` as shown above
+2. For text-based logs: Use lgr's native caller options without slog integration
+
+This behavior is designed to respect each logging system's conventions for representing caller information.
 
 ### global logger
 

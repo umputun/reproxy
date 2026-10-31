@@ -11,7 +11,7 @@ import (
 	"github.com/libdns/libdns"
 )
 
-func (p *Provider) setRecord(ctx context.Context, zone string, rr libdns.RR, domain gandiDomain) error {
+func (p *Provider) appendRecord(ctx context.Context, zone string, rr libdns.RR, domain gandiDomain) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -50,13 +50,31 @@ func (p *Provider) setRecord(ctx context.Context, zone string, rr libdns.RR, dom
 		RRSetValues: recValues,
 	}
 
-	raw, err := json.Marshal(newGandiRecord)
+	return p.putRecord(ctx, domain, rr.Name, rr.Type, newGandiRecord)
+}
+
+// setRecord upserts an rrset to the exact value(s) in rr (replace semantics for a single libdns record).
+func (p *Provider) setRecord(ctx context.Context, zone string, rr libdns.RR, domain gandiDomain) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	newGandiRecord := gandiRecord{
+		RRSetTTL:    int(rr.TTL.Seconds()),
+		RRSetType:   rr.Type,
+		RRSetName:   rr.Name,
+		RRSetValues: []string{rr.Data},
+	}
+
+	return p.putRecord(ctx, domain, rr.Name, rr.Type, newGandiRecord)
+}
+
+func (p *Provider) putRecord(ctx context.Context, domain gandiDomain, name, recType string, record gandiRecord) error {
+	raw, err := json.Marshal(record)
 	if err != nil {
 		return err
 	}
 
-	// we update existing record or create a new record if it does not exist yet
-	req, err = http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, rr.Name, rr.Type), bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/%s/%s", domain.DomainRecordsHref, name, recType), bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
@@ -64,7 +82,6 @@ func (p *Provider) setRecord(ctx context.Context, zone string, rr libdns.RR, dom
 	req.Header.Set("Content-Type", "application/json")
 
 	_, err = p.doRequest(req, nil)
-
 	return err
 }
 
@@ -161,6 +178,9 @@ func (p *Provider) getDomain(ctx context.Context, zone string) (gandiDomain, err
 func (p *Provider) doRequest(req *http.Request, result interface{}) (gandiStatus, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.BearerToken))
 	req.Header.Set("Accept", "application/json")
+	if p.SharingId != "" {
+		req.Header.Set("X-Gandi-Sharing-Id", p.SharingId)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 

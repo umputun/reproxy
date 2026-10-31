@@ -44,8 +44,7 @@ func Test_healthHandlerDeadlock(t *testing.T) {
 	}()
 	time.Sleep(20 * time.Millisecond)
 
-	h := Http{}
-	h.Matcher = svc
+	h := Http{Matcher: svc}
 
 	rr := httptest.NewRecorder()
 	done := make(chan struct{})

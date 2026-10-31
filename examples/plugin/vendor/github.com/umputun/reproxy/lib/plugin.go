@@ -26,31 +26,31 @@ type Plugin struct {
 // rvcr is provided struct implemented at least one RPC methods with the signature like this:
 // func(req lib.Request, res *lib.Response) (err error)
 // see [examples/plugin]() for more info
-func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (err error) {
+func (p *Plugin) Do(ctx context.Context, conductor string, rcvr any) (err error) {
 
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	if err = rpc.RegisterName(p.Name, rcvr); err != nil {
-		return fmt.Errorf("can't register plugin %s: %v", p.Name, err)
+		return fmt.Errorf("can't register plugin %s: %w", p.Name, err)
 	}
 	log.Printf("[INFO] register rpc %s:%s", p.Name, p.Address)
 
 	client := http.Client{Timeout: time.Second}
 	time.AfterFunc(time.Millisecond*50, func() {
 		// registration http call delayed to let listener time to start
-		err = repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
+		regErr := repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
 			return p.send(&client, conductor, "POST")
 		})
-		if err != nil {
-			log.Printf("[ERROR] can't register with reproxy for %s: %v", p.Name, err)
+		if regErr != nil {
+			log.Printf("[ERROR] can't register with reproxy for %s: %v", p.Name, regErr)
 			cancel()
 		}
 	})
 
 	defer func() {
 		if e := p.send(&client, conductor, "DELETE"); e != nil {
-			log.Printf("[WARN] can't unregister with reproxy for %s: %v", p.Name, err)
+			log.Printf("[WARN] can't unregister with reproxy for %s: %v", p.Name, e)
 		}
 	}()
 
@@ -60,7 +60,7 @@ func (p *Plugin) Do(ctx context.Context, conductor string, rcvr interface{}) (er
 func (p *Plugin) listen(ctx context.Context) error {
 	listener, err := net.Listen("tcp", p.Address)
 	if err != nil {
-		return fmt.Errorf("can't listen on %s: %v", p.Address, err)
+		return fmt.Errorf("can't listen on %s: %w", p.Address, err)
 	}
 
 	go func() {
@@ -76,9 +76,9 @@ func (p *Plugin) listen(ctx context.Context) error {
 		if err != nil {
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return fmt.Errorf("context done: %w", ctx.Err())
 			default:
-				return fmt.Errorf("accept failed for %s: %v", p.Name, err)
+				return fmt.Errorf("accept failed for %s: %w", p.Name, err)
 			}
 		}
 		go rpc.ServeConn(conn)
@@ -93,15 +93,15 @@ func (p *Plugin) send(client *http.Client, conductor, method string) error {
 
 	data, err := json.Marshal(p)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal plugin: %w", err)
 	}
 	req, err := http.NewRequest(method, conductor, bytes.NewReader(data))
 	if err != nil {
-		return err
+		return fmt.Errorf("create request: %w", err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close() // nolint
 

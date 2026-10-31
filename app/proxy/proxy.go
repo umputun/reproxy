@@ -369,6 +369,11 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 			h.Reporter.Report(w, http.StatusBadRequest)
 			return
 		}
+		// upstreams may normalize dot segments and repeated slashes to a resource protected by another route
+		if h.unsafePath(r.URL.Path) {
+			h.Reporter.Report(w, http.StatusBadRequest)
+			return
+		}
 		server := r.URL.Hostname()
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0] // drop port
@@ -402,6 +407,25 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// unsafePath reports whether the decoded path has a ";" or "\", a "." or ".." segment, or an empty
+// segment other than a single trailing slash. Some upstreams strip ";params" or treat "\" as "/", so
+// either would let a path skip the route the upstream resolves it to.
+func (h *Http) unsafePath(p string) bool {
+	if strings.ContainsAny(p, `;\`) {
+		return true
+	}
+	segments := strings.Split(strings.TrimPrefix(p, "/"), "/")
+	for i, seg := range segments {
+		if seg == "." || seg == ".." {
+			return true
+		}
+		if seg == "" && i != len(segments)-1 {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Http) assetsHandler() http.HandlerFunc {

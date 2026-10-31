@@ -1,3 +1,5 @@
+version: 2
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -18,7 +20,7 @@ archives:
   - name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ if eq .Os \"darwin\" }}macos{{ else }}{{ .Os }}{{ end }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
