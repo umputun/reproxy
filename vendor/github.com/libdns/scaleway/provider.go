@@ -2,7 +2,6 @@ package scaleway
 
 import (
 	"context"
-	"time"
 
 	"github.com/libdns/libdns"
 )
@@ -15,12 +14,7 @@ type Provider struct {
 
 // GetRecords lists all the records in the zone.
 func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
-	records, err := p.getDNSEntries(ctx, zone)
-	if err != nil {
-		return nil, err
-	}
-
-	return records, nil
+	return p.getDNSEntries(ctx, zone)
 }
 
 // AppendRecords adds records to the zone. It returns the records that were added.
@@ -29,13 +23,6 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 
 	for _, record := range records {
 		newRecord, err := p.addDNSEntry(ctx, zone, record)
-		if err != nil {
-			return nil, err
-		}
-
-		rr := newRecord.RR()
-		rr.TTL = time.Duration(rr.TTL) * time.Second
-		newRecord, err = rr.Parse()
 		if err != nil {
 			return nil, err
 		}
@@ -52,13 +39,6 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 	for _, record := range records {
 		setRecord, err := p.updateDNSEntry(ctx, zone, record)
 		if err != nil {
-			return setRecords, err
-		}
-
-		rr := setRecord.RR()
-		rr.TTL = time.Duration(rr.TTL) * time.Second
-		setRecord, err = rr.Parse()
-		if err != nil {
 			return nil, err
 		}
 		setRecords = append(setRecords, setRecord)
@@ -72,12 +52,6 @@ func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []lib
 
 	for _, record := range records {
 		deletedRecord, err := p.removeDNSEntry(ctx, zone, record)
-		if err != nil {
-			return nil, err
-		}
-		rr := deletedRecord.RR()
-		rr.TTL = time.Duration(rr.TTL) * time.Second
-		deletedRecord, err = rr.Parse()
 		if err != nil {
 			return nil, err
 		}

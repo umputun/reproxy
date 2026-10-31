@@ -15,6 +15,7 @@ type Client struct {
 	mutex  sync.Mutex
 }
 
+// getClient initializes the Scaleway API client if not already set.
 func (p *Provider) getClient() error {
 	if p.client == nil {
 		var err error
@@ -27,6 +28,14 @@ func (p *Provider) getClient() error {
 		}
 	}
 	return nil
+}
+
+// convertRecord applies TTL conversion to a record.
+// Scaleway API uses TTL in seconds, libdns uses time.Duration.
+func convertRecord(record libdns.Record) (libdns.Record, error) {
+	rr := record.RR()
+	rr.TTL = time.Duration(rr.TTL) * time.Second
+	return rr.Parse()
 }
 
 func (p *Provider) getDNSEntries(ctx context.Context, zone string) ([]libdns.Record, error) {
@@ -45,19 +54,19 @@ func (p *Provider) getDNSEntries(ctx context.Context, zone string) ([]libdns.Rec
 		DNSZone: zone,
 	})
 	if err != nil {
-		return records, err
+		return nil, err
 	}
 
 	for _, entry := range zoneRecords.Records {
 		rr := libdns.RR{
-			Name: libdns.RelativeName(entry.Name, zone),
+			Name: entry.Name,
 			Type: string(entry.Type),
 			Data: entry.Data,
 			TTL:  time.Duration(entry.TTL) * time.Second,
 		}
 		record, err := rr.Parse()
 		if err != nil {
-			return records, err
+			return nil, err
 		}
 		records = append(records, record)
 	}
@@ -83,7 +92,7 @@ func (p *Provider) addDNSEntry(ctx context.Context, zone string, record libdns.R
 				Add: &domain.RecordChangeAdd{
 					Records: []*domain.Record{
 						{
-							Name: libdns.AbsoluteName(rr.Name, zone),
+							Name: rr.Name,
 							Type: domain.RecordType(rr.Type),
 							Data: rr.Data,
 							TTL:  uint32(rr.TTL.Seconds()),
@@ -96,7 +105,7 @@ func (p *Provider) addDNSEntry(ctx context.Context, zone string, record libdns.R
 	if err != nil {
 		return record, err
 	}
-	return record, nil
+	return convertRecord(record)
 }
 
 func (p *Provider) removeDNSEntry(ctx context.Context, zone string, record libdns.Record) (libdns.Record, error) {
@@ -117,7 +126,7 @@ func (p *Provider) removeDNSEntry(ctx context.Context, zone string, record libdn
 			{
 				Delete: &domain.RecordChangeDelete{
 					IDFields: &domain.RecordIdentifier{
-						Name: libdns.AbsoluteName(rr.Name, zone),
+						Name: rr.Name,
 						Type: domain.RecordType(rr.Type),
 						Data: &rr.Data,
 						TTL:  scw.Uint32Ptr(uint32(rr.TTL.Seconds())),
@@ -129,7 +138,7 @@ func (p *Provider) removeDNSEntry(ctx context.Context, zone string, record libdn
 	if err != nil {
 		return record, err
 	}
-	return record, nil
+	return convertRecord(record)
 }
 
 func (p *Provider) updateDNSEntry(ctx context.Context, zone string, record libdns.Record) (libdns.Record, error) {
@@ -150,14 +159,14 @@ func (p *Provider) updateDNSEntry(ctx context.Context, zone string, record libdn
 			{
 				Set: &domain.RecordChangeSet{
 					IDFields: &domain.RecordIdentifier{
-						Name: libdns.AbsoluteName(rr.Name, zone),
+						Name: rr.Name,
 						Type: domain.RecordType(rr.Type),
 						Data: &rr.Data,
 						TTL:  scw.Uint32Ptr(uint32(rr.TTL.Seconds())),
 					},
 					Records: []*domain.Record{
 						{
-							Name: libdns.AbsoluteName(rr.Name, zone),
+							Name: rr.Name,
 							Type: domain.RecordType(rr.Type),
 							Data: rr.Data,
 							TTL:  uint32(rr.TTL.Seconds()),
@@ -170,5 +179,5 @@ func (p *Provider) updateDNSEntry(ctx context.Context, zone string, record libdn
 	if err != nil {
 		return record, err
 	}
-	return record, nil
+	return convertRecord(record)
 }

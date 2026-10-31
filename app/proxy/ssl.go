@@ -177,13 +177,11 @@ func (h *Http) makeAutocertManager() AutocertManager {
 	acme := certmagic.NewACMEIssuer(magic, acmeIssuer)
 	if h.SSLConfig.DNSProvider != nil {
 		acme.DNS01Solver = &certmagic.DNS01Solver{
-			DNSManager: certmagic.DNSManager{
-				DNSProvider:        h.SSLConfig.DNSProvider,
-				TTL:                h.SSLConfig.TTL,
-				PropagationTimeout: h.SSLConfig.DNSPropagationTimeout,
-				Logger:             logger,
-				Resolvers:          h.dnsResolvers,
-			},
+			DNSProvider:        h.SSLConfig.DNSProvider,
+			TTL:                h.SSLConfig.TTL,
+			PropagationTimeout: h.SSLConfig.DNSPropagationTimeout,
+			Logger:             logger,
+			Resolvers:          h.dnsResolvers,
 		}
 	}
 	magic.Issuers = []certmagic.Issuer{acme}

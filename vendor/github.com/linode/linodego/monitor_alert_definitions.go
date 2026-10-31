@@ -53,7 +53,6 @@ type AlertDefinition struct {
 	Type              string                  `json:"type"`
 	ServiceType       string                  `json:"service_type"`
 	Status            AlertDefinitionStatus   `json:"status"`
-	HasMoreResources  bool                    `json:"has_more_resources"` // Deprecated: use Entities.HasMoreResources.
 	RuleCriteria      RuleCriteria            `json:"rule_criteria"`
 	TriggerConditions TriggerConditions       `json:"trigger_conditions"`
 	AlertChannels     []AlertChannelEnvelope  `json:"alert_channels"`
@@ -61,7 +60,6 @@ type AlertDefinition struct {
 	Updated           *time.Time              `json:"-"`
 	UpdatedBy         string                  `json:"updated_by"`
 	CreatedBy         string                  `json:"created_by"`
-	EntityIDs         []string                `json:"entity_ids"` // Deprecated: use Entities.url to list associated entities.
 	Description       string                  `json:"description"`
 	Class             string                  `json:"class"`
 	Scope             AlertDefinitionScope    `json:"scope"`
