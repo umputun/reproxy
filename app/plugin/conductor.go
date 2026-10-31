@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -140,9 +141,10 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
 	res := lib.Request{
-		URL:        r.URL.String(),
+		// the client's escaping is dropped so plugins check the same path route matching and the upstream see
+		URL:        (&url.URL{Path: r.URL.Path, RawQuery: r.URL.RawQuery}).String(),
 		RemoteAddr: r.RemoteAddr,
-		Host:       r.URL.Hostname(),
+		Host:       discovery.HostName(r.Host),
 		Header:     r.Header,
 	}
 

@@ -398,7 +398,7 @@ Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.l
 - `GET /routes` - list of all discovered routes
 - `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
 
-By default, `http_response_time_seconds` uses raw request paths as labels, which can cause high cardinality with dynamic URLs (e.g., `/api/users/123`, `/api/users/456`). Use `--mgmt.low-cardinality` to switch to route patterns (e.g., `^/api/users/(.*)`) instead, significantly reducing metrics cardinality.
+By default, `http_response_time_seconds` uses raw request paths as labels, which can cause high cardinality with dynamic URLs (e.g., `/api/users/123`, `/api/users/456`). Use `--mgmt.low-cardinality` to switch to route patterns (e.g., `^/api/users/(.*)`) instead, significantly reducing metrics cardinality. In this mode the `server` label of `http_requests_total` is the matched route's server (e.g., `*` or `example.com`) rather than the request's Host, and `[unmatched]` for requests without a route, so clients can't add series by sending new Host values.
 
 _see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/examples/metrics)_
 
@@ -410,7 +410,7 @@ Reproxy returns 502 (Bad Gateway) error in case if request doesn't match to any 
 
 Reproxy allows to define system level max req/sec value for the overall system activity as well as per user. 0 values (default) treated as unlimited.
 
-The user is identified by the client address, the same one reproxy sends in `X-Real-IP` (see [client address and forwarded headers](#client-address-and-forwarded-headers)), so a client can't escape the limit by changing `X-Forwarded-For` or `X-Real-IP`.
+The user is identified by the client address, the same one reproxy sends in `X-Real-IP` (see [client address and forwarded headers](#client-address-and-forwarded-headers)), so a client can't escape the limit by changing `X-Forwarded-For` or `X-Real-IP`. Limits are checked before global and per-route basic auth, so requests with wrong credentials count against them too.
 
 User activity limited for both matched and unmatched routes. All unmatched routes considered as a "single destination group" and get a common limiter which is `rate*3`. It means if 10 (req/sec) defined with `--throttle.user=10` the end user will be able to perform up to 30 request pers second for either static assets or unmatched routes. For matched routes this limiter maintained per destination (route), i.e. request proxied to s1.example.com/api will allow 10 r/s and the request proxied to s2.example.com will allow another 10 r/s.
 
@@ -492,10 +492,17 @@ The check uses the same client address reproxy sends to the backend in `X-Real-I
 
 ## Plugins support
 
-The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins are registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
+The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins are registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives the request as route matching saw it, with headers and all matching route info, and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
 
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 
+
+The request fields describe the request the way route matching saw it:
+
+- `URL` - path and query, with the path in canonical escaping, so `/%66ail` arrives as `/fail`
+- `Host` - request host without the port, e.g. `example.com` or `::1`
+- `RemoteAddr` - the TCP peer as `ip:port`, which is a proxy's address when reproxy runs behind one
+- `Header` - the request headers; `X-Real-IP` is replaced with the client address resolved through `--trusted-proxy` before the first plugin runs, while `X-Forwarded-For` stays as received and is trustworthy only for hops from trusted proxies. A plugin earlier in the chain can still change any of them via `HeadersIn`
 
 `X-Real-IP`, `X-Forwarded-For`, `Forwarded` and `X-Forwarded-Host/Proto/Port` set through `HeadersIn` are handled like the ones sent by the client, see [client address and forwarded headers](#client-address-and-forwarded-headers). For example, `X-Forwarded-Proto` set by a plugin reaches the backend only when the request came from a trusted proxy.
 

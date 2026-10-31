@@ -145,10 +145,10 @@ func (h *Http) Run(ctx context.Context) error {
 		h.matchHandler,                                       // set matched routes to context
 		routeTimeoutHandler,                                  // apply per-route request deadline if set on matched mapper
 		h.OnlyFrom.Handler,                                   // limit source (remote) IPs if defined
+		limiterSystemHandler(h.ThrottleSystem),               // limit total requests/sec, before auth so failed logins count
+		limiterUserHandler(h.ThrottleUser, h.TrustedProxies), // req/seq per user/route match
 		perRouteAuthHandler,                                  // per-route basic auth (if route has auth configured)
 		h.basicAuthHandler(),                                 // global basic auth (skipped if per-route auth is set)
-		limiterSystemHandler(h.ThrottleSystem),               // limit total requests/sec
-		limiterUserHandler(h.ThrottleUser, h.TrustedProxies), // req/seq per user/route match
 		h.mgmtHandler(),                                      // handles /metrics and /routes for prometheus
 		h.pluginHandler(),                                    // prc to external plugins
 		headersHandler(h.ProxyHeaders, h.DropHeader),         // add response headers and delete some request headers
@@ -374,10 +374,8 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 			h.Reporter.Report(w, http.StatusBadRequest)
 			return
 		}
-		server := r.URL.Hostname()
-		if server == "" {
-			server = strings.Split(r.Host, ":")[0] // drop port
-		}
+		// r.Host holds an absolute-form target's host too; r.URL.Hostname keeps "x.com:1" of foo://x.com:1:2/
+		server := discovery.HostName(r.Host)
 		// normalize from decoded Path so alternate encodings cannot bypass route auth or IP policies
 		canonicalPath := (&url.URL{Path: r.URL.Path}).EscapedPath()
 		matches := h.Match(server, canonicalPath) // get all matches for the server:path pair
@@ -489,7 +487,14 @@ func (h *Http) pluginHandler() func(next http.Handler) http.Handler {
 		return passThroughHandler
 	}
 	log.Printf("[INFO] plugin support enabled")
-	return h.PluginConductor.Middleware
+	return func(next http.Handler) http.Handler {
+		plugins := h.PluginConductor.Middleware(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// until Rewrite sets it on the outgoing request, X-Real-IP holds whatever the client sent
+			h.setXRealIP(r, r)
+			plugins.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (h *Http) mgmtHandler() func(next http.Handler) http.Handler {

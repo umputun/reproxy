@@ -87,11 +87,7 @@ func (h *Http) pingHandler(next http.Handler) http.Handler {
 
 // shouldForwardHealthChecks checks if the request matches a route with ForwardHealthChecks enabled
 func (h *Http) shouldForwardHealthChecks(r *http.Request) bool {
-	server := r.URL.Hostname()
-	if server == "" {
-		server = strings.Split(r.Host, ":")[0]
-	}
-	matches := h.Match(server, r.URL.EscapedPath())
+	matches := h.Match(discovery.HostName(r.Host), r.URL.EscapedPath())
 	for _, route := range matches.Routes {
 		if route.Mapper.ForwardHealthChecks {
 			return true

@@ -1277,3 +1277,25 @@ func TestParseAuth(t *testing.T) {
 		})
 	}
 }
+
+func TestHostName(t *testing.T) {
+	tbl := []struct{ host, want string }{
+		{host: "", want: ""},
+		{host: "example.com", want: "example.com"},
+		{host: "example.com:8080", want: "example.com"},
+		{host: "example.com:", want: "example.com"},
+		{host: "ADMIN.example.com:x", want: "ADMIN.example.com"},
+		{host: "a.example.com:8080:9090", want: "a.example.com"},
+		{host: "127.0.0.1:80", want: "127.0.0.1"},
+		{host: "[::1]:8080", want: "::1"},
+		{host: "[::1]", want: "::1"},
+		{host: "[::1]:x", want: "::1"},
+		{host: "[::1", want: "["},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.host, func(t *testing.T) {
+			assert.Equal(t, tt.want, HostName(tt.host))
+		})
+	}
+}
