@@ -337,6 +337,7 @@ func TestMetrics_serverLabel(t *testing.T) {
 		{name: "low cardinality without match", target: "/x", host: "a1.example.com", lowCardinality: true, want: "[unmatched]"},
 		{name: "default mode uses request host", target: "/x", host: "a1.example.com:8080", want: "a1.example.com"},
 		{name: "default mode ipv6 host", target: "/x", host: "[::1]:8080", want: "::1"},
+		{name: "default mode non-numeric port", target: "/x", host: "a1.example.com:x", want: "a1.example.com"},
 		{name: "default mode absolute-form target", target: "http://api.example.com/x", host: "api.example.com", want: "api.example.com"},
 	}
 

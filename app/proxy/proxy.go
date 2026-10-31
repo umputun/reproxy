@@ -376,7 +376,7 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 		}
 		server := r.URL.Hostname()
 		if server == "" {
-			server = (&url.URL{Host: r.Host}).Hostname() // drop port, keep [::1] as ::1
+			server = discovery.HostName(r.Host)
 		}
 		// normalize from decoded Path so alternate encodings cannot bypass route auth or IP policies
 		canonicalPath := (&url.URL{Path: r.URL.Path}).EscapedPath()

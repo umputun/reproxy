@@ -492,7 +492,7 @@ The check uses the same client address reproxy sends to the backend in `X-Real-I
 
 ## Plugins support
 
-The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins are registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives request with the original url, headers and all matching route info and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
+The core functionality of reproxy can be extended with external plugins. Each plugin is an independent process/container implementing [rpc server](https://golang.org/pkg/net/rpc/). Plugins are registered with reproxy conductor and added to the chain of the middlewares. Each plugin receives the request as route matching saw it, with headers and all matching route info, and responds with the headers and the status code. Any status code >= 400 treated as an error response and terminates flow immediately with the proxy error. There are two types of headers plugins can set:
 
 - `HeadersIn` - incoming headers. Those will be sent to the proxied url
 - `HeadersOut` - outgoing headers. Will be sent back to the client 

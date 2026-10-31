@@ -505,6 +505,7 @@ func TestConductor_makeRequest(t *testing.T) {
 		{name: "escaped path is canonical", target: "/%66ail?a=%20b", host: "example.com", url: "/fail?a=%20b", server: "example.com"},
 		{name: "host with port", target: "/x", host: "example.com:8080", url: "/x", server: "example.com"},
 		{name: "ipv6 host with port", target: "/x", host: "[::1]:8080", url: "/x", server: "::1"},
+		{name: "non-numeric port", target: "/x", host: "ADMIN.example:x", url: "/x", server: "ADMIN.example"},
 		{name: "absolute-form target", target: "http://api.example.com/v1", host: "api.example.com", url: "/v1", server: "api.example.com"},
 	}
 

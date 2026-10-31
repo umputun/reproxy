@@ -142,7 +142,7 @@ func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
 	host := r.URL.Hostname()
 	if host == "" {
-		host = (&url.URL{Host: r.Host}).Hostname()
+		host = discovery.HostName(r.Host)
 	}
 	res := lib.Request{
 		// the client's escaping is dropped so plugins check the same path route matching and the upstream see

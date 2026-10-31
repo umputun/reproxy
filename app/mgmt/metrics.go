@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -115,7 +114,7 @@ func (m *Metrics) serverLabel(r *http.Request) string {
 	if host := r.URL.Hostname(); host != "" {
 		return host
 	}
-	return (&url.URL{Host: r.Host}).Hostname()
+	return discovery.HostName(r.Host)
 }
 
 type responseWriter struct {

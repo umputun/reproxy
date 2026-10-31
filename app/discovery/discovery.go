@@ -200,6 +200,19 @@ func isDefaultServer(server string) bool {
 	return server == "*" || server == ""
 }
 
+// HostName returns the server name of a Host header value: a bracketed IPv6 literal without brackets
+// and port, anything else up to the first colon. url.URL.Hostname keeps a non-numeric port such as
+// "admin.example.com:x" in the name, which would miss its exact or wildcard server.
+func HostName(host string) string {
+	if strings.HasPrefix(host, "[") {
+		if end := strings.IndexByte(host, ']'); end > 0 {
+			return host[1:end]
+		}
+	}
+	name, _, _ := strings.Cut(host, ":")
+	return name
+}
+
 // hasConcreteRoute reports whether any route is served by a concrete (non-default) server
 func hasConcreteRoute(routes []MatchedRoute) bool {
 	for _, r := range routes {

@@ -2244,6 +2244,8 @@ func TestHttp_matchHandlerServerName(t *testing.T) {
 		{host: "127.0.0.1:80", server: "127.0.0.1"},
 		{host: "[::1]:8080", server: "::1"},
 		{host: "[::1]", server: "::1"},
+		{host: "ADMIN.example:x", server: "ADMIN.example"},
+		{host: "a.wild.example:x", server: "a.wild.example"},
 	}
 
 	for _, tt := range tbl {
