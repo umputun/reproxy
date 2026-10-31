@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -256,11 +257,13 @@ func (s *Service) Match(srv, src string) (res Matches) {
 					res.Routes = append(res.Routes, MatchedRoute{Destination: dest, Alive: m.IsAlive(), Mapper: m})
 				}
 			case MTStatic:
-				wr := m.AssetsWebRoot
+				// src is the escaped request path, so compare it with the escaped form of the root
+				root := (&url.URL{Path: m.AssetsWebRoot}).EscapedPath()
+				wr := root
 				if wr != "/" {
 					wr += "/"
 				}
-				if src == m.AssetsWebRoot || strings.HasPrefix(src, wr) {
+				if src == root || strings.HasPrefix(src, wr) {
 					// a default-server assets route must not override a concrete server match found in
 					// an earlier bucket; return the concrete match instead of appending the catch-all
 					// assets (this branch returns directly and would otherwise skip the dedup below)
@@ -328,6 +331,15 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 		return cachedMapper
 	}
 
+	// host names are case-insensitive, so a differently cased host must still hit its exact server
+	// before any wildcard or regex server can claim it
+	for mapperServer, mapper := range s.mappers {
+		if !isDefaultServer(mapperServer) && strings.EqualFold(mapperServer, srvName) {
+			s.cacheMappers(srvName, mapper)
+			return mapper
+		}
+	}
+
 	for mapperServer, mapper := range s.mappers {
 		// * and "" should not be treated as regex and require exact match (above)
 		if isDefaultServer(mapperServer) {
@@ -336,8 +348,8 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 
 		// handle *.example.com simple patterns
 		if strings.HasPrefix(mapperServer, "*.") {
-			domainPattern := mapperServer[1:] // strip the '*'
-			if strings.HasSuffix(srvName, domainPattern) {
+			domainPattern := strings.ToLower(mapperServer[1:]) // strip the '*'
+			if strings.HasSuffix(strings.ToLower(srvName), domainPattern) {
 				s.cacheMappers(srvName, mapper)
 				return mapper
 			}

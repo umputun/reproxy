@@ -401,6 +401,98 @@ func TestService_MatchServerRegex(t *testing.T) {
 	}
 }
 
+func TestService_MatchServerCase(t *testing.T) {
+	mockProvider := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "admin.example.com", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8001/$1", MatchType: MTProxy},
+				{Server: "*.example.com", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8002/$1", MatchType: MTProxy},
+				{Server: "Mixed.Example.org", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8003/$1", MatchType: MTProxy},
+				{Server: `(?i)^([a-z0-9-]+)\.example\.net$`, SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://${host.1}:8004/$1", MatchType: MTProxy},
+				{Server: "admin.example.net", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.1:8005/$1", MatchType: MTProxy},
+			}, nil
+		},
+	}
+	svc := NewService([]Provider{mockProvider}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	err := svc.Run(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	tbl := []struct {
+		name, server, dest string
+	}{
+		{name: "exact host", server: "admin.example.com", dest: "http://127.0.0.1:8001/x"},
+		{name: "exact host in upper case", server: "ADMIN.example.com", dest: "http://127.0.0.1:8001/x"},
+		{name: "exact host in mixed case, repeated", server: "ADMIN.example.com", dest: "http://127.0.0.1:8001/x"},
+		{name: "exact host in mixed case", server: "Admin.Example.Com", dest: "http://127.0.0.1:8001/x"},
+		{name: "wildcard host in upper case", server: "other.EXAMPLE.com", dest: "http://127.0.0.1:8002/x"},
+		{name: "mixed case config key", server: "mixed.example.org", dest: "http://127.0.0.1:8003/x"},
+		{name: "exact host wins over case-insensitive regex", server: "ADMIN.example.net", dest: "http://127.0.0.1:8005/x"},
+		{name: "regex capture keeps request case", server: "APP.example.net", dest: "http://APP:8004/x"},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			res := svc.Match(tt.server, "/x")
+			require.Len(t, res.Routes, 1, res.Routes)
+			assert.Equal(t, tt.dest, res.Routes[0].Destination)
+		})
+	}
+}
+
+func TestService_MatchStaticEscapedPrefix(t *testing.T) {
+	mockProvider := &ProviderMock{
+		EventsFunc: func(ctx context.Context) <-chan ProviderID {
+			res := make(chan ProviderID, 1)
+			res <- PIFile
+			return res
+		},
+		ListFunc: func() ([]URLMapper, error) {
+			return []URLMapper{
+				{Server: "*", SrcMatch: *regexp.MustCompile("/private docs/"), Dst: "/srv/private", MatchType: MTStatic,
+					AssetsWebRoot: "/private docs", AssetsLocation: "/srv/private"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("/über/"), Dst: "/srv/uber", MatchType: MTStatic,
+					AssetsWebRoot: "/über", AssetsLocation: "/srv/uber"},
+				{Server: "*", SrcMatch: *regexp.MustCompile("/"), Dst: "/srv/www", MatchType: MTStatic,
+					AssetsWebRoot: "/", AssetsLocation: "/srv/www"},
+			}, nil
+		},
+	}
+	svc := NewService([]Provider{mockProvider}, time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	err := svc.Run(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	tbl := []struct {
+		name, src, dest string
+	}{
+		{name: "escaped root", src: "/private%20docs", dest: "/private docs:/srv/private/:norm"},
+		{name: "escaped child", src: "/private%20docs/secret.txt", dest: "/private docs:/srv/private/:norm"},
+		{name: "adjacent prefix", src: "/private%20docsx/secret.txt", dest: "/:/srv/www/:norm"},
+		{name: "escaped non-ascii child", src: "/%C3%BCber/x", dest: "/über:/srv/uber/:norm"},
+		{name: "public path", src: "/public/x", dest: "/:/srv/www/:norm"},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			res := svc.Match("example.com", tt.src)
+			require.Len(t, res.Routes, 1, res.Routes)
+			assert.Equal(t, MTStatic, res.MatchType)
+			assert.Equal(t, tt.dest, res.Routes[0].Destination)
+		})
+	}
+}
+
 func TestService_MatchConcurrent(t *testing.T) {
 	mockProvider := &ProviderMock{
 		EventsFunc: func(ctx context.Context) <-chan ProviderID {
