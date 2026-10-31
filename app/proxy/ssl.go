@@ -15,6 +15,8 @@ import (
 	R "github.com/go-pkgz/rest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/umputun/reproxy/app/discovery"
 )
 
 // sslMode defines ssl mode for rest server
@@ -76,7 +78,10 @@ func (h *Http) httpChallengeOnlyRouter(m AutocertManager) http.Handler {
 
 func (h *Http) redirectHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server, _, _ := strings.Cut(r.Host, ":")
+		server := discovery.HostName(r.Host)
+		if strings.Contains(server, ":") {
+			server = "[" + server + "]" // an ipv6 literal needs its brackets back in a url
+		}
 		// use standard HTTPS port by default
 		httpsPort := 443
 		// no need to specify the port if it's the standard HTTPS port

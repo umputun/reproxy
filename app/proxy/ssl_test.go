@@ -48,6 +48,28 @@ func TestSSL_Redirect(t *testing.T) {
 	assert.Equal(t, "https://localhost/blah?param=1", resp.Header.Get("Location"))
 }
 
+func TestSSL_RedirectHost(t *testing.T) {
+	tbl := []struct{ host, location string }{
+		{host: "example.com", location: "https://example.com/blah?param=1"},
+		{host: "example.com:80", location: "https://example.com/blah?param=1"},
+		{host: "127.0.0.1:80", location: "https://127.0.0.1/blah?param=1"},
+		{host: "[::1]:80", location: "https://[::1]/blah?param=1"},
+		{host: "[::1]", location: "https://[::1]/blah?param=1"},
+	}
+
+	p := Http{}
+	for _, tt := range tbl {
+		t.Run(tt.host, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/blah?param=1", http.NoBody)
+			req.Host = tt.host
+			wr := httptest.NewRecorder()
+			p.redirectHandler().ServeHTTP(wr, req)
+			assert.Equal(t, http.StatusTemporaryRedirect, wr.Code)
+			assert.Equal(t, tt.location, wr.Header().Get("Location"))
+		})
+	}
+}
+
 func TestSSL_httpChallengeOnlyRouter(t *testing.T) {
 	log.Setup(log.Debug, log.LevelBraces)
 
