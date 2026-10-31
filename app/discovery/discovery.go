@@ -211,7 +211,9 @@ func hasConcreteRoute(routes []MatchedRoute) bool {
 func (s *Service) Match(srv, src string) (res Matches) {
 
 	replaceHost := func(dest, srv string) string {
-		// $host or ${host} in dest replaced by srv
+		// $host or ${host} in dest replaced by srv. the result is expanded by SrcMatch.ReplaceAllString next,
+		// and a Host header may contain $, so escape it to keep a client from injecting source groups
+		srv = strings.ReplaceAll(srv, "$", "$$")
 		dest = strings.ReplaceAll(dest, "$host", srv)
 		if strings.Contains(dest, "${host}") {
 			dest = strings.ReplaceAll(dest, "${host}", srv)

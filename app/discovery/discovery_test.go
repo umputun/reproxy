@@ -304,6 +304,19 @@ func TestService_MatchServerRegex(t *testing.T) {
 			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix2.example.com/blah/some", Alive: true}}},
 		},
 		{
+			// regression: a $ in the Host header must not expand source regex groups
+			name:   "regex server with $host and dollar in host",
+			server: "test-prefix.$1",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix.$1/blah/some", Alive: true}}},
+		},
+		{
+			name:   "regex server with ${host} and dollar in host",
+			server: "test-prefix2.${1}",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.1:8080/test-prefix2.${1}/blah/some", Alive: true}}},
+		},
+		{
 			name:   "regex server without a match",
 			server: "another-prefix.example.com",
 			src:    "/",
