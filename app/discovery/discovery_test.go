@@ -265,6 +265,12 @@ func TestService_MatchServerRegex(t *testing.T) {
 					Dst: "http://127.0.0.2:8080/$1/foo", MatchType: MTProxy, dead: false},
 				{Server: "*.test-domain2.com", SrcMatch: *regexp.MustCompile("^/foo/(.*)"),
 					Dst: "http://127.0.0.3:8080/$1/bar", MatchType: MTProxy, dead: false},
+				{Server: `^([^.]+)\.sub-domain\.com$`, SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "https://${host.1}.foo.com/$1", MatchType: MTProxy, dead: false},
+				{Server: `^([^.]+)\.sub-domain2\.com$`, SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.5:8080/${host.1}/${host.0}${host.2}/${host}/$1", MatchType: MTProxy, dead: false},
+				{Server: "*.sub-domain3.com", SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://127.0.0.6:8080/${host.1}/$1", MatchType: MTProxy, dead: false},
 
 				// strict match
 				{Server: "test-prefix.exact.com", SrcMatch: *regexp.MustCompile("/"),
@@ -339,6 +345,36 @@ func TestService_MatchServerRegex(t *testing.T) {
 			server: "test.test-domain2.com",
 			src:    "/foo/123",
 			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.3:8080/123/bar", Alive: true}}},
+		},
+		{
+			name:   "regex server with ${host.1} match",
+			server: "aaaa.sub-domain.com",
+			src:    "/uuuu",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "https://aaaa.foo.com/uuuu", Alive: true}}},
+		},
+		{
+			name:   "regex server with ${host.1} capturing $host",
+			server: "$host.sub-domain.com",
+			src:    "/uuuu",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "https://$host.foo.com/uuuu", Alive: true}}},
+		},
+		{
+			name:   "regex server with ${host.1} capturing $1",
+			server: "a$1.sub-domain.com",
+			src:    "/uuuu",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "https://a$1.foo.com/uuuu", Alive: true}}},
+		},
+		{
+			name:   "regex server with out of range ${host.0}, ${host.2} and ${host}",
+			server: "bbbb.sub-domain2.com",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.5:8080/bbbb//bbbb.sub-domain2.com/some", Alive: true}}},
+		},
+		{
+			name:   "pattern server with ${host.1} has no groups",
+			server: "cccc.sub-domain3.com",
+			src:    "/some",
+			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.6:8080//some", Alive: true}}},
 		},
 	}
 

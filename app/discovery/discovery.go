@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -95,6 +96,8 @@ const (
 )
 
 var reGroup = regexp.MustCompile(`(^.*)/\(.*\)`) // capture regex group lil (anything) from src like /blah/foo/(.*)
+
+var reHostGroup = regexp.MustCompile(`\$\{host\.(\d+)\}`) // ${host.N} in dst, N is a group of the server regex
 
 // MatchType defines the type of mapper (rule)
 type MatchType int
@@ -257,6 +260,8 @@ func (s *Service) Match(srv, src string) (res Matches) {
 			switch m.MatchType {
 			case MTProxy:
 				dest := replaceHost(m.Dst, srv) // replace $host and ${host} in dest first, before regex match
+				// after replaceHost, otherwise its $host replacement would rewrite a captured "$host"
+				dest = s.replaceHostGroups(dest, srv, m.Server)
 				dest = m.SrcMatch.ReplaceAllString(src, dest)
 				if src != dest { // regex matched because dest changed after replacement
 					lastSrcMatch = m.SrcMatch.String()
@@ -291,6 +296,27 @@ func (s *Service) Match(srv, src string) (res Matches) {
 
 	res.Routes = dropDefaultsIfConcrete(res.Routes)
 	return res
+}
+
+// replaceHostGroups replaces ${host.N} in dest with group N of the server regex matched against srv.
+// a missing group, or a server without a regex (exact, *.x.com, default), gives an empty string.
+// caller must hold s.lock.RLock for the s.serverRegexps access.
+func (s *Service) replaceHostGroups(dest, srv, server string) string {
+	if !strings.Contains(dest, "${host.") {
+		return dest
+	}
+	var groups []string
+	if re, ok := s.serverRegexps[server]; ok {
+		groups = re.FindStringSubmatch(srv)
+	}
+	return reHostGroup.ReplaceAllStringFunc(dest, func(token string) string {
+		n, err := strconv.Atoi(reHostGroup.FindStringSubmatch(token)[1])
+		if err != nil || n < 1 || n >= len(groups) {
+			return ""
+		}
+		// dest is expanded by SrcMatch.ReplaceAllString next, escape $ so the host can't inject source groups
+		return strings.ReplaceAll(groups[n], "$", "$$")
+	})
 }
 
 // findMatchingMappers resolves srvName to its mappers. caller must hold s.lock.RLock for the s.mappers

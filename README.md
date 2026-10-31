@@ -38,6 +38,8 @@ For convenience, requests with the trailing `/` and without regex groups expande
 
 The host substitution is supported in the destination URL. For example, `/files/${host}` will be replaced with the matched host name. `$host` (without braces) can also be used.
 
+Groups of a regex server can be used in the destination URL as `${host.1}`, `${host.2}` and so on (braces required). For example, server `^([^.]+)\.example\.com$` with route `^/(.*)$` and destination `https://${host.1}.foo.com/$1` proxies `http://aaaa.example.com/some` to `https://aaaa.foo.com/some`. `$1`, `$2` keep referring to the route groups. A missing group is replaced with an empty string, and so is any `${host.N}` for an exact, `*` or `*.example.com` server, as those have no groups. Server regexes are not anchored, so add `^` and `$` to keep the group from matching unexpected hosts.
+
 Both HTTP and HTTPS supported. For HTTPS, static certificate can be used as well as automated ACME (Let's Encrypt) certificates. Optional assets server can be used to serve static files. Starting reproxy requires at least one provider defined. The rest of parameters are strictly optional and have sane default.
 
 Examples:
