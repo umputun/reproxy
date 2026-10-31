@@ -7,8 +7,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -80,10 +80,7 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 			path = m.getRoutePattern(r)
 		}
 
-		server := r.URL.Hostname()
-		if server == "" {
-			server = strings.Split(r.Host, ":")[0]
-		}
+		server := m.serverLabel(r)
 
 		timer := prometheus.NewTimer(m.httpDuration.WithLabelValues(path))
 		rw := NewResponseWriter(w)
@@ -104,6 +101,21 @@ func (m *Metrics) getRoutePattern(r *http.Request) string {
 		return v.Mapper.SrcMatch.String()
 	}
 	return "[unmatched]"
+}
+
+// serverLabel returns the server label: the matched route's server in low cardinality mode, since any
+// valid Host passes matching and would add a series, otherwise the request host without port.
+func (m *Metrics) serverLabel(r *http.Request) string {
+	if m.lowCardinality {
+		if v, ok := r.Context().Value(plugin.CtxMatch).(discovery.MatchedRoute); ok {
+			return v.Mapper.Server
+		}
+		return "[unmatched]"
+	}
+	if host := r.URL.Hostname(); host != "" {
+		return host
+	}
+	return (&url.URL{Host: r.Host}).Hostname()
 }
 
 type responseWriter struct {

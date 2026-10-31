@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -139,10 +140,15 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 // uses context set by downstream (by proxyHandler)
 func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
+	host := r.URL.Hostname()
+	if host == "" {
+		host = (&url.URL{Host: r.Host}).Hostname()
+	}
 	res := lib.Request{
-		URL:        r.URL.String(),
+		// the client's escaping is dropped so plugins check the same path route matching and the upstream see
+		URL:        (&url.URL{Path: r.URL.Path, RawQuery: r.URL.RawQuery}).String(),
 		RemoteAddr: r.RemoteAddr,
-		Host:       r.URL.Hostname(),
+		Host:       host,
 		Header:     r.Header,
 	}
 

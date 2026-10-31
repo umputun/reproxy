@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +30,8 @@ import (
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/discovery/provider"
 	"github.com/umputun/reproxy/app/mgmt"
+	"github.com/umputun/reproxy/app/plugin"
+	"github.com/umputun/reproxy/lib"
 )
 
 func TestHttp_Do(t *testing.T) {
@@ -2232,4 +2235,155 @@ func TestHttp_setXRealIP(t *testing.T) {
 			assert.Equal(t, tt.want, out.Header.Get("X-Real-IP"))
 		})
 	}
+}
+
+func TestHttp_matchHandlerServerName(t *testing.T) {
+	tbl := []struct{ host, server string }{
+		{host: "example.com", server: "example.com"},
+		{host: "example.com:8080", server: "example.com"},
+		{host: "127.0.0.1:80", server: "127.0.0.1"},
+		{host: "[::1]:8080", server: "::1"},
+		{host: "[::1]", server: "::1"},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.host, func(t *testing.T) {
+			var server string
+			matcherMock := &MatcherMock{MatchFunc: func(srv, src string) discovery.Matches {
+				server = srv
+				return discovery.Matches{}
+			}}
+			h := Http{Matcher: matcherMock, LBSelector: &FailoverSelector{}, Reporter: &ErrorReporter{Nice: false}}
+			handler := h.matchHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+			req := httptest.NewRequest("GET", "/x", http.NoBody)
+			req.Host = tt.host
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+			assert.Equal(t, tt.server, server)
+		})
+	}
+}
+
+func TestHttp_throttleBeforeAuth(t *testing.T) {
+	authHash := "$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW" // passwd
+	tbl := []struct {
+		name       string
+		globalAuth bool
+		routeAuth  []string
+	}{
+		{name: "per-route auth", routeAuth: []string{"test:" + authHash}},
+		{name: "global basic auth", globalAuth: true},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+			defer ds.Close()
+
+			port, releasePort := getFreePort(t)
+			h := Http{Timeouts: Timeouts{ResponseHeader: time.Second}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+				AccessLog: io.Discard, Reporter: &ErrorReporter{Nice: true}, ThrottleUser: 2,
+				BasicAuthEnabled: tt.globalAuth, BasicAuthAllowed: []string{"test:" + authHash}}
+			svc := discovery.NewService([]discovery.Provider{&mockAuthProvider{mappers: []discovery.URLMapper{
+				{Server: "*", SrcMatch: *regexp.MustCompile("^/api/(.*)"), Dst: ds.URL + "/$1", MatchType: discovery.MTProxy,
+					AuthUsers: tt.routeAuth},
+			}}}, time.Millisecond*10)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			go func() { _ = svc.Run(ctx) }()
+			require.Eventually(t, func() bool { return len(svc.Mappers()) > 0 }, 5*time.Second, 10*time.Millisecond)
+
+			h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
+			releasePort()
+			go func() { _ = h.Run(ctx) }()
+			waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+			client := http.Client{Timeout: time.Second}
+			statuses := make([]int, 4)
+			for i := range statuses {
+				req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/api/x", port), http.NoBody)
+				require.NoError(t, err)
+				req.SetBasicAuth("test", "wrong")
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				statuses[i] = resp.StatusCode
+				resp.Body.Close()
+			}
+			assert.Equal(t, []int{http.StatusUnauthorized, http.StatusUnauthorized, http.StatusTooManyRequests,
+				http.StatusTooManyRequests}, statuses)
+		})
+	}
+}
+
+func TestHttp_pluginRequest(t *testing.T) {
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "upstream %s", r.URL.Path)
+	}))
+	defer ds.Close()
+
+	var mu sync.Mutex
+	var seen []lib.Request
+	rpcClient := &plugin.RPCClientMock{CallFunc: func(serviceMethod string, args any, reply any) error {
+		req, ok := args.(lib.Request)
+		if !ok {
+			return nil
+		}
+		mu.Lock()
+		seen = append(seen, req)
+		mu.Unlock()
+		reply.(*lib.Response).StatusCode = http.StatusOK
+		if req.URL == "/fail" {
+			reply.(*lib.Response).StatusCode = http.StatusForbidden
+		}
+		return nil
+	}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conductorPort, releaseConductorPort := getFreePort(t)
+	conductor := &plugin.Conductor{Address: fmt.Sprintf("127.0.0.1:%d", conductorPort),
+		RPCDialer: &plugin.RPCDialerMock{DialFunc: func(network, address string) (plugin.RPCClient, error) {
+			return rpcClient, nil
+		}}}
+	releaseConductorPort()
+	go func() { _ = conductor.Run(ctx) }()
+	waitForServer(t, conductor.Address)
+
+	data, err := json.Marshal(lib.Plugin{Name: "Probe", Address: "127.0.0.1:1", Methods: []string{"Inspect"}})
+	require.NoError(t, err)
+	resp, err := http.Post("http://"+conductor.Address, "application/json", bytes.NewReader(data))
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	port, releasePort := getFreePort(t)
+	h := Http{Timeouts: Timeouts{ResponseHeader: time.Second}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard, Reporter: &ErrorReporter{Nice: true}, PluginConductor: conductor}
+	svc := discovery.NewService([]discovery.Provider{
+		&provider.Static{Rules: []string{"*,^/(.*)," + ds.URL + "/$1,"}},
+	}, time.Millisecond*10)
+	go func() { _ = svc.Run(ctx) }()
+	require.Eventually(t, func() bool { return len(svc.Mappers()) > 0 }, 5*time.Second, 10*time.Millisecond)
+
+	h.Matcher = svc
+	releasePort()
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/%%66ail", port), http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("X-Real-IP", "6.6.6.6")
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, seen, 1)
+	assert.Equal(t, "/fail", seen[0].URL)
+	assert.Equal(t, "127.0.0.1", seen[0].Host)
+	assert.Equal(t, "127.0.0.1", seen[0].Header.Get("X-Real-IP"))
+	assert.True(t, strings.HasPrefix(seen[0].RemoteAddr, "127.0.0.1:"))
 }
