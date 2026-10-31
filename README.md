@@ -36,6 +36,8 @@ Server (host) can be set as FQDN, i.e. `s.example.com`, `*` (catch all) or a reg
 
 For convenience, requests with the trailing `/` and without regex groups expanded to `/(.*)`, and destinations in those cases expanded to `/$1`. I.e. `/api/` -> `http://127.0.0.1/service` will be translated to `^/api/(.*)` -> `http://127.0.0.1/service/$1`.
 
+Before route matching, reproxy rejects with 400 a request whose decoded path contains a `.` or `..` segment or repeated slashes (`//`). A single trailing slash is allowed.
+
 The host substitution is supported in the destination URL. For example, `/files/${host}` will be replaced with the matched host name. `$host` (without braces) can also be used.
 
 Groups of a regex server can be used in the destination URL as `${host.1}`, `${host.2}` and so on (braces required). For example, server `^([^.]+)\.example\.com$` with route `^/(.*)$` and destination `https://${host.1}.foo.com/$1` proxies `http://aaaa.example.com/some` to `https://aaaa.foo.com/some`. `$1`, `$2` keep referring to the route groups. A missing group is replaced with an empty string, and so is any `${host.N}` for an exact, `*` or `*.example.com` server, as those have no groups. Host values are inserted as is, without URL escaping, so keep server groups tight: anchor the regex with `^` and `$`, and capture only what a host label may hold, i.e. `([a-z0-9-]+)` rather than `(.*)`, which would also match `..` from a host like `...example.com`. Before route matching, reproxy rejects Host headers containing characters disallowed by HTTP host-header validation or containing `%`, returning 400. When a host token directly follows a route group, write the group with braces, i.e. `${1}${host.1}`, as `$1aaaa` would be read as a group named `1aaaa`.
