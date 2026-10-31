@@ -140,15 +140,11 @@ func (c *Conductor) Middleware(next http.Handler) http.Handler {
 // uses context set by downstream (by proxyHandler)
 func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	ctx := r.Context()
-	host := r.URL.Hostname()
-	if host == "" {
-		host = discovery.HostName(r.Host)
-	}
 	res := lib.Request{
 		// the client's escaping is dropped so plugins check the same path route matching and the upstream see
 		URL:        (&url.URL{Path: r.URL.Path, RawQuery: r.URL.RawQuery}).String(),
 		RemoteAddr: r.RemoteAddr,
-		Host:       host,
+		Host:       discovery.HostName(r.Host),
 		Header:     r.Header,
 	}
 

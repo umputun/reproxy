@@ -507,12 +507,15 @@ func TestConductor_makeRequest(t *testing.T) {
 		{name: "ipv6 host with port", target: "/x", host: "[::1]:8080", url: "/x", server: "::1"},
 		{name: "non-numeric port", target: "/x", host: "ADMIN.example:x", url: "/x", server: "ADMIN.example"},
 		{name: "absolute-form target", target: "http://api.example.com/v1", host: "api.example.com", url: "/v1", server: "api.example.com"},
+		{name: "absolute-form extra colons", target: "foo://a.wild.example:1:2/v1", url: "/v1", server: "a.wild.example"},
 	}
 
 	for _, tt := range tbl {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest("GET", tt.target, http.NoBody)
-			r.Host = tt.host
+			if tt.host != "" {
+				r.Host = tt.host
+			}
 			r.RemoteAddr = "192.0.2.1:1234"
 			req := (&Conductor{}).makeRequest(r)
 			assert.Equal(t, tt.url, req.URL)

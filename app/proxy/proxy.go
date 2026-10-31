@@ -374,10 +374,8 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 			h.Reporter.Report(w, http.StatusBadRequest)
 			return
 		}
-		server := r.URL.Hostname()
-		if server == "" {
-			server = discovery.HostName(r.Host)
-		}
+		// r.Host holds an absolute-form target's host too; r.URL.Hostname keeps "x.com:1" of foo://x.com:1:2/
+		server := discovery.HostName(r.Host)
 		// normalize from decoded Path so alternate encodings cannot bypass route auth or IP policies
 		canonicalPath := (&url.URL{Path: r.URL.Path}).EscapedPath()
 		matches := h.Match(server, canonicalPath) // get all matches for the server:path pair

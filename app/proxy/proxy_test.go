@@ -2238,18 +2238,20 @@ func TestHttp_setXRealIP(t *testing.T) {
 }
 
 func TestHttp_matchHandlerServerName(t *testing.T) {
-	tbl := []struct{ host, server string }{
-		{host: "example.com", server: "example.com"},
-		{host: "example.com:8080", server: "example.com"},
-		{host: "127.0.0.1:80", server: "127.0.0.1"},
-		{host: "[::1]:8080", server: "::1"},
-		{host: "[::1]", server: "::1"},
-		{host: "ADMIN.example:x", server: "ADMIN.example"},
-		{host: "a.wild.example:x", server: "a.wild.example"},
+	tbl := []struct{ target, host, server string }{
+		{target: "/x", host: "example.com", server: "example.com"},
+		{target: "/x", host: "example.com:8080", server: "example.com"},
+		{target: "/x", host: "127.0.0.1:80", server: "127.0.0.1"},
+		{target: "/x", host: "[::1]:8080", server: "::1"},
+		{target: "/x", host: "[::1]", server: "::1"},
+		{target: "/x", host: "ADMIN.example:x", server: "ADMIN.example"},
+		{target: "/x", host: "a.wild.example:x", server: "a.wild.example"},
+		{target: "http://api.example.com:8080/x", server: "api.example.com"},
+		{target: "foo://a.wild.example:1:2/x", server: "a.wild.example"},
 	}
 
 	for _, tt := range tbl {
-		t.Run(tt.host, func(t *testing.T) {
+		t.Run(tt.target+" "+tt.host, func(t *testing.T) {
 			var server string
 			matcherMock := &MatcherMock{MatchFunc: func(srv, src string) discovery.Matches {
 				server = srv
@@ -2257,9 +2259,36 @@ func TestHttp_matchHandlerServerName(t *testing.T) {
 			}}
 			h := Http{Matcher: matcherMock, LBSelector: &FailoverSelector{}, Reporter: &ErrorReporter{Nice: false}}
 			handler := h.matchHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-			req := httptest.NewRequest("GET", "/x", http.NoBody)
-			req.Host = tt.host
+			req := httptest.NewRequest("GET", tt.target, http.NoBody)
+			if tt.host != "" {
+				req.Host = tt.host
+			}
 			handler.ServeHTTP(httptest.NewRecorder(), req)
+			assert.Equal(t, tt.server, server)
+		})
+	}
+}
+
+func TestHttp_shouldForwardHealthChecksServerName(t *testing.T) {
+	tbl := []struct{ target, host, server string }{
+		{target: "/ping", host: "example.com:8080", server: "example.com"},
+		{target: "/ping", host: "[::1]:8080", server: "::1"},
+		{target: "foo://a.wild.example:1:2/ping", server: "a.wild.example"},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.target+" "+tt.host, func(t *testing.T) {
+			var server string
+			matcherMock := &MatcherMock{MatchFunc: func(srv, src string) discovery.Matches {
+				server = srv
+				return discovery.Matches{}
+			}}
+			h := Http{Matcher: matcherMock}
+			req := httptest.NewRequest("GET", tt.target, http.NoBody)
+			if tt.host != "" {
+				req.Host = tt.host
+			}
+			assert.False(t, h.shouldForwardHealthChecks(req))
 			assert.Equal(t, tt.server, server)
 		})
 	}

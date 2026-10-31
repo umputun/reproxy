@@ -111,9 +111,6 @@ func (m *Metrics) serverLabel(r *http.Request) string {
 		}
 		return "[unmatched]"
 	}
-	if host := r.URL.Hostname(); host != "" {
-		return host
-	}
 	return discovery.HostName(r.Host)
 }
 

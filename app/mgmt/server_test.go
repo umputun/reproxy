@@ -339,12 +339,15 @@ func TestMetrics_serverLabel(t *testing.T) {
 		{name: "default mode ipv6 host", target: "/x", host: "[::1]:8080", want: "::1"},
 		{name: "default mode non-numeric port", target: "/x", host: "a1.example.com:x", want: "a1.example.com"},
 		{name: "default mode absolute-form target", target: "http://api.example.com/x", host: "api.example.com", want: "api.example.com"},
+		{name: "default mode absolute-form extra colons", target: "foo://a.wild.example:1:2/x", want: "a.wild.example"},
 	}
 
 	for _, tt := range tbl {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest("GET", tt.target, http.NoBody)
-			r.Host = tt.host
+			if tt.host != "" {
+				r.Host = tt.host
+			}
 			if tt.routed {
 				r = r.WithContext(context.WithValue(r.Context(), plugin.CtxMatch, match))
 			}
