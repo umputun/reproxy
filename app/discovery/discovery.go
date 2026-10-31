@@ -97,7 +97,7 @@ const (
 
 var reGroup = regexp.MustCompile(`(^.*)/\(.*\)`) // capture regex group lil (anything) from src like /blah/foo/(.*)
 
-var reHostGroup = regexp.MustCompile(`\$\{host\.(\d+)\}`) // ${host.N} in dst, N is a group of the server regex
+var reHostToken = regexp.MustCompile(`\$\{host\.\d+\}|\$\{host\}|\$host`) // host tokens in dst, ${host.N} first
 
 // MatchType defines the type of mapper (rule)
 type MatchType int
@@ -213,17 +213,6 @@ func hasConcreteRoute(routes []MatchedRoute) bool {
 // For MTStatic always a single match because fail-over doesn't supported for assets
 func (s *Service) Match(srv, src string) (res Matches) {
 
-	replaceHost := func(dest, srv string) string {
-		// $host or ${host} in dest replaced by srv. the result is expanded by SrcMatch.ReplaceAllString next,
-		// and a Host header may contain $, so escape it to keep a client from injecting source groups
-		srv = strings.ReplaceAll(srv, "$", "$$")
-		dest = strings.ReplaceAll(dest, "$host", srv)
-		if strings.Contains(dest, "${host}") {
-			dest = strings.ReplaceAll(dest, "${host}", srv)
-		}
-		return dest
-	}
-
 	// if the match returns both default (catch-all) and concrete server routes, drop the default ones as the
 	// concrete server is a better match. if every matched route is on the default server keep them all, multiple
 	// routes for the same source on the catch-all server is a legit load-balancing setup.
@@ -259,9 +248,7 @@ func (s *Service) Match(srv, src string) (res Matches) {
 
 			switch m.MatchType {
 			case MTProxy:
-				dest := replaceHost(m.Dst, srv) // replace $host and ${host} in dest first, before regex match
-				// after replaceHost, otherwise its $host replacement would rewrite a captured "$host"
-				dest = s.replaceHostGroups(dest, srv, m.Server)
+				dest := s.replaceHost(m.Dst, srv, m.Server) // host tokens first, before regex match
 				dest = m.SrcMatch.ReplaceAllString(src, dest)
 				if src != dest { // regex matched because dest changed after replacement
 					lastSrcMatch = m.SrcMatch.String()
@@ -298,24 +285,28 @@ func (s *Service) Match(srv, src string) (res Matches) {
 	return res
 }
 
-// replaceHostGroups replaces ${host.N} in dest with group N of the server regex matched against srv.
-// a missing group, or a server without a regex (exact, *.x.com, default), gives an empty string.
-// caller must hold s.lock.RLock for the s.serverRegexps access.
-func (s *Service) replaceHostGroups(dest, srv, server string) string {
-	if !strings.Contains(dest, "${host.") {
+// replaceHost replaces $host and ${host} in dest with srv, and ${host.N} with group N of the server
+// regex matched against srv. A missing group gives an empty string, and so does any group of an exact,
+// *.x.com or default server, as those have no groups. caller must hold s.lock.RLock.
+func (s *Service) replaceHost(dest, srv, server string) string {
+	if !strings.Contains(dest, "$host") && !strings.Contains(dest, "${host") {
 		return dest
 	}
 	var groups []string
-	if re, ok := s.serverRegexps[server]; ok {
+	if re, ok := s.serverRegexps[server]; ok && strings.Contains(dest, "${host.") {
 		groups = re.FindStringSubmatch(srv)
 	}
-	return reHostGroup.ReplaceAllStringFunc(dest, func(token string) string {
-		n, err := strconv.Atoi(reHostGroup.FindStringSubmatch(token)[1])
-		if err != nil || n < 1 || n >= len(groups) {
-			return ""
+	// single pass so inserted host text is never rescanned; $ escaped as the result is expanded next
+	return reHostToken.ReplaceAllStringFunc(dest, func(token string) string {
+		val := srv
+		if strings.HasPrefix(token, "${host.") {
+			val = ""
+			n, err := strconv.Atoi(token[len("${host.") : len(token)-1])
+			if err == nil && n >= 1 && n < len(groups) {
+				val = groups[n]
+			}
 		}
-		// dest is expanded by SrcMatch.ReplaceAllString next, escape $ so the host can't inject source groups
-		return strings.ReplaceAll(groups[n], "$", "$$")
+		return strings.ReplaceAll(val, "$", "$$")
 	})
 }
 

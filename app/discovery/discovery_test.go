@@ -268,9 +268,11 @@ func TestService_MatchServerRegex(t *testing.T) {
 				{Server: `^([^.]+)\.sub-domain\.com$`, SrcMatch: *regexp.MustCompile("^/(.*)$"),
 					Dst: "https://${host.1}.foo.com/$1", MatchType: MTProxy, dead: false},
 				{Server: `^([^.]+)\.sub-domain2\.com$`, SrcMatch: *regexp.MustCompile("^/(.*)$"),
-					Dst: "http://127.0.0.5:8080/${host.1}/${host.0}${host.2}/${host}/$1", MatchType: MTProxy, dead: false},
+					Dst: "http://127.0.0.5:8080/${host.1}/${host.0}${host.2}${host.99999999999999999999}/${host}/$1", MatchType: MTProxy, dead: false},
 				{Server: "*.sub-domain3.com", SrcMatch: *regexp.MustCompile("^/(.*)$"),
 					Dst: "http://127.0.0.6:8080/${host.1}/$1", MatchType: MTProxy, dead: false},
+				{Server: `^(.+)\.sub-domain4\.com$`, SrcMatch: *regexp.MustCompile("^/(.*)$"),
+					Dst: "http://${host}:9/${host.1}/$1", MatchType: MTProxy, dead: false},
 
 				// strict match
 				{Server: "test-prefix.exact.com", SrcMatch: *regexp.MustCompile("/"),
@@ -369,6 +371,14 @@ func TestService_MatchServerRegex(t *testing.T) {
 			server: "bbbb.sub-domain2.com",
 			src:    "/some",
 			res:    Matches{MTProxy, []MatchedRoute{{Destination: "http://127.0.0.5:8080/bbbb//bbbb.sub-domain2.com/some", Alive: true}}},
+		},
+		{
+			// regression: host tokens inserted by one substitution must not be rescanned by another
+			name:   "regex server with ${host} and ${host.1} and host token in host",
+			server: "1${host.1}.sub-domain4.com",
+			src:    "/evil.com/x",
+			res: Matches{MTProxy, []MatchedRoute{{Destination: "http://1${host.1}.sub-domain4.com:9/1${host.1}/evil.com/x",
+				Alive: true}}},
 		},
 		{
 			name:   "pattern server with ${host.1} has no groups",
