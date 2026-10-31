@@ -1090,6 +1090,7 @@ func TestHttp_matchHandlerInvalidHost(t *testing.T) {
 		{name: "braces in host", host: "1${host.1}.example.com", code: http.StatusBadRequest},
 		{name: "userinfo in host", host: "user@evil.com", code: http.StatusBadRequest},
 		{name: "space in host", host: "a b.example.com", code: http.StatusBadRequest},
+		{name: "percent escapes in host", host: "%2e%2e%2fadmin.example.com", code: http.StatusBadRequest},
 	}
 
 	for _, tt := range tbl {
