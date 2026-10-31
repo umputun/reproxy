@@ -1078,6 +1078,40 @@ func TestHttp_matchHandler(t *testing.T) {
 	}
 }
 
+func TestHttp_matchHandlerInvalidHost(t *testing.T) {
+	tbl := []struct {
+		name, host string
+		code       int
+		matched    bool
+	}{
+		{name: "valid host", host: "aaaa.example.com", code: http.StatusOK, matched: true},
+		{name: "valid host with port", host: "aaaa.example.com:8080", code: http.StatusOK, matched: true},
+		{name: "path and fragment in host", host: "localhost/admin#.example.com", code: http.StatusBadRequest},
+		{name: "braces in host", host: "1${host.1}.example.com", code: http.StatusBadRequest},
+		{name: "userinfo in host", host: "user@evil.com", code: http.StatusBadRequest},
+		{name: "space in host", host: "a b.example.com", code: http.StatusBadRequest},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			matched := false
+			matcherMock := &MatcherMock{MatchFunc: func(srv, src string) discovery.Matches {
+				matched = true
+				return discovery.Matches{}
+			}}
+			h := Http{Matcher: matcherMock, LBSelector: &FailoverSelector{}, Reporter: &ErrorReporter{Nice: false}}
+			handler := h.matchHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+			req := httptest.NewRequest("GET", "/x", http.NoBody)
+			req.Host = tt.host
+			wr := httptest.NewRecorder()
+			handler.ServeHTTP(wr, req)
+			assert.Equal(t, tt.code, wr.Code)
+			assert.Equal(t, tt.matched, matched)
+		})
+	}
+}
+
 func TestHttp_discoveredServers(t *testing.T) {
 	calls := 0
 	m := &MatcherMock{ServersFunc: func() []string {

@@ -21,6 +21,7 @@ import (
 	log "github.com/go-pkgz/lgr"
 	R "github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
+	"golang.org/x/net/http/httpguts"
 
 	"github.com/umputun/reproxy/app/discovery"
 	"github.com/umputun/reproxy/app/plugin"
@@ -361,6 +362,12 @@ func (h *Http) matchHandler(next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// http/1 rejects such hosts in net/http, but the http/2 server passes :authority through as is.
+		// the host goes into destinations via $host and ${host.N}, so a / or # in it would redirect the request
+		if !httpguts.ValidHostHeader(r.Host) {
+			h.Reporter.Report(w, http.StatusBadRequest)
+			return
+		}
 		server := r.URL.Hostname()
 		if server == "" {
 			server = strings.Split(r.Host, ":")[0] // drop port

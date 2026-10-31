@@ -97,7 +97,7 @@ const (
 
 var reGroup = regexp.MustCompile(`(^.*)/\(.*\)`) // capture regex group lil (anything) from src like /blah/foo/(.*)
 
-var reHostToken = regexp.MustCompile(`\$\{host\.\d+\}|\$\{host\}|\$host`) // host tokens in dst, ${host.N} first
+var reHostToken = regexp.MustCompile(`\$\{host\.\d+\}|\$\{host\}|\$host`)
 
 // MatchType defines the type of mapper (rule)
 type MatchType int
