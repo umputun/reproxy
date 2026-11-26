@@ -353,10 +353,7 @@ func run() error {
 	}
 
 	// bound before makeMetrics starts the mgmt listener, which can default to the same address
-	pluginConductor, err := makePluginConductor(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start plugin conductor: %w", err)
-	}
+	pluginConductor := makePluginConductor(ctx)
 
 	px := &proxy.Http{
 		Version:        revision,
@@ -479,16 +476,17 @@ func makeProviders() ([]discovery.Provider, error) {
 	return res, nil
 }
 
-// makePluginConductor binds the plugin registration address before serving on it, so a taken address
-// stops startup: with no conductor, plugins such as auth would be skipped on every request.
-func makePluginConductor(ctx context.Context) (proxy.MiddlewareProvider, error) {
+// makePluginConductor binds the plugin registration address before serving on it. A taken address
+// disables plugins with a warning instead of stopping reproxy, so requests then skip every plugin.
+func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 	if !opts.Plugin.Enabled {
-		return nil, nil
+		return nil
 	}
 
 	ln, err := net.Listen("tcp", opts.Plugin.Listen)
 	if err != nil {
-		return nil, fmt.Errorf("plugin conductor listen: %w", err)
+		log.Printf("[WARN] plugin conductor can't listen on %s, plugins disabled: %v", opts.Plugin.Listen, err)
+		return nil
 	}
 	conductor := &plugin.Conductor{
 		Secret:  opts.Plugin.Secret,
@@ -506,7 +504,7 @@ func makePluginConductor(ctx context.Context) (proxy.MiddlewareProvider, error) 
 			log.Printf("[WARN] plugin conductor error, %v", err)
 		}
 	}()
-	return conductor, nil
+	return conductor
 }
 
 func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewareProvider {
