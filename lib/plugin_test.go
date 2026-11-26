@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -42,6 +44,33 @@ func TestPlugin_Do(t *testing.T) {
 	require.EqualError(t, err, "context done: context deadline exceeded")
 	assert.Equal(t, int32(1), postCalls.Load())
 	assert.Equal(t, int32(1), deleteCalls.Load())
+}
+
+func TestPlugin_doRenews(t *testing.T) {
+	var mu sync.Mutex
+	var methods []string
+	tsConductor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		methods = append(methods, r.Method)
+		mu.Unlock()
+	}))
+	defer tsConductor.Close()
+
+	p := Plugin{Name: "Renewing", Address: "localhost:12346", Methods: []string{"H1"}}
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	err := p.do(ctx, tsConductor.URL, new(TestingHandler), 20*time.Millisecond)
+	require.EqualError(t, err, "context done: context deadline exceeded")
+
+	mu.Lock()
+	got := slices.Clone(methods)
+	mu.Unlock()
+	require.GreaterOrEqual(t, len(got), 4)
+	assert.Equal(t, "POST", got[0])
+	assert.Equal(t, "DELETE", got[len(got)-1], "nothing is sent after the unregister")
+	for _, m := range got[1 : len(got)-1] {
+		assert.Equal(t, "PUT", m)
+	}
 }
 
 func TestPlugin_sendSecret(t *testing.T) {

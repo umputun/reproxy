@@ -195,7 +195,7 @@ func (c *Conductor) makeRequest(r *http.Request) lib.Request {
 	return res
 }
 
-// registrationHandler accept POST or DELETE with lib.Plugin body and register/unregister plugin provider
+// registrationHandler accepts POST (register), PUT (renew) or DELETE (unregister) with a lib.Plugin body
 func (c *Conductor) registrationHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.authorized(r) {
@@ -221,6 +221,17 @@ func (c *Conductor) registrationHandler() http.Handler {
 				return
 			}
 			c.unregister(plugin)
+		case "PUT":
+			var plugin lib.Plugin
+			if err := json.NewDecoder(r.Body).Decode(&plugin); err != nil {
+				http.Error(w, "plugin renewal failed", http.StatusBadRequest)
+				return
+			}
+			if err := c.renew(plugin); err != nil {
+				log.Printf("[WARN] rpc renewal failed, %v", err)
+				http.Error(w, "rpc renewal failed", http.StatusInternalServerError)
+				return
+			}
 		default:
 			http.Error(w, "invalid request type", http.StatusBadRequest)
 		}
@@ -236,18 +247,36 @@ func (c *Conductor) authorized(r *http.Request) bool {
 	return ok && subtle.ConstantTimeCompare([]byte(token), []byte(c.Secret)) == 1
 }
 
-// register dials the plugin and adds a handler for each of its methods under the full method name.
-// The dial runs without the request lock, so a slow or unreachable plugin address doesn't stall requests.
-// It is bounded by Timeout alone, not by the registration request: lib.Plugin retries a POST that
-// takes over 1s, and a dial cut short with it would never finish registering a slow plugin.
+// register adds the plugin, replacing a registration of the same name from another address.
 func (c *Conductor) register(p lib.Plugin) error {
 	c.regLock.Lock()
 	defer c.regLock.Unlock()
 	if c.isRegistered(p) {
-		log.Printf("[WARN] plugin %+v already registered", p)
+		log.Printf("[DEBUG] plugin %+v already registered", p)
 		return nil
 	}
+	return c.add(p)
+}
 
+// renew restores a plugin missing from the registry, as after a reproxy restart while the plugin kept
+// running. A name registered from any address is left alone, so an old instance still renewing during
+// a rolling update can't take the name back from its replacement.
+func (c *Conductor) renew(p lib.Plugin) error {
+	c.regLock.Lock()
+	defer c.regLock.Unlock()
+	if c.hasName(p.Name) {
+		return nil
+	}
+	log.Printf("[INFO] restore plugin %s registration from renewal", p.Name)
+	return c.add(p)
+}
+
+// add dials the plugin and adds a handler for each of its methods under the full method name; the
+// caller holds regLock. The dial runs without the request lock, so a slow or unreachable plugin address
+// doesn't stall requests. It is bounded by Timeout alone, not by the registration request: lib.Plugin
+// retries a POST that takes over 1s, and a dial cut short with it would never finish registering a slow
+// plugin.
+func (c *Conductor) add(p lib.Plugin) error {
 	ctx := context.Background()
 	if c.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -283,6 +312,17 @@ func (c *Conductor) register(p lib.Plugin) error {
 	})
 	c.retireConns(replaced)
 	return nil
+}
+
+func (c *Conductor) hasName(name string) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	for _, h := range c.plugins {
+		if h.name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Conductor) isRegistered(p lib.Plugin) bool {

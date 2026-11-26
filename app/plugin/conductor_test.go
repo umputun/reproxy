@@ -132,7 +132,7 @@ func TestConductor_registrationHandler(t *testing.T) {
 		plugin := lib.Plugin{Name: "Test2", Address: "127.0.0.3:8003", Methods: []string{"Mw11", "Mw12", "Mw13"}}
 		data, err := json.Marshal(plugin)
 		require.NoError(t, err)
-		req, err := http.NewRequest("PUT", ts.URL, bytes.NewReader(data))
+		req, err := http.NewRequest("PATCH", ts.URL, bytes.NewReader(data))
 		require.NoError(t, err)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -908,6 +908,57 @@ func TestConductor_dottedNamesAreDistinct(t *testing.T) {
 	c.unregister(short)
 	require.Len(t, c.plugins, 1)
 	assert.Equal(t, "Auth.V2.Check", c.plugins[0].Method)
+}
+
+func TestConductor_renew(t *testing.T) {
+	newConductor := func() (*Conductor, *RPCDialerMock) {
+		dialer := &RPCDialerMock{DialFunc: func(context.Context, string, string) (RPCClient, error) {
+			return &RPCClientMock{CloseFunc: func() error { return nil }}, nil
+		}}
+		return &Conductor{RPCDialer: dialer}, dialer
+	}
+	live := lib.Plugin{Name: "Auth", Address: "10.0.0.2:9000", Methods: []string{"Check"}}
+
+	t.Run("missing plugin is restored", func(t *testing.T) {
+		c, dialer := newConductor()
+		require.NoError(t, c.renew(live))
+		assert.Len(t, dialer.DialCalls(), 1)
+		require.Len(t, c.plugins, 1)
+		assert.Equal(t, live.Address, c.plugins[0].Address)
+	})
+
+	t.Run("same instance is confirmed", func(t *testing.T) {
+		c, dialer := newConductor()
+		require.NoError(t, c.register(live))
+		require.NoError(t, c.renew(live))
+		assert.Len(t, dialer.DialCalls(), 1, "renewal of a registered instance doesn't dial")
+		assert.Len(t, c.plugins, 1)
+	})
+
+	t.Run("old instance doesn't displace its replacement", func(t *testing.T) {
+		c, dialer := newConductor()
+		old := lib.Plugin{Name: "Auth", Address: "10.0.0.1:9000", Methods: []string{"Check"}}
+		require.NoError(t, c.register(old))
+		require.NoError(t, c.register(live))
+		require.NoError(t, c.renew(old))
+		assert.Len(t, dialer.DialCalls(), 2)
+		require.Len(t, c.plugins, 1)
+		assert.Equal(t, live.Address, c.plugins[0].Address)
+
+		c.unregister(old)
+		require.Len(t, c.plugins, 1, "the old instance's exit leaves the replacement registered")
+		assert.Equal(t, live.Address, c.plugins[0].Address)
+	})
+
+	t.Run("put request renews", func(t *testing.T) {
+		c, _ := newConductor()
+		data, err := json.Marshal(live)
+		require.NoError(t, err)
+		rr := httptest.NewRecorder()
+		c.registrationHandler().ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(data)))
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Len(t, c.plugins, 1)
+	})
 }
 
 func TestConductor_makeRequest(t *testing.T) {
