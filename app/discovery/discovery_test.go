@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1172,6 +1174,83 @@ func Test_ping(t *testing.T) {
 			}
 			require.Error(t, err)
 			assert.Contains(t, msg, tt.wantMsg)
+		})
+	}
+}
+
+func Test_pingRedirects(t *testing.T) {
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) }))
+	defer other.Close()
+	otherPort := other.Listener.Addr().(*net.TCPAddr).Port
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if n, ok := strings.CutPrefix(r.URL.Path, "/hops/"); ok {
+			left, err := strconv.Atoi(n)
+			if !assert.NoError(t, err) {
+				return
+			}
+			if left == 0 {
+				_, _ = w.Write([]byte("OK"))
+				return
+			}
+			http.Redirect(w, r, "/hops/"+strconv.Itoa(left-1), http.StatusFound)
+			return
+		}
+		switch r.URL.Path {
+		case "/other-port":
+			http.Redirect(w, r, other.URL+"/ping", http.StatusFound)
+		case "/other-host":
+			http.Redirect(w, r, fmt.Sprintf("http://localhost:%d/ping", otherPort), http.StatusFound)
+		}
+	}))
+	defer ts.Close()
+
+	tbl := []struct {
+		path    string
+		wantErr bool
+	}{
+		{path: "/hops/1", wantErr: false},
+		{path: "/hops/3", wantErr: false},
+		{path: "/hops/4", wantErr: true},
+		{path: "/other-port", wantErr: true},
+		{path: "/other-host", wantErr: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.path, func(t *testing.T) {
+			_, err := URLMapper{PingURL: ts.URL + tt.path}.ping()
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestURLMapper_checkPingRedirect(t *testing.T) {
+	tbl := []struct {
+		from, to string
+		allowed  bool
+	}{
+		{from: "http://example.com/ping", to: "http://example.com:80/other", allowed: true},
+		{from: "https://Example.com/ping", to: "https://example.com:443/", allowed: true},
+		{from: "http://example.com/ping", to: "https://example.com/ping", allowed: false},
+		{from: "http://example.com/ping", to: "http://example.com:8080/ping", allowed: false},
+		{from: "http://example.com/ping", to: "http://internal.example.com/ping", allowed: false},
+		{from: "http://σ.example/ping", to: "http://ς.example/ping", allowed: false},
+		{from: "http://k.example/ping", to: "http://K.example/ping", allowed: false},
+		{from: "http://[::A]:8080/ping", to: "http://[::a]:8080/other", allowed: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.from+" "+tt.to, func(t *testing.T) {
+			via := httptest.NewRequest(http.MethodGet, tt.from, http.NoBody)
+			req := httptest.NewRequest(http.MethodGet, tt.to, http.NoBody)
+			err := URLMapper{}.checkPingRedirect(req, []*http.Request{via})
+			if tt.allowed {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
 		})
 	}
 }

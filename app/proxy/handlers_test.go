@@ -1,12 +1,14 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
@@ -83,6 +85,74 @@ func Test_headersHandler(t *testing.T) {
 	handler.ServeHTTP(wr, req)
 	assert.Equal(t, "v1", wr.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", wr.Result().Header.Get("k2"))
+}
+
+func Test_headersHandlerAfterInformational(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Link", "</a.css>; rel=preload")
+		w.WriteHeader(http.StatusEarlyHints)
+		if r.URL.Path != "/upgrade" {
+			w.Header().Set("X-Frame-Options", "backend")
+			_, _ = w.Write([]byte("ok"))
+			return
+		}
+		conn, brw, err := http.NewResponseController(w).Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.Close()
+		_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n")
+		_ = brw.Flush()
+	}))
+	defer backend.Close()
+	backendURL, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+
+	wrap := headersHandler([]string{"X-Frame-Options:SAMEORIGIN", "X-Test:a", "X-Test:b"}, nil)
+	front := httptest.NewServer(wrap(accessLogHandler(io.Discard)(httputil.NewSingleHostReverseProxy(backendURL))))
+	defer front.Close()
+
+	t.Run("103 then 200", func(t *testing.T) {
+		resp, err := http.Get(front.URL + "/early")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, []string{"SAMEORIGIN", "backend"}, resp.Header.Values("X-Frame-Options"))
+		assert.Equal(t, []string{"b"}, resp.Header.Values("X-Test"))
+	})
+
+	t.Run("103 then 101 upgrade", func(t *testing.T) {
+		conn, err := net.Dial("tcp", front.Listener.Addr().String())
+		require.NoError(t, err)
+		defer conn.Close()
+		_, err = conn.Write([]byte("GET /upgrade HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n"))
+		require.NoError(t, err)
+		br := bufio.NewReader(conn)
+		early, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusEarlyHints, early.StatusCode)
+		upgraded, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusSwitchingProtocols, upgraded.StatusCode)
+		assert.Equal(t, "SAMEORIGIN", upgraded.Header.Get("X-Frame-Options"))
+		assert.Equal(t, "test", upgraded.Header.Get("Upgrade"))
+	})
+
+	t.Run("103 then flush", func(t *testing.T) {
+		flushing := httptest.NewServer(wrap(accessLogHandler(io.Discard)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusEarlyHints)
+			clear(w.Header())
+			w.(http.Flusher).Flush()
+			_, _ = w.Write([]byte("ok"))
+		}))))
+		defer flushing.Close()
+		resp, err := http.Get(flushing.URL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "SAMEORIGIN", resp.Header.Get("X-Frame-Options"))
+		assert.Equal(t, "b", resp.Header.Get("X-Test"))
+	})
 }
 
 func Test_maxReqSizeHandler(t *testing.T) {
@@ -636,9 +706,7 @@ func Test_routeTimeoutHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
 		reads, writes := rec.recorded()
-		// two calls per setter: first arms the deadline, second (deferred) clears it back to zero
-		// so kept-alive connections do not carry an expired deadline into subsequent requests
-		require.Len(t, reads, 2, "expected one set + one clear SetReadDeadline call")
+		require.Len(t, reads, 1, "read deadline is set and kept to bound the server's body drain")
 		require.Len(t, writes, 2, "expected one set + one clear SetWriteDeadline call")
 
 		readEarliest := before.Add(5 * time.Second).Add(-100 * time.Millisecond)
@@ -649,8 +717,31 @@ func Test_routeTimeoutHandler(t *testing.T) {
 			"read deadline %v outside expected window [%v, %v]", reads[0], readEarliest, readLatest)
 		assert.True(t, !writes[0].Before(writeEarliest) && !writes[0].After(writeLatest),
 			"write deadline %v outside expected window [%v, %v]", writes[0], writeEarliest, writeLatest)
-		assert.True(t, reads[1].IsZero(), "deferred read deadline reset should be zero time")
 		assert.True(t, writes[1].IsZero(), "deferred write deadline reset should be zero time")
+	})
+
+	t.Run("trickled body on a real connection is cut at the route timeout", func(t *testing.T) {
+		route := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, err := io.ReadAll(r.Body); err != nil {
+				w.WriteHeader(http.StatusBadGateway)
+			}
+		}))
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			match := discovery.MatchedRoute{Mapper: discovery.URLMapper{Timeout: 300 * time.Millisecond}}
+			route.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxMatch, match)))
+		}))
+		defer ts.Close()
+
+		conn, err := net.Dial("tcp", ts.Listener.Addr().String())
+		require.NoError(t, err)
+		defer conn.Close()
+		_, err = conn.Write([]byte("POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 10\r\n\r\n1"))
+		require.NoError(t, err)
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(3*time.Second)))
+		start := time.Now()
+		_, err = io.Copy(io.Discard, conn)
+		require.NoError(t, err, "connection must be closed by the server, not by the client deadline")
+		assert.Less(t, time.Since(start), 1500*time.Millisecond)
 	})
 
 	t.Run("ErrNotSupported tolerated, ctx-cancel still fires", func(t *testing.T) {

@@ -30,8 +30,12 @@ func (c *CacheControl) AddMime(m string, d time.Duration) {
 // fallback to default if nothing matched
 func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 
-	setMaxAgeHeader := func(age time.Duration, w http.ResponseWriter) {
-		w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(int(age.Seconds())))
+	setMaxAgeHeader := func(age time.Duration, w http.ResponseWriter, r *http.Request) {
+		scope := "public"
+		if r.Context().Value(ctxPrivateAsset) != nil {
+			scope = "private"
+		}
+		w.Header().Set("Cache-Control", scope+", max-age="+strconv.Itoa(int(age.Seconds())))
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +46,7 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 		}
 
 		if len(c.maxAges) == 0 && c.defaultMaxAge > 0 {
-			setMaxAgeHeader(c.defaultMaxAge, w)
+			setMaxAgeHeader(c.defaultMaxAge, w, r)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -59,7 +63,7 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 		if v, ok := c.maxAges[mt]; ok {
 			val = v
 		}
-		setMaxAgeHeader(val, w)
+		setMaxAgeHeader(val, w, r)
 		next.ServeHTTP(w, r)
 	})
 }

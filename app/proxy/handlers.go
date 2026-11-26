@@ -1,13 +1,16 @@
 package proxy
 
 import (
+	"bufio"
 	"compress/gzip"
 	"compress/zlib"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,23 +28,29 @@ import (
 )
 
 func headersHandler(addHeaders, dropHeaders []string) func(next http.Handler) http.Handler {
+	added := map[string]string{} // canonical key to value, the last option for a key wins
+	for _, h := range addHeaders {
+		// split on first colon only
+		if key, value, ok := strings.Cut(h, ":"); ok {
+			key = strings.TrimSpace(key)
+			if key != "" {
+				added[http.CanonicalHeaderKey(key)] = strings.TrimSpace(value)
+			}
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if len(addHeaders) == 0 && len(dropHeaders) == 0 {
+			if len(added) == 0 && len(dropHeaders) == 0 {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// add headers to response
-			for _, h := range addHeaders {
-				// split on first colon only
-				if key, value, ok := strings.Cut(h, ":"); ok {
-					key = strings.TrimSpace(key)
-					value = strings.TrimSpace(value)
-					if key != "" {
-						w.Header().Set(key, value)
-					}
-				}
+			for k, v := range added {
+				w.Header().Set(k, v)
+			}
+			if len(added) > 0 {
+				w = &headersWriter{ResponseWriter: w, headers: added}
 			}
 
 			// drop headers from request
@@ -51,6 +60,66 @@ func headersHandler(addHeaders, dropHeaders []string) func(next http.Handler) ht
 
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+// headersWriter puts the configured headers back on the final response when a 1xx response went out
+// first: httputil.ReverseProxy clears the header map after forwarding a 1xx. It doesn't implement
+// io.ReaderFrom, so the access log counts the body in Write.
+type headersWriter struct {
+	http.ResponseWriter
+	headers map[string]string
+	pending bool // a 1xx went out and the final response hasn't started
+}
+
+// WriteHeader marks a 1xx and restores the configured headers before the final status.
+func (w *headersWriter) WriteHeader(code int) {
+	if code >= 100 && code < 200 && code != http.StatusSwitchingProtocols {
+		w.pending = true
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+	w.restore()
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// Write restores the configured headers when the body starts the final response.
+func (w *headersWriter) Write(b []byte) (int, error) {
+	w.restore()
+	return w.ResponseWriter.Write(b) //nolint:wrapcheck // pass-through writer keeps the underlying error
+}
+
+// Flush restores the configured headers when a flush starts the final response.
+func (w *headersWriter) Flush() {
+	w.restore()
+	if err := http.NewResponseController(w.ResponseWriter).Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		log.Printf("[DEBUG] flush failed, %v", err)
+	}
+}
+
+// Hijack restores the configured headers, which the reverse proxy writes with the 101 after hijacking.
+func (w *headersWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, brw, err := http.NewResponseController(w.ResponseWriter).Hijack()
+	if err != nil {
+		return nil, nil, fmt.Errorf("hijack: %w", err)
+	}
+	w.restore()
+	return conn, brw, nil
+}
+
+// Unwrap exposes the underlying writer to http.ResponseController.
+func (w *headersWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+func (w *headersWriter) restore() {
+	if !w.pending {
+		return
+	}
+	w.pending = false
+	h := w.Header()
+	for k, v := range w.headers {
+		h[k] = append([]string{v}, h[k]...)
 	}
 }
 
@@ -441,8 +510,10 @@ const writeDeadlineGrace = 500 * time.Millisecond
 // Timeout > 0. It derives a deadline-bound request context and also sets the underlying
 // connection's read deadline to the timeout and the write deadline to timeout +
 // writeDeadlineGrace so the proxy's ErrorHandler can still deliver a 502 to the client
-// when the deadline fires. Both connection deadlines are cleared on return so kept-alive
-// connections do not carry an expired deadline into subsequent unrelated requests.
+// when the deadline fires. The write deadline is cleared on return so kept-alive connections
+// do not carry it into subsequent unrelated requests. The read deadline stays: the server's
+// drain of an unread body runs after return and must stay bounded, and net/http resets the
+// read deadline before the next request.
 func routeTimeoutHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqCtx := r.Context()
@@ -465,12 +536,7 @@ func routeTimeoutHandler(next http.Handler) http.Handler {
 		if err := rc.SetWriteDeadline(readDeadline.Add(writeDeadlineGrace)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 			log.Printf("[DEBUG] route timeout: SetWriteDeadline failed: %v", err)
 		}
-		// clear per-route deadlines after the request so kept-alive connections do not
-		// carry an expired write deadline into subsequent unrelated requests
 		defer func() {
-			if err := rc.SetReadDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
-				log.Printf("[DEBUG] route timeout: clear read deadline failed: %v", err)
-			}
 			if err := rc.SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
 				log.Printf("[DEBUG] route timeout: clear write deadline failed: %v", err)
 			}

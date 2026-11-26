@@ -164,6 +164,7 @@ var opts struct {
 
 	Timeouts struct {
 		ReadHeader     time.Duration `long:"read-header" env:"READ_HEADER" default:"5s"  description:"read header server timeout"`
+		ReadBody       time.Duration `long:"read-body" env:"READ_BODY" default:"60s" description:"read request server timeout, headers and body, 0 for none"`
 		Write          time.Duration `long:"write" env:"WRITE" default:"30s" description:"write server timeout"`
 		Idle           time.Duration `long:"idle" env:"IDLE" default:"30s" description:"idle server timeout"`
 		Dial           time.Duration `long:"dial" env:"DIAL" default:"30s" description:"dial transport timeout"`
@@ -373,6 +374,7 @@ func run() error {
 		LBSelector:     makeLBSelector(),
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
+			ReadBody:       opts.Timeouts.ReadBody,
 			Write:          opts.Timeouts.Write,
 			Idle:           opts.Timeouts.Idle,
 			Dial:           opts.Timeouts.Dial,

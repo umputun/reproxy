@@ -97,6 +97,7 @@ type LBSelector interface {
 type Timeouts struct {
 	// server timeouts
 	ReadHeader time.Duration
+	ReadBody   time.Duration // limit for reading a whole request, body included; a route timeout overrides it
 	Write      time.Duration
 	Idle       time.Duration
 	// transport timeouts
@@ -240,6 +241,8 @@ const (
 	ctxMatchType = contextKey("type")
 	ctxMatch     = contextKey("match")
 	ctxKeepHost  = contextKey("keepHost")
+
+	ctxPrivateAsset = contextKey("privateAsset") // set for assets behind basic auth or an ip allowlist
 )
 
 func (h *Http) proxyHandler() http.HandlerFunc {
@@ -332,9 +335,19 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 				h.Reporter.Report(w, http.StatusInternalServerError)
 				return
 			}
-			h.CacheControl.Middleware(fs).ServeHTTP(w, r)
+			h.CacheControl.Middleware(fs).ServeHTTP(w, h.restrictedAsset(r, &match.Mapper))
 		}
 	}
+}
+
+// restrictedAsset marks r for private caching when access to the asset is limited by basic auth or an
+// ip allowlist, so a shared cache doesn't store it and hand it to others. m is nil for shared assets.
+func (h *Http) restrictedAsset(r *http.Request, m *discovery.URLMapper) *http.Request {
+	restricted := h.BasicAuthEnabled || m != nil && (len(m.AuthUsers) > 0 || len(m.OnlyFromIPs) > 0)
+	if !restricted {
+		return r
+	}
+	return r.WithContext(context.WithValue(r.Context(), ctxPrivateAsset, true))
 }
 
 // matchHandler is a part of middleware chain. Matches incoming request to one or more matched rules
@@ -449,7 +462,8 @@ func (h *Http) assetsHandler() http.HandlerFunc {
 		log.Printf("[WARN] can't initialize assets server, %v", err)
 		return func(_ http.ResponseWriter, _ *http.Request) {}
 	}
-	return h.CacheControl.Middleware(fs).ServeHTTP
+	cached := h.CacheControl.Middleware(fs)
+	return func(w http.ResponseWriter, r *http.Request) { cached.ServeHTTP(w, h.restrictedAsset(r, nil)) }
 }
 
 func (h *Http) fileServer(assetsWebRoot, assetsLocation string, spa bool, notFound []byte) (http.Handler, error) {
@@ -515,12 +529,17 @@ func (h *Http) basicAuthHandler() func(next http.Handler) http.Handler {
 }
 
 func (h *Http) makeHTTPServer(addr string, router http.Handler) *http.Server {
+	idle := h.Timeouts.Idle
+	if idle == 0 {
+		idle = -1 // net/http falls back to ReadTimeout for a zero idle timeout, negative keeps it unlimited
+	}
 	return &http.Server{
 		Addr:              addr,
 		Handler:           router,
 		ReadHeaderTimeout: h.Timeouts.ReadHeader,
+		ReadTimeout:       h.Timeouts.ReadBody,
 		WriteTimeout:      h.Timeouts.Write,
-		IdleTimeout:       h.Timeouts.Idle,
+		IdleTimeout:       idle,
 	}
 }
 

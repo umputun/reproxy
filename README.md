@@ -319,6 +319,8 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
+With `--assets.cache` set, assets are sent with `Cache-Control: public` unless access to them is restricted: with global basic auth, and for static routes with per-route auth or an IP allowlist, the header is `Cache-Control: private`, so a shared cache in front of reproxy doesn't keep them and serve them to other clients.
+
 Custom 404 (not found) page can be set with `--assets.not-found=<path>` parameter. The path should be relative to the assets root.
 
 ## Using reproxy as a base image
@@ -391,6 +393,8 @@ In addition to the endpoints above, reproxy supports optional live health checks
 
 To turn live health check on, user should set `--health-check.enabled` (or env `HEALTH_CHECK_ENABLED=true`). To customize checking interval `--health-check.interval=` can be used.
 
+A ping follows redirects only within the backend it checks (same scheme, host and port), up to 3 of them. A redirect to any other address fails the ping, so a backend can't point reproxy's health checks at other hosts.
+
 ## Management API
 
 Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.listen` (address:port):
@@ -423,6 +427,8 @@ Individual routes can override the global `--timeout.write` and `--throttle.user
 Precedence is "zero inherits global, positive overrides": a route with `timeout: 0` (or no `timeout` field) keeps the global `--timeout.write`; a route with `timeout: 5m` overrides it for matched requests only. The same rule applies to `throttle`.
 
 The per-route timeout overrides the connection's read and write deadlines for matched requests, so it can extend past the global `--timeout.write` (default 30s). Routes without a per-route timeout still respect the global setting.
+
+`--timeout.read-body` (default 60s) limits how long a client may take to send a whole request, headers and body, so a client trickling a body can't hold a connection and its upstream request open indefinitely. Once the body is read, the limit no longer applies, so long responses are not affected. Uploads that take longer, for example large files over slow links, need a per-route `timeout`, which replaces this limit for the route, or a higher global value; `0` turns the limit off. For HTTPS, Go limits the TLS handshake by the smallest positive value of `--timeout.read-header`, `--timeout.read-body` and `--timeout.write`, so a short `--timeout.read-body` also shortens the handshake.
 
 **Limitation — transport-level response-header timeout:** the per-route `timeout` does NOT override `--timeout.resp-header` (default 5s). That timeout is set on the shared `http.Transport` and applies before the upstream begins sending response headers. If an upstream takes longer than `--timeout.resp-header` to start its response (e.g. a slow report endpoint), the request fails at that boundary regardless of the per-route `timeout`. To support such routes, raise `--timeout.resp-header` globally to the maximum needed by any slow-response route. Per-route override of transport-level timeouts is intentionally out of scope.
 
@@ -630,6 +636,7 @@ static:
 
 timeout:
       --timeout.read-header=        read header server timeout (default: 5s) [$TIMEOUT_READ_HEADER]
+      --timeout.read-body=          read request server timeout, headers and body, 0 for none (default: 60s) [$TIMEOUT_READ_BODY]
       --timeout.write=              write server timeout (default: 30s) [$TIMEOUT_WRITE]
       --timeout.idle=               idle server timeout (default: 30s) [$TIMEOUT_IDLE]
       --timeout.dial=               dial transport timeout (default: 30s) [$TIMEOUT_DIAL]

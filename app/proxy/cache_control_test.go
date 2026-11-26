@@ -1,10 +1,12 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +25,17 @@ func TestCacheControl_MiddlewareDefault(t *testing.T) {
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "public, max-age=3600", resp.Header.Get("Cache-Control"))
+}
+
+func TestCacheControl_MiddlewarePrivate(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("something")) })
+	for _, cc := range []*CacheControl{NewCacheControl(time.Hour), {defaultMaxAge: time.Hour, maxAges: map[string]time.Duration{"text/html": time.Minute}}} {
+		req := httptest.NewRequest("GET", "/file.html", http.NoBody)
+		req = req.WithContext(context.WithValue(req.Context(), ctxPrivateAsset, true))
+		w := httptest.NewRecorder()
+		cc.Middleware(next).ServeHTTP(w, req)
+		assert.True(t, strings.HasPrefix(w.Header().Get("Cache-Control"), "private, max-age="), w.Header().Get("Cache-Control"))
+	}
 }
 
 func TestCacheControl_MiddlewareDisabled(t *testing.T) {

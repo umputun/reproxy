@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	log "github.com/go-pkgz/lgr"
 )
@@ -698,7 +699,7 @@ func (m URLMapper) IsAlive() bool {
 }
 
 func (m URLMapper) ping() (string, error) {
-	client := http.Client{Timeout: 500 * time.Millisecond}
+	client := http.Client{Timeout: 500 * time.Millisecond, CheckRedirect: m.checkPingRedirect}
 
 	resp, err := client.Get(m.PingURL)
 	if err != nil {
@@ -713,6 +714,41 @@ func (m URLMapper) ping() (string, error) {
 	}
 
 	return "", nil
+}
+
+// maxPingRedirects bounds the redirects a health probe follows.
+const maxPingRedirects = 3
+
+// checkPingRedirect lets a health probe follow a redirect only within the backend it pings, so a
+// ping URL can't point reproxy at another host and borrow that host's answer.
+func (m URLMapper) checkPingRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > maxPingRedirects {
+		return fmt.Errorf("ping stopped after %d redirects", maxPingRedirects)
+	}
+	origin, target := via[0].URL, req.URL
+	port := func(u *url.URL) string {
+		if p := u.Port(); p != "" {
+			return p
+		}
+		if u.Scheme == "https" {
+			return "443"
+		}
+		return "80"
+	}
+	// unicode case folding treats names as equal that idna maps to different hosts (σ and ς), so only
+	// ascii hostnames compare case-insensitively and any other must match exactly
+	sameHost := func(a, b string) bool {
+		for _, r := range a + b {
+			if r >= utf8.RuneSelf {
+				return a == b
+			}
+		}
+		return strings.EqualFold(a, b)
+	}
+	if target.Scheme != origin.Scheme || !sameHost(target.Hostname(), origin.Hostname()) || port(target) != port(origin) {
+		return fmt.Errorf("ping redirect to another backend %s refused", target.Redacted())
+	}
+	return nil
 }
 
 // ParseOnlyFrom parses comma separated list of IPs
