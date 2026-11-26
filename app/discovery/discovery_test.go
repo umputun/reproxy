@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -570,6 +572,42 @@ func TestService_MappersCacheBoundedLRU(t *testing.T) {
 	assert.Len(t, svc.mappersCache, mappersCacheCapacity)
 	assert.Contains(t, svc.mappersCache, "host-0.example.com")
 	assert.NotContains(t, svc.mappersCache, "host-1.example.com")
+}
+
+func TestService_MatchOverlappingServerPatterns(t *testing.T) {
+	tbl := []struct {
+		name     string
+		servers  []string
+		hostFmt  string
+		wantDest string
+	}{
+		{name: "longer regex beats wildcard", servers: []string{`^admin-\d+\.example\.com$`, "*.example.com"},
+			hostFmt: "admin-%d.example.com", wantDest: "http://winner/x"},
+		{name: "longer wildcard beats regex", servers: []string{"*.admin.example.com", `^.*\.example\.com$`},
+			hostFmt: "h%d.admin.example.com", wantDest: "http://winner/x"},
+		{name: "equal length breaks ties lexically", servers: []string{`^h\d+\.(a|b)\.com$`, `^h\d+\.(b|a)\.com$`},
+			hostFmt: "h%d.a.com", wantDest: "http://winner/x"},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			mappers := make([]URLMapper, 0, len(tt.servers))
+			for i, srv := range tt.servers {
+				dst := "http://loser/$1"
+				if i == 0 {
+					dst = "http://winner/$1"
+				}
+				mappers = append(mappers, URLMapper{Server: srv, SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: dst,
+					MatchType: MTProxy})
+			}
+			svc := matchTestService(t, mappers)
+			for i := range 200 {
+				res := svc.Match(fmt.Sprintf(tt.hostFmt, i), "/x")
+				require.Len(t, res.Routes, 1)
+				require.Equal(t, tt.wantDest, res.Routes[0].Destination, "host %d", i)
+			}
+		})
+	}
 }
 
 func TestService_ServerRegexCompiledAtInstall(t *testing.T) {
@@ -1140,6 +1178,83 @@ func Test_ping(t *testing.T) {
 	}
 }
 
+func Test_pingRedirects(t *testing.T) {
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) }))
+	defer other.Close()
+	otherPort := other.Listener.Addr().(*net.TCPAddr).Port
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if n, ok := strings.CutPrefix(r.URL.Path, "/hops/"); ok {
+			left, err := strconv.Atoi(n)
+			if !assert.NoError(t, err) {
+				return
+			}
+			if left == 0 {
+				_, _ = w.Write([]byte("OK"))
+				return
+			}
+			http.Redirect(w, r, "/hops/"+strconv.Itoa(left-1), http.StatusFound)
+			return
+		}
+		switch r.URL.Path {
+		case "/other-port":
+			http.Redirect(w, r, other.URL+"/ping", http.StatusFound)
+		case "/other-host":
+			http.Redirect(w, r, fmt.Sprintf("http://localhost:%d/ping", otherPort), http.StatusFound)
+		}
+	}))
+	defer ts.Close()
+
+	tbl := []struct {
+		path    string
+		wantErr bool
+	}{
+		{path: "/hops/1", wantErr: false},
+		{path: "/hops/3", wantErr: false},
+		{path: "/hops/4", wantErr: true},
+		{path: "/other-port", wantErr: true},
+		{path: "/other-host", wantErr: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.path, func(t *testing.T) {
+			_, err := URLMapper{PingURL: ts.URL + tt.path}.ping()
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestURLMapper_checkPingRedirect(t *testing.T) {
+	tbl := []struct {
+		from, to string
+		allowed  bool
+	}{
+		{from: "http://example.com/ping", to: "http://example.com:80/other", allowed: true},
+		{from: "https://Example.com/ping", to: "https://example.com:443/", allowed: true},
+		{from: "http://example.com/ping", to: "https://example.com/ping", allowed: false},
+		{from: "http://example.com/ping", to: "http://example.com:8080/ping", allowed: false},
+		{from: "http://example.com/ping", to: "http://internal.example.com/ping", allowed: false},
+		{from: "http://σ.example/ping", to: "http://ς.example/ping", allowed: false},
+		{from: "http://k.example/ping", to: "http://K.example/ping", allowed: false},
+		{from: "http://[::A]:8080/ping", to: "http://[::a]:8080/other", allowed: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.from+" "+tt.to, func(t *testing.T) {
+			via := httptest.NewRequest(http.MethodGet, tt.from, http.NoBody)
+			req := httptest.NewRequest(http.MethodGet, tt.to, http.NoBody)
+			err := URLMapper{}.checkPingRedirect(req, []*http.Request{via})
+			if tt.allowed {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestCheckHealth(t *testing.T) {
 	failPingULR := "http://127.0.0.1:4321"
 
@@ -1202,6 +1317,59 @@ func TestCheckHealth(t *testing.T) {
 	require.Error(t, res[failPingULR])
 	assert.NoError(t, res[ts.URL])
 	assert.NoError(t, res[ts2.URL])
+}
+
+func TestCheckHealthSharedPingURL(t *testing.T) {
+	var mu sync.Mutex
+	hits := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		first := hits == 1
+		mu.Unlock()
+		if first {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	defer ts.Close()
+
+	svc := matchTestService(t, []URLMapper{
+		{Server: "*", SrcMatch: *regexp.MustCompile("^/a/(.*)"), Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy, PingURL: ts.URL},
+		{Server: "*", SrcMatch: *regexp.MustCompile("^/b/(.*)"), Dst: "http://127.0.0.1:8081/$1", MatchType: MTProxy, PingURL: ts.URL},
+	})
+
+	res := svc.CheckHealth()
+	require.Len(t, res, 1)
+	require.Error(t, res[ts.URL], "a failed probe is not overwritten by a later one")
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 1, hits, "a ping url shared by two routes is probed once")
+}
+
+func TestCheckHealthReleasesLockDuringPings(t *testing.T) {
+	pinged, release := make(chan struct{}), make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(pinged)
+		<-release
+	}))
+	defer ts.Close()
+
+	svc := matchTestService(t, []URLMapper{{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)"),
+		Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy, PingURL: ts.URL}})
+
+	done := make(chan struct{})
+	go func() {
+		svc.CheckHealth()
+		close(done)
+	}()
+	<-pinged
+	locked := svc.lock.TryLock()
+	if locked {
+		svc.lock.Unlock()
+	}
+	close(release)
+	<-done
+	assert.True(t, locked, "route table must stay writable while pings are in flight")
 }
 
 func TestParseOnlyFrom(t *testing.T) {

@@ -858,6 +858,252 @@ func TestHttp_health(t *testing.T) {
 	assert.JSONEq(t, `{"status": "ok", "services": 2}`, string(body))
 }
 
+func TestHttp_makeHTTPServer(t *testing.T) {
+	h := Http{Timeouts: Timeouts{ReadHeader: time.Second, ReadBody: time.Minute, Write: 2 * time.Second, Idle: 3 * time.Second}}
+	srv := h.makeHTTPServer("127.0.0.1:0", http.NotFoundHandler())
+	assert.Equal(t, time.Minute, srv.ReadTimeout)
+	assert.Equal(t, 3*time.Second, srv.IdleTimeout)
+
+	h.Timeouts.Idle = 0
+	srv = h.makeHTTPServer("127.0.0.1:0", http.NotFoundHandler())
+	assert.Negative(t, srv.IdleTimeout, "zero idle timeout stays unlimited instead of falling back to the read timeout")
+}
+
+func TestHttp_headersAfterInformational(t *testing.T) {
+	text := strings.Repeat("compressible ", 200)
+	release := make(chan struct{})
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Link", "</a.css>; rel=preload")
+		w.WriteHeader(http.StatusEarlyHints)
+		switch r.URL.Path {
+		case "/upgrade":
+			conn, brw, err := http.NewResponseController(w).Hijack()
+			if !assert.NoError(t, err) {
+				return
+			}
+			defer conn.Close()
+			_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n")
+			_ = brw.Flush()
+		case "/text":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Header().Set("Content-Length", strconv.Itoa(len(text)))
+			_, _ = w.Write([]byte(text))
+		case "/stream":
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = w.Write([]byte("data: x\n\n"))
+			_ = http.NewResponseController(w).Flush()
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		default:
+			w.Header().Set("X-Frame-Options", "backend")
+			_, _ = w.Write([]byte("ok"))
+		}
+	}))
+	defer backend.Close()
+
+	svc := discovery.NewService([]discovery.Provider{&provider.Static{Rules: []string{"*,/api/(.*)," + backend.URL + "/$1,"}}}, time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(150 * time.Millisecond)
+
+	start := func(t *testing.T, h *Http) string {
+		port, releasePort := getFreePort(t)
+		h.Address = fmt.Sprintf("127.0.0.1:%d", port)
+		h.AccessLog, h.Reporter, h.Matcher = io.Discard, &ErrorReporter{}, svc
+		h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
+		releasePort()
+		go func() { _ = h.Run(t.Context()) }()
+		waitForServer(t, h.Address)
+		return h.Address
+	}
+	upgrade := func(t *testing.T, addr string) *http.Response {
+		conn, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		_, err = conn.Write([]byte("GET /api/upgrade HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n"))
+		require.NoError(t, err)
+		br := bufio.NewReader(conn)
+		early, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusEarlyHints, early.StatusCode)
+		resp, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+		return resp
+	}
+
+	t.Run("signature headers without configured headers", func(t *testing.T) {
+		addr := start(t, &Http{Signature: true, GzEnabled: true})
+		resp, err := http.Get("http://" + addr + "/api/early")
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "backend", resp.Header.Get("X-Frame-Options"))
+
+		req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/api/text", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err = http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.NotEqual(t, strconv.Itoa(len(text)), resp.Header.Get("Content-Length"), "the backend's length doesn't survive compression")
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+		body, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		assert.Equal(t, text, string(body))
+
+		streamClient := http.Client{Timeout: 3 * time.Second}
+		resp, err = streamClient.Get("http://" + addr + "/api/stream")
+		require.NoError(t, err)
+		assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		event, err := bufio.NewReader(resp.Body).ReadString('\n')
+		require.NoError(t, err, "the first event arrives while the upstream stream is still open")
+		assert.Equal(t, "data: x\n", event)
+		close(release)
+		resp.Body.Close()
+
+		assert.Equal(t, "reproxy", upgrade(t, addr).Header.Get("App-Name"))
+	})
+
+	t.Run("configured headers", func(t *testing.T) {
+		addr := start(t, &Http{ProxyHeaders: []string{"X-Frame-Options:SAMEORIGIN", "X-Test:a", "X-Test:b"}})
+		resp, err := http.Get("http://" + addr + "/api/early")
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, []string{"SAMEORIGIN", "backend"}, resp.Header.Values("X-Frame-Options"))
+		assert.Equal(t, []string{"b"}, resp.Header.Values("X-Test"))
+		assert.Equal(t, "SAMEORIGIN", upgrade(t, addr).Header.Get("X-Frame-Options"))
+	})
+
+	t.Run("gzip adjusts restored headers", func(t *testing.T) {
+		addr := start(t, &Http{GzEnabled: true, ProxyHeaders: []string{"Content-Length:5"}})
+		req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/api/text", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.NotEqual(t, "5", resp.Header.Get("Content-Length"), "a length set before the proxy is dropped by gzip after the 1xx")
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+		body, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		assert.Equal(t, text, string(body))
+	})
+}
+
+func TestHttp_readBodyTimeout(t *testing.T) {
+	port, releasePort := getFreePort(t)
+	h := Http{Timeouts: Timeouts{ResponseHeader: 2 * time.Second, ReadBody: 300 * time.Millisecond},
+		Address: fmt.Sprintf("127.0.0.1:%d", port), AccessLog: io.Discard, Reporter: &ErrorReporter{}}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			return
+		}
+		time.Sleep(700 * time.Millisecond)
+		_, _ = w.Write(body)
+	}))
+	defer ds.Close()
+
+	svc := discovery.NewService([]discovery.Provider{&provider.Static{Rules: []string{"*,/api/(.*)," + ds.URL + "/$1,"}}}, time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(150 * time.Millisecond)
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
+
+	releasePort()
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	t.Run("trickled body closes the connection", func(t *testing.T) {
+		conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		require.NoError(t, err)
+		defer conn.Close()
+		_, err = conn.Write([]byte("POST /api/x HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 10\r\n\r\n1"))
+		require.NoError(t, err)
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(3*time.Second)))
+		start := time.Now()
+		_, err = io.Copy(io.Discard, conn)
+		require.NoError(t, err, "connection must be closed by the server, not by the client deadline")
+		assert.Less(t, time.Since(start), 1500*time.Millisecond)
+	})
+
+	t.Run("complete body, response slower than the limit", func(t *testing.T) {
+		resp, err := http.Post(fmt.Sprintf("http://127.0.0.1:%d/api/x", port), "text/plain", strings.NewReader("payload"))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Equal(t, "payload", string(body))
+	})
+}
+
+func TestHttp_protectedAssetsPrivateCache(t *testing.T) {
+	port, releasePort := getFreePort(t)
+	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
+		AccessLog: io.Discard, AssetsWebRoot: "/static", AssetsLocation: "testdata", CacheControl: NewCacheControl(time.Hour),
+		Reporter: &ErrorReporter{}, DropHeader: []string{"Authorization"}, BasicAuthEnabled: true,
+		BasicAuthAllowed: []string{"test:$2y$05$zMxDmK65SjcH2vJQNopVSO/nE8ngVLx65RoETyHpez7yTS/8CLEiW"}}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	svc := discovery.NewService([]discovery.Provider{&provider.Static{Rules: []string{"*,/web,assets:testdata,"}}}, time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(150 * time.Millisecond)
+	h.Matcher, h.Metrics = svc, mgmt.NewMetrics(mgmt.MetricsConfig{})
+
+	releasePort()
+	go func() { _ = h.Run(ctx) }()
+	waitForServer(t, fmt.Sprintf("127.0.0.1:%d", port))
+
+	for _, path := range []string{"/static/1.html", "/web/1.html"} {
+		t.Run(path, func(t *testing.T) {
+			req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d%s", port, path), http.NoBody)
+			require.NoError(t, err)
+			req.SetBasicAuth("test", "passwd")
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "private, max-age=3600", resp.Header.Get("Cache-Control"))
+		})
+	}
+}
+
+func TestHttp_restrictedAsset(t *testing.T) {
+	tbl := []struct {
+		name       string
+		globalAuth bool
+		mapper     *discovery.URLMapper
+		want       bool
+	}{
+		{name: "shared assets, no auth", want: false},
+		{name: "shared assets, global auth", globalAuth: true, want: true},
+		{name: "route, open", mapper: &discovery.URLMapper{}, want: false},
+		{name: "route, global auth", globalAuth: true, mapper: &discovery.URLMapper{}, want: true},
+		{name: "route, per-route auth", mapper: &discovery.URLMapper{AuthUsers: []string{"u:h"}}, want: true},
+		{name: "route, ip allowlist", mapper: &discovery.URLMapper{OnlyFromIPs: []string{"10.0.0.1"}}, want: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			h := Http{BasicAuthEnabled: tt.globalAuth}
+			r := h.restrictedAsset(httptest.NewRequest(http.MethodGet, "/file.html", http.NoBody), tt.mapper)
+			assert.Equal(t, tt.want, r.Context().Value(ctxPrivateAsset) != nil)
+		})
+	}
+}
+
 func TestHttp_withBasicAuth(t *testing.T) {
 	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 200 * time.Millisecond}, Address: fmt.Sprintf("127.0.0.1:%d", port),
@@ -2372,18 +2618,17 @@ func TestHttp_pluginRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conductorPort, releaseConductorPort := getFreePort(t)
-	conductor := &plugin.Conductor{Address: fmt.Sprintf("127.0.0.1:%d", conductorPort),
-		RPCDialer: &plugin.RPCDialerMock{DialFunc: func(network, address string) (plugin.RPCClient, error) {
+	conductorLn, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	conductor := &plugin.Conductor{
+		RPCDialer: &plugin.RPCDialerMock{DialFunc: func(_ context.Context, network, address string) (plugin.RPCClient, error) {
 			return rpcClient, nil
 		}}}
-	releaseConductorPort()
-	go func() { _ = conductor.Run(ctx) }()
-	waitForServer(t, conductor.Address)
+	go func() { _ = conductor.Run(ctx, conductorLn) }()
 
 	data, err := json.Marshal(lib.Plugin{Name: "Probe", Address: "127.0.0.1:1", Methods: []string{"Inspect"}})
 	require.NoError(t, err)
-	resp, err := http.Post("http://"+conductor.Address, "application/json", bytes.NewReader(data))
+	resp, err := http.Post("http://"+conductorLn.Addr().String(), "application/json", bytes.NewReader(data))
 	require.NoError(t, err)
 	resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

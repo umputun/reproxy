@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
+	"sync"
 	"time"
 
 	log "github.com/go-pkgz/lgr"
@@ -19,42 +20,79 @@ type Plugin struct {
 	Name    string   `json:"name"`
 	Address string   `json:"address"`
 	Methods []string `json:"methods"`
+	Secret  string   `json:"-"` // sent as a bearer token when reproxy runs with --plugin.secret
 }
 
+// renewInterval is how often a registered plugin renews its registration, which restores it after
+// reproxy restarts.
+const renewInterval = 5 * time.Second
+
 // Do register the plugin, send info to reproxy conductor and activate RPC listener.
+// While running, it renews the registration every 5s, so a restarted reproxy gets the plugin back.
 // On completion unregister from reproxy. Blocking call, should run in goroutine on the caller side
 // rvcr is provided struct implemented at least one RPC methods with the signature like this:
 // func(req lib.Request, res *lib.Response) (err error)
 // see [examples/plugin]() for more info
 func (p *Plugin) Do(ctx context.Context, conductor string, rcvr any) (err error) {
+	return p.do(ctx, conductor, rcvr, renewInterval)
+}
 
+func (p *Plugin) do(ctx context.Context, conductor string, rcvr any, renewEvery time.Duration) error {
 	ctxCancel, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if err = rpc.RegisterName(p.Name, rcvr); err != nil {
+	if err := rpc.RegisterName(p.Name, rcvr); err != nil {
 		return fmt.Errorf("can't register plugin %s: %w", p.Name, err)
 	}
 	log.Printf("[INFO] register rpc %s:%s", p.Name, p.Address)
 
 	client := http.Client{Timeout: time.Second}
-	time.AfterFunc(time.Millisecond*50, func() {
-		// registration http call delayed to let listener time to start
-		regErr := repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
-			return p.send(&client, conductor, "POST")
-		})
-		if regErr != nil {
-			log.Printf("[ERROR] can't register with reproxy for %s: %v", p.Name, regErr)
-			cancel()
-		}
-	})
+	var wg sync.WaitGroup
+	wg.Go(func() { p.keepRegistered(ctxCancel, cancel, &client, conductor, renewEvery) })
 
+	// the worker is joined first, so no registration or renewal is sent after the unregister
 	defer func() {
+		cancel()
+		wg.Wait()
 		if e := p.send(&client, conductor, "DELETE"); e != nil {
 			log.Printf("[WARN] can't unregister with reproxy for %s: %v", p.Name, e)
 		}
 	}()
 
 	return p.listen(ctxCancel)
+}
+
+// keepRegistered registers with the conductor, stopping the plugin when that fails, then renews the
+// registration every renewEvery until ctx is done.
+func (p *Plugin) keepRegistered(ctx context.Context, stop context.CancelFunc, client *http.Client, conductor string,
+	renewEvery time.Duration) {
+	select { // registration http call delayed to let listener time to start
+	case <-time.After(50 * time.Millisecond):
+	case <-ctx.Done():
+		return
+	}
+	regErr := repeater.NewDefault(10, time.Millisecond*500).Do(ctx, func() error {
+		return p.send(client, conductor, "POST")
+	})
+	if regErr != nil {
+		log.Printf("[ERROR] can't register with reproxy for %s: %v", p.Name, regErr)
+		stop()
+		return
+	}
+
+	ticker := time.NewTicker(renewEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// failures are expected while reproxy restarts, and an older reproxy rejects PUT
+			if err := p.send(client, conductor, "PUT"); err != nil {
+				log.Printf("[DEBUG] can't renew registration with reproxy for %s: %v", p.Name, err)
+			}
+		}
+	}
 }
 
 func (p *Plugin) listen(ctx context.Context) error {
@@ -98,6 +136,9 @@ func (p *Plugin) send(client *http.Client, conductor, method string) error {
 	req, err := http.NewRequest(method, conductor, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
+	}
+	if p.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+p.Secret)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

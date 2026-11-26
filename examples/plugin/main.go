@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/umputun/reproxy/lib"
 )
@@ -15,6 +16,7 @@ func main() {
 		Name:    "TestPlugin",
 		Address: "plugin-example:1234",
 		Methods: []string{"HeaderThing", "ErrorThing"},
+		Secret:  os.Getenv("PLUGIN_SECRET"),
 	}
 	log.Printf("start demo plugin")
 	// do start the plugin listener and register with reproxy plugin conductor

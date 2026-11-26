@@ -36,12 +36,14 @@ func Test_Main(t *testing.T) {
 	setupLogger()
 
 	port, releasePort := getFreePort(t)
+	mgmtPort, releaseMgmtPort := getFreePort(t)
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--mgmt.enabled",
+		"--mgmt.listen=127.0.0.1:" + strconv.Itoa(mgmtPort),
 		"--error.enabled", "--error.template=proxy/testdata/errtmpl.html",
 	}
 	defer os.Remove("/tmp/reproxy.log")
@@ -53,6 +55,7 @@ func Test_Main(t *testing.T) {
 	}()
 
 	releasePort()
+	releaseMgmtPort()
 	finished := make(chan struct{})
 	go func() {
 		main()
@@ -105,6 +108,17 @@ func Test_Main(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "oh my! 502 - Bad Gateway", string(body))
+	}
+	{
+		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", mgmtPort))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), `path="[unmatched]"`)
+		assert.NotContains(t, string(body), `path="/bad"`)
+		assert.Contains(t, string(body), `path="/svc1/(.*)"`)
+		assert.NotContains(t, string(body), `path="/svc1/test"`)
 	}
 }
 
@@ -184,7 +198,7 @@ func Test_MainWithPlugin(t *testing.T) {
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(proxyPort), "--signature", "--error.enabled",
 		"--header=hh1:vv1",
-		"--plugin.enabled", "--plugin.listen=127.0.0.1:" + strconv.Itoa(conductorPort),
+		"--plugin.enabled", "--plugin.listen=127.0.0.1:" + strconv.Itoa(conductorPort), "--plugin.secret=test-secret",
 	}
 	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
@@ -210,7 +224,8 @@ func Test_MainWithPlugin(t *testing.T) {
 	waitForHTTPServerStart(proxyPort)
 
 	pluginPort, releasePluginPort := getFreePort(t)
-	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"}}
+	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"},
+		Secret: "test-secret"}
 	releasePluginPort()
 	go func() {
 		if err := plugin.Do(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", conductorPort), &TestPlugin{}); err != nil {
@@ -273,6 +288,31 @@ func Test_listenAddress(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_mgmtListenAddress(t *testing.T) {
+	tbl := []struct {
+		addr string
+		env  string
+		res  string
+	}{
+		{"", "1", "0.0.0.0:8081"},
+		{"", "true", "0.0.0.0:8081"},
+		{"", "0", "127.0.0.1:8081"},
+		{"", "", "127.0.0.1:8081"},
+		{"0.0.0.0:9090", "", "0.0.0.0:9090"},
+		{"127.0.0.1:9090", "true", "127.0.0.1:9090"},
+	}
+
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Setenv("REPROXY_IN_DOCKER", tt.env)
+			if tt.env == "" {
+				require.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
+			}
+			assert.Equal(t, tt.res, mgmtListenAddress(tt.addr))
+		})
+	}
 }
 
 func Test_redirHTTPPort(t *testing.T) {
@@ -809,4 +849,28 @@ func Test_RunErrorReturnDoesNotDeadlock(t *testing.T) {
 	// returns at once and run() returns in well under a second. a regression that ran discovery on
 	// context.Background would never close discoveryDone, forcing the full 5s timeout before run() returns.
 	assert.Less(t, time.Since(start), 3*time.Second, "run() too slow - discovery not canceled before the shutdown wait")
+}
+
+func Test_makePluginConductor(t *testing.T) {
+	saved := opts
+	defer func() { opts = saved }()
+
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer occupied.Close()
+
+	t.Run("disabled", func(t *testing.T) {
+		opts.Plugin.Enabled = false
+		assert.Equal(t, proxy.MiddlewareProvider(nil), makePluginConductor(t.Context()))
+	})
+
+	t.Run("taken address runs without plugins", func(t *testing.T) {
+		opts.Plugin.Enabled, opts.Plugin.Listen = true, occupied.Addr().String()
+		assert.Equal(t, proxy.MiddlewareProvider(nil), makePluginConductor(t.Context()))
+	})
+
+	t.Run("free address", func(t *testing.T) {
+		opts.Plugin.Enabled, opts.Plugin.Listen = true, "127.0.0.1:0"
+		assert.NotNil(t, makePluginConductor(t.Context()))
+	})
 }

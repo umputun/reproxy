@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	log "github.com/go-pkgz/lgr"
 )
@@ -29,6 +30,7 @@ type Service struct {
 	mappersCache  map[string]*list.Element
 	cacheOrder    *list.List
 	serverRegexps map[string]*regexp.Regexp
+	serverOrder   []string // non-default server keys, longest first, so overlapping patterns resolve the same way
 	lock          sync.RWMutex
 	// cacheLock guards mappersCache on the lazy read/write path in findMatchingMappers, which runs under
 	// lock.RLock; the wholesale cache reset in Run runs under the exclusive lock.Lock and so needs no cacheLock
@@ -176,11 +178,16 @@ func (s *Service) Run(ctx context.Context) error {
 			s.mappersCache = make(map[string]*list.Element)
 			s.cacheOrder = list.New()
 			s.serverRegexps = make(map[string]*regexp.Regexp)
+			s.serverOrder = nil
 			for _, m := range lst {
 				s.mappers[m.Server] = append(s.mappers[m.Server], m)
 			}
 			for server := range s.mappers {
-				if isDefaultServer(server) || strings.HasPrefix(server, "*.") {
+				if isDefaultServer(server) {
+					continue
+				}
+				s.serverOrder = append(s.serverOrder, server)
+				if strings.HasPrefix(server, "*.") {
 					continue
 				}
 				re, err := regexp.Compile(server)
@@ -190,6 +197,12 @@ func (s *Service) Run(ctx context.Context) error {
 				}
 				s.serverRegexps[server] = re
 			}
+			sort.Slice(s.serverOrder, func(i, j int) bool {
+				if len(s.serverOrder[i]) != len(s.serverOrder[j]) {
+					return len(s.serverOrder[i]) > len(s.serverOrder[j])
+				}
+				return s.serverOrder[i] < s.serverOrder[j]
+			})
 			s.lock.Unlock()
 		}
 	}
@@ -334,11 +347,8 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 		return mappers
 	}
 
-	// separate RLock-read then Lock-write: two concurrent first-resolvers of the same uncached host may both
-	// compute and both write the key. the write is lock-guarded so there's no torn write, but s.mappers iteration
-	// order is nondeterministic, so if the host matches 2+ server patterns the resolvers may select different
-	// mapper slices and the cached value is last-writer-wins. this is consistent with the pre-existing
-	// nondeterministic match-selection order, not a new defect
+	// a host matching several patterns resolves to the longest key: the route policy (auth, allowlist) comes
+	// with the mappers, so it must not depend on which request filled the cache
 	cachedMapper, isCached := s.cachedMappers(srvName)
 	if isCached {
 		return cachedMapper
@@ -347,19 +357,16 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 	// host names are case-insensitive and "example.com." is the same host as "example.com", so such a
 	// spelling must still hit its exact server before any wildcard or regex server can claim it
 	host := strings.TrimSuffix(srvName, ".")
-	for mapperServer, mapper := range s.mappers {
-		if !isDefaultServer(mapperServer) && strings.EqualFold(strings.TrimSuffix(mapperServer, "."), host) {
+	for _, mapperServer := range s.serverOrder {
+		if strings.EqualFold(strings.TrimSuffix(mapperServer, "."), host) {
+			mapper := s.mappers[mapperServer]
 			s.cacheMappers(srvName, mapper)
 			return mapper
 		}
 	}
 
-	for mapperServer, mapper := range s.mappers {
-		// * and "" should not be treated as regex and require exact match (above)
-		if isDefaultServer(mapperServer) {
-			continue
-		}
-
+	for _, mapperServer := range s.serverOrder {
+		mapper := s.mappers[mapperServer]
 		// handle *.example.com simple patterns
 		if strings.HasPrefix(mapperServer, "*.") {
 			domainPattern := strings.ToLower(strings.TrimSuffix(mapperServer[1:], ".")) // strip the '*'
@@ -479,8 +486,20 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 
 // CheckHealth starts health-check for service's mappers
 func (s *Service) CheckHealth() (pingResult map[string]error) {
+	// pings run without the lock, a slow backend would otherwise hold off route reloads
+	// one probe per url: results are keyed by it, and a second probe could replace a failure with a success
 	s.lock.RLock()
-	defer s.lock.RUnlock()
+	var toPing []URLMapper
+	seen := map[string]bool{}
+	for _, mappers := range s.mappers {
+		for _, m := range mappers {
+			if m.MatchType == MTProxy && m.PingURL != "" && !seen[m.PingURL] {
+				seen[m.PingURL] = true
+				toPing = append(toPing, m)
+			}
+		}
+	}
+	s.lock.RUnlock()
 
 	const concurrent = 8
 	sema := make(chan struct{}, concurrent) // limit health check to 8 concurrent calls
@@ -492,34 +511,22 @@ func (s *Service) CheckHealth() (pingResult map[string]error) {
 	}
 	outCh := make(chan pingError, concurrent)
 
-	services, pinged := 0, 0
 	var wg sync.WaitGroup
-	for _, mappers := range s.mappers {
-		for _, m := range mappers {
-			if m.MatchType != MTProxy {
-				continue
-			}
-			services++
-			if m.PingURL == "" {
-				continue
-			}
-			pinged++
-			wg.Add(1)
+	for _, m := range toPing {
+		wg.Add(1)
+		go func(m URLMapper) {
+			sema <- struct{}{}
+			defer func() {
+				<-sema
+				wg.Done()
+			}()
 
-			go func(m URLMapper) {
-				sema <- struct{}{}
-				defer func() {
-					<-sema
-					wg.Done()
-				}()
-
-				errMsg, err := m.ping()
-				if err != nil {
-					log.Printf("[DEBUG] %s", errMsg)
-				}
-				outCh <- pingError{m.PingURL, err}
-			}(m)
-		}
+			errMsg, err := m.ping()
+			if err != nil {
+				log.Printf("[DEBUG] %s", errMsg)
+			}
+			outCh <- pingError{m.PingURL, err}
+		}(m)
 	}
 
 	go func() {
@@ -695,7 +702,7 @@ func (m URLMapper) IsAlive() bool {
 }
 
 func (m URLMapper) ping() (string, error) {
-	client := http.Client{Timeout: 500 * time.Millisecond}
+	client := http.Client{Timeout: 500 * time.Millisecond, CheckRedirect: m.checkPingRedirect}
 
 	resp, err := client.Get(m.PingURL)
 	if err != nil {
@@ -710,6 +717,41 @@ func (m URLMapper) ping() (string, error) {
 	}
 
 	return "", nil
+}
+
+// maxPingRedirects bounds the redirects a health probe follows.
+const maxPingRedirects = 3
+
+// checkPingRedirect lets a health probe follow a redirect only within the backend it pings, so a
+// ping URL can't point reproxy at another host and borrow that host's answer.
+func (m URLMapper) checkPingRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > maxPingRedirects {
+		return fmt.Errorf("ping stopped after %d redirects", maxPingRedirects)
+	}
+	origin, target := via[0].URL, req.URL
+	port := func(u *url.URL) string {
+		if p := u.Port(); p != "" {
+			return p
+		}
+		if u.Scheme == "https" {
+			return "443"
+		}
+		return "80"
+	}
+	// unicode case folding treats names as equal that idna maps to different hosts (σ and ς), so only
+	// ascii hostnames compare case-insensitively and any other must match exactly
+	sameHost := func(a, b string) bool {
+		for _, r := range a + b {
+			if r >= utf8.RuneSelf {
+				return a == b
+			}
+		}
+		return strings.EqualFold(a, b)
+	}
+	if target.Scheme != origin.Scheme || !sameHost(target.Hostname(), origin.Hostname()) || port(target) != port(origin) {
+		return fmt.Errorf("ping redirect to another backend %s refused", target.Redacted())
+	}
+	return nil
 }
 
 // ParseOnlyFrom parses comma separated list of IPs

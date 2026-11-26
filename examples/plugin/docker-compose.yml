@@ -17,6 +17,7 @@ services:
       - DEBUG=true
       - PLUGIN_ENABLED=true
       - PLUGIN_LISTEN=0.0.0.0:8081
+      - PLUGIN_SECRET=${PLUGIN_SECRET:?set PLUGIN_SECRET}
       - HEADER=
           X-Frame-Options:SAMEORIGIN,
           X-XSS-Protection:1; mode=block;,
@@ -26,6 +27,8 @@ services:
     build: .
     container_name: plugin-example
     hostname: plugin-example
+    environment:
+      - PLUGIN_SECRET=${PLUGIN_SECRET:?set PLUGIN_SECRET}
 
   # automatic destination, will be mapped for ^/svc1/(.*)
   svc1:

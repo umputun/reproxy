@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
@@ -636,9 +637,7 @@ func Test_routeTimeoutHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
 		reads, writes := rec.recorded()
-		// two calls per setter: first arms the deadline, second (deferred) clears it back to zero
-		// so kept-alive connections do not carry an expired deadline into subsequent requests
-		require.Len(t, reads, 2, "expected one set + one clear SetReadDeadline call")
+		require.Len(t, reads, 1, "read deadline is set and kept to bound the server's body drain")
 		require.Len(t, writes, 2, "expected one set + one clear SetWriteDeadline call")
 
 		readEarliest := before.Add(5 * time.Second).Add(-100 * time.Millisecond)
@@ -649,8 +648,31 @@ func Test_routeTimeoutHandler(t *testing.T) {
 			"read deadline %v outside expected window [%v, %v]", reads[0], readEarliest, readLatest)
 		assert.True(t, !writes[0].Before(writeEarliest) && !writes[0].After(writeLatest),
 			"write deadline %v outside expected window [%v, %v]", writes[0], writeEarliest, writeLatest)
-		assert.True(t, reads[1].IsZero(), "deferred read deadline reset should be zero time")
 		assert.True(t, writes[1].IsZero(), "deferred write deadline reset should be zero time")
+	})
+
+	t.Run("trickled body on a real connection is cut at the route timeout", func(t *testing.T) {
+		route := routeTimeoutHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, err := io.ReadAll(r.Body); err != nil {
+				w.WriteHeader(http.StatusBadGateway)
+			}
+		}))
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			match := discovery.MatchedRoute{Mapper: discovery.URLMapper{Timeout: 300 * time.Millisecond}}
+			route.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxMatch, match)))
+		}))
+		defer ts.Close()
+
+		conn, err := net.Dial("tcp", ts.Listener.Addr().String())
+		require.NoError(t, err)
+		defer conn.Close()
+		_, err = conn.Write([]byte("POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 10\r\n\r\n1"))
+		require.NoError(t, err)
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(3*time.Second)))
+		start := time.Now()
+		_, err = io.Copy(io.Discard, conn)
+		require.NoError(t, err, "connection must be closed by the server, not by the client deadline")
+		assert.Less(t, time.Since(start), 1500*time.Millisecond)
 	})
 
 	t.Run("ErrNotSupported tolerated, ctx-cancel still fires", func(t *testing.T) {

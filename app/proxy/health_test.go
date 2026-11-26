@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -128,9 +129,45 @@ func TestHttp_healthHandler(t *testing.T) {
 	assert.InDelta(t, 4., res["services"], 0.001)
 	assert.InDelta(t, 1., res["passed"], 0.001)
 	assert.InDelta(t, 2., res["failed"], 0.001)
-	assert.Len(t, res["errors"].([]any), 2)
-	assert.Contains(t, res["errors"].([]any)[0], "400 Bad Request")
+	assert.NotContains(t, res, "errors")
 	assert.Equal(t, 3, count, "3 pings for non-assets routes")
+
+	resp2, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/health")
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+	assert.Equal(t, http.StatusExpectationFailed, resp2.StatusCode)
+	mux.Lock()
+	defer mux.Unlock()
+	assert.Equal(t, 3, count, "second request within the cache window sends no pings")
+}
+
+func TestHttp_healthHandlerSharesProbes(t *testing.T) {
+	m := &MatcherMock{
+		MappersFunc: func() []discovery.URLMapper { return []discovery.URLMapper{{MatchType: discovery.MTProxy}} },
+		CheckHealthFunc: func() map[string]error {
+			time.Sleep(50 * time.Millisecond)
+			return map[string]error{"http://10.0.0.1/ping": errors.New("dial tcp 10.0.0.1:80: refused")}
+		},
+	}
+	h := Http{Matcher: m}
+
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			rr := httptest.NewRecorder()
+			h.healthHandler(rr, httptest.NewRequest(http.MethodGet, "/health", http.NoBody))
+			assert.Equal(t, http.StatusExpectationFailed, rr.Code)
+			assert.NotContains(t, rr.Body.String(), "10.0.0.1")
+		})
+	}
+	wg.Wait()
+	assert.Len(t, m.CheckHealthCalls(), 1)
+
+	h.health.at = time.Now().Add(-healthCacheTTL)
+	rr := httptest.NewRecorder()
+	h.healthHandler(rr, httptest.NewRequest(http.MethodGet, "/health", http.NoBody))
+	assert.JSONEq(t, `{"status":"failed","services":1,"failed":1}`, rr.Body.String())
+	assert.Len(t, m.CheckHealthCalls(), 2)
 }
 
 func TestHttp_pingHandler(t *testing.T) {

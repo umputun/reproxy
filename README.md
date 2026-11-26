@@ -32,7 +32,7 @@ Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various provi
 
 </div>
 
-Server (host) can be set as FQDN, i.e. `s.example.com`, `*` (catch all) or a regex. Exact match takes priority, so if there are two rules with servers `example.com` and `example\.(com|org)`, request to `example.com/some/url` will match the former. Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
+Server (host) can be set as FQDN, i.e. `s.example.com`, `*` (catch all) or a regex. Exact match takes priority, so if there are two rules with servers `example.com` and `example\.(com|org)`, request to `example.com/some/url` will match the former. When a host matches several `*.example.com` or regex servers, the longest server string wins, and servers of equal length are compared alphabetically, so with `*.example.com` and `^(admin|ops)\.example\.com$` the request to `admin.example.com` goes to the latter. Length decides precedence among overlapping patterns but does not measure how specific a regex is, so avoid overlaps between rules with different `auth` or `remote` settings. Requested url can be regex, for example `^/api/(.*)` and destination url may have regex matched groups in, i.e. `http://d.example.com:8080/$1`. For the example above `http://s.example.com/api/something?foo=bar` will be proxied to `http://d.example.com:8080/something?foo=bar`.
 
 Exact and `*.example.com` server names match the host case-insensitively and ignore one trailing dot, so `Admin.Example.com` and `admin.example.com.` hit an `admin.example.com` rule. Regex servers match as written, so add `(?i)` when case should not matter. Route regexes match the escaped request path, where a space is `%20` and `ü` is `%C3%BC`, while static asset prefixes can be written as plain text. Route regexes are case-sensitive: when a protected route sits in front of an upstream that treats paths case-insensitively, add `(?i)` to that route.
 
@@ -319,6 +319,8 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
+With `--assets.cache` set, assets are sent with `Cache-Control: public` unless access to them is restricted: with global basic auth, and for static routes with per-route auth or an IP allowlist, the header is `Cache-Control: private`, so a shared cache in front of reproxy doesn't keep them and serve them to other clients. A `Cache-Control` already on the response with `no-store` or a bare `private`, set by a plugin or `--header`, is kept as is.
+
 Custom 404 (not found) page can be set with `--assets.not-found=<path>` parameter. The path should be relative to the assets root.
 
 ## Using reproxy as a base image
@@ -385,11 +387,13 @@ Another default set in the similar dynamic way is `--ssl.http-port`. For run ins
 reproxy provides two endpoints for this purpose:
 
 - `/ping` responds with `pong` and indicates what reproxy up and running
-- `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
+- `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns a json body with the number of services and of passed and failed pings. The details of each failure, which name internal servers and ping urls, go to the reproxy log as warnings. One round of pings answers all `/health` requests for 5 seconds, so frequent requests don't multiply the pings sent to destinations.
 
 In addition to the endpoints above, reproxy supports optional live health checks. In this case (if enabled), each destination checked for ping response periodically and excluded failed destination routes. It is possible to return multiple identical destinations from the same or various providers, and the only passed picked. If numerous matches were discovered and passed - the final one picked according to `lb-type` strategy (by default random selection).
 
 To turn live health check on, user should set `--health-check.enabled` (or env `HEALTH_CHECK_ENABLED=true`). To customize checking interval `--health-check.interval=` can be used.
+
+A ping follows redirects only within the backend it checks (same scheme, host and port), up to 3 of them. A redirect to any other address fails the ping, so a backend can't point reproxy's health checks at other hosts.
 
 ## Management API
 
@@ -398,7 +402,9 @@ Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.l
 - `GET /routes` - list of all discovered routes
 - `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
 
-By default, `http_response_time_seconds` uses raw request paths as labels, which can cause high cardinality with dynamic URLs (e.g., `/api/users/123`, `/api/users/456`). Use `--mgmt.low-cardinality` to switch to route patterns (e.g., `^/api/users/(.*)`) instead, significantly reducing metrics cardinality. In this mode the `server` label of `http_requests_total` is the matched route's server (e.g., `*` or `example.com`) rather than the request's Host, and `[unmatched]` for requests without a route, so clients can't add series by sending new Host values.
+The management API has no authentication and lists every internal destination, so it listens on `127.0.0.1:8081` by default. Under docker (`REPROXY_IN_DOCKER` set, as in the official image) it listens on `0.0.0.0:8081`, so any container on the same docker network can reach it, a published port exposes it on the host, and with `network_mode: host` it listens on every host interface. Set `--mgmt.listen` explicitly when that is wider than you want, and to a private address when scraping metrics from another host without docker.
+
+By default, metrics use route patterns as labels: `http_response_time_seconds` gets the matched route's pattern (e.g., `^/api/users/(.*)`) and the `server` label of `http_requests_total` gets the matched route's server (e.g., `*` or `example.com`), with `[unmatched]` for requests without a route. Paths and Host values sent by clients can't add series beyond those of the configured routes; series of routes removed by a discovery change stay until restart. `--mgmt.raw-labels` switches to raw request paths and hosts as labels; every distinct path and Host then adds a series without limit, so enable it only when clients can't reach reproxy freely. `--mgmt.low-cardinality` is deprecated and ignored, as its behavior is the default.
 
 _see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/examples/metrics)_
 
@@ -421,6 +427,8 @@ Individual routes can override the global `--timeout.write` and `--throttle.user
 Precedence is "zero inherits global, positive overrides": a route with `timeout: 0` (or no `timeout` field) keeps the global `--timeout.write`; a route with `timeout: 5m` overrides it for matched requests only. The same rule applies to `throttle`.
 
 The per-route timeout overrides the connection's read and write deadlines for matched requests, so it can extend past the global `--timeout.write` (default 30s). Routes without a per-route timeout still respect the global setting.
+
+`--timeout.read-body` (default 60s) limits how long a client may take to send a whole request, headers and body, so a client trickling a body can't hold a connection and its upstream request open indefinitely. Once the body is read, the limit no longer applies, so long responses are not affected. Uploads that take longer, for example large files over slow links, need a per-route `timeout`, which replaces this limit for the route, or a higher global value; `0` turns the limit off. For HTTPS, Go limits the TLS handshake by the smallest positive value of `--timeout.read-header`, `--timeout.read-body` and `--timeout.write`, so a short `--timeout.read-body` also shortens the handshake.
 
 **Limitation — transport-level response-header timeout:** the per-route `timeout` does NOT override `--timeout.resp-header` (default 5s). That timeout is set on the shared `http.Transport` and applies before the upstream begins sending response headers. If an upstream takes longer than `--timeout.resp-header` to start its response (e.g. a slow report endpoint), the request fails at that boundary regardless of the per-route `timeout`. To support such routes, raise `--timeout.resp-header` globally to the maximum needed by any slow-response route. Per-route override of transport-level timeouts is intentionally out of scope.
 
@@ -512,6 +520,16 @@ By default headers set by a plugin will be mixed with the original headers. In c
 - `OverrideHeadersOut` - indicates plugin responsible for all outgoing headers 
 
 To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
+
+Anyone who can reach the registration listener (`--plugin.listen`) can add or remove plugins, and a removed auth plugin means unauthenticated requests pass. When the listener is reachable by anything but reproxy's own plugins, for example on a shared docker network, set `--plugin.secret`. Registration and unregistration without that secret as a bearer token are then refused; `lib.Plugin` sends it when its `Secret` field is set.
+
+Unregistration (`DELETE`) removes a plugin only when both its name and address match the registration, so an old instance shutting down after its replacement registered from another address leaves the replacement in place. `lib.Plugin` sends the address it registered with; a client calling the registration API directly has to do the same.
+
+reproxy keeps registrations in memory, so after it restarts, requests skip every plugin until that plugin registers again. A running `lib.Plugin` renews its registration (`PUT`) every 5s, and a renewal adds the plugin back when its name is missing. Until a renewal succeeds, requests are served without the plugin, so an auth plugin's check is skipped for at least that long. When no plugin holds the name, the first registration or renewal to succeed wins, which during a rolling update can be the older instance. A renewal for a name already registered, from any address, changes nothing and still answers 200. Recovery needs both a plugin built with this `lib` and a reproxy that accepts `PUT`; older versions on either side need the plugin restarted after reproxy restarts.
+
+When reproxy can't listen on `--plugin.listen`, it logs a warning and serves without plugins, so an auth plugin's check is skipped on every request; watch for that warning when plugins enforce access. Outside docker the management API (`--mgmt.listen`) defaults to the same `127.0.0.1:8081`. The plugin listener binds first, so with both enabled on the default address the management API fails to start with a warning; give one of them another address.
+
+All plugin calls of one request, including connecting to a plugin, share a time limit, `--plugin.timeout` (5s by default, also capped by the request's own deadline, 0 for no limit). A request whose plugins don't answer in time fails with 500. Each call uses a connection of its own, so a call that runs out of time closes only that connection and doesn't affect other requests. Up to 16 idle connections per plugin are kept for reuse; the number of open connections to a plugin grows with the number of its concurrent calls.
 
 
 _See [examples/plugin](https://github.com/umputun/reproxy/tree/master/examples/plugin) for more info_
@@ -624,6 +642,7 @@ static:
 
 timeout:
       --timeout.read-header=        read header server timeout (default: 5s) [$TIMEOUT_READ_HEADER]
+      --timeout.read-body=          read request server timeout, headers and body, 0 for none (default: 60s) [$TIMEOUT_READ_BODY]
       --timeout.write=              write server timeout (default: 30s) [$TIMEOUT_WRITE]
       --timeout.idle=               idle server timeout (default: 30s) [$TIMEOUT_IDLE]
       --timeout.dial=               dial transport timeout (default: 30s) [$TIMEOUT_DIAL]
@@ -635,8 +654,9 @@ timeout:
 
 mgmt:
       --mgmt.enabled                enable management API [$MGMT_ENABLED]
-      --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081) [$MGMT_LISTEN]
-      --mgmt.low-cardinality        use route patterns instead of raw paths for metrics labels [$MGMT_LOW_CARDINALITY]
+      --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081 under docker, 127.0.0.1:8081 without) [$MGMT_LISTEN]
+      --mgmt.raw-labels             use raw request paths and hosts as metrics labels [$MGMT_RAW_LABELS]
+      --mgmt.low-cardinality        deprecated, route pattern labels are the default [$MGMT_LOW_CARDINALITY]
 
 error:
       --error.enabled               enable html errors reporting [$ERROR_ENABLED]
@@ -657,6 +677,8 @@ upstream:
 plugin:
       --plugin.enabled              enable plugin support [$PLUGIN_ENABLED]
       --plugin.listen=              registration listen on host:port (default: 127.0.0.1:8081) [$PLUGIN_LISTEN]
+      --plugin.secret=              secret plugins must present to register [$PLUGIN_SECRET]
+      --plugin.timeout=             limit for plugin calls of one request, 0 for none (default: 5s) [$PLUGIN_TIMEOUT]
 
 Help Options:
   -h, --help                        Show this help message

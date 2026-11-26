@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/rpc"
 	"os"
@@ -163,6 +164,7 @@ var opts struct {
 
 	Timeouts struct {
 		ReadHeader     time.Duration `long:"read-header" env:"READ_HEADER" default:"5s"  description:"read header server timeout"`
+		ReadBody       time.Duration `long:"read-body" env:"READ_BODY" default:"60s" description:"read request server timeout, headers and body, 0 for none"`
 		Write          time.Duration `long:"write" env:"WRITE" default:"30s" description:"write server timeout"`
 		Idle           time.Duration `long:"idle" env:"IDLE" default:"30s" description:"idle server timeout"`
 		Dial           time.Duration `long:"dial" env:"DIAL" default:"30s" description:"dial transport timeout"`
@@ -175,8 +177,9 @@ var opts struct {
 
 	Management struct {
 		Enabled        bool   `long:"enabled" env:"ENABLED" description:"enable management API"`
-		Listen         string `long:"listen" env:"LISTEN" default:"0.0.0.0:8081" description:"listen on host:port"`
-		LowCardinality bool   `long:"low-cardinality" env:"LOW_CARDINALITY" description:"use route patterns instead of raw paths for metrics labels"`
+		Listen         string `long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8081 under docker, 127.0.0.1:8081 without)"`
+		RawLabels      bool   `long:"raw-labels" env:"RAW_LABELS" description:"use raw request paths and hosts as metrics labels"`
+		LowCardinality bool   `long:"low-cardinality" env:"LOW_CARDINALITY" description:"deprecated, route pattern labels are the default"`
 	} `group:"mgmt" namespace:"mgmt" env-namespace:"MGMT"`
 
 	ErrorReport struct {
@@ -200,8 +203,10 @@ var opts struct {
 	} `group:"upstream" namespace:"upstream" env-namespace:"UPSTREAM"`
 
 	Plugin struct {
-		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
-		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
+		Enabled bool          `long:"enabled" env:"ENABLED" description:"enable plugin support"`
+		Listen  string        `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
+		Secret  string        `long:"secret" env:"SECRET" description:"secret plugins must present to register"`
+		Timeout time.Duration `long:"timeout" env:"TIMEOUT" default:"5s" description:"limit for plugin calls of one request, 0 for none"`
 	} `group:"plugin" namespace:"plugin" env-namespace:"PLUGIN"`
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
@@ -227,7 +232,11 @@ func main() {
 
 	setupLog(opts.Dbg)
 
-	log.Printf("[DEBUG] options: %+v", opts)
+	dump := opts
+	if dump.Plugin.Secret != "" {
+		dump.Plugin.Secret = "*****"
+	}
+	log.Printf("[DEBUG] options: %+v", dump)
 
 	err := run()
 	if err != nil {
@@ -343,6 +352,9 @@ func run() error {
 		return fmt.Errorf("failed to make trusted proxies: %w", tpErr)
 	}
 
+	// bound before makeMetrics starts the mgmt listener, which can default to the same address
+	pluginConductor := makePluginConductor(ctx)
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -365,6 +377,7 @@ func run() error {
 		LBSelector:     makeLBSelector(),
 		Timeouts: proxy.Timeouts{
 			ReadHeader:     opts.Timeouts.ReadHeader,
+			ReadBody:       opts.Timeouts.ReadBody,
 			Write:          opts.Timeouts.Write,
 			Idle:           opts.Timeouts.Idle,
 			Dial:           opts.Timeouts.Dial,
@@ -376,7 +389,7 @@ func run() error {
 		},
 		Metrics:                 makeMetrics(ctx, svc),
 		Reporter:                errReporter,
-		PluginConductor:         makePluginConductor(ctx),
+		PluginConductor:         pluginConductor,
 		ThrottleSystem:          opts.Throttle.System * 3,
 		ThrottleUser:            opts.Throttle.User,
 		BasicAuthEnabled:        len(basicAuthAllowed) > 0,
@@ -463,19 +476,31 @@ func makeProviders() ([]discovery.Provider, error) {
 	return res, nil
 }
 
+// makePluginConductor binds the plugin registration address before serving on it. A taken address
+// disables plugins with a warning instead of stopping reproxy, so requests then skip every plugin.
 func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 	if !opts.Plugin.Enabled {
 		return nil
 	}
 
+	ln, err := net.Listen("tcp", opts.Plugin.Listen)
+	if err != nil {
+		log.Printf("[WARN] plugin conductor can't listen on %s, plugins disabled: %v", opts.Plugin.Listen, err)
+		return nil
+	}
 	conductor := &plugin.Conductor{
-		Address: opts.Plugin.Listen,
-		RPCDialer: plugin.RPCDialerFunc(func(_, address string) (plugin.RPCClient, error) {
-			return rpc.Dial("tcp", address)
+		Secret:  opts.Plugin.Secret,
+		Timeout: opts.Plugin.Timeout,
+		RPCDialer: plugin.RPCDialerFunc(func(ctx context.Context, _, address string) (plugin.RPCClient, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+			if err != nil {
+				return nil, fmt.Errorf("dial plugin %s: %w", address, err)
+			}
+			return rpc.NewClient(conn), nil
 		}),
 	}
 	go func() {
-		if err := conductor.Run(ctx); err != nil {
+		if err := conductor.Run(ctx, ln); err != nil {
 			log.Printf("[WARN] plugin conductor error, %v", err)
 		}
 	}()
@@ -486,12 +511,15 @@ func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewarePr
 	if !opts.Management.Enabled {
 		return nil
 	}
+	if opts.Management.LowCardinality {
+		log.Printf("[WARN] --mgmt.low-cardinality is deprecated, route pattern labels are the default")
+	}
 	metrics := mgmt.NewMetrics(mgmt.MetricsConfig{
-		LowCardinality: opts.Management.LowCardinality,
+		LowCardinality: !opts.Management.RawLabels,
 	})
 	go func() {
 		mgSrv := mgmt.Server{
-			Listen:         opts.Management.Listen,
+			Listen:         mgmtListenAddress(opts.Management.Listen),
 			Informer:       informer,
 			AssetsLocation: opts.Assets.Location,
 			AssetsWebRoot:  opts.Assets.WebRoot,
@@ -672,6 +700,18 @@ func listenAddress(addr, sslType string) string {
 		return "0.0.0.0:8443"
 	}
 	return "127.0.0.1:443"
+}
+
+// mgmtListenAddress keeps the unauthenticated management api on loopback outside docker, where 0.0.0.0
+// would expose it on every host interface. Under docker it binds 0.0.0.0 so metrics can be scraped.
+func mgmtListenAddress(addr string) string {
+	if addr != "" {
+		return addr
+	}
+	if v, ok := os.LookupEnv("REPROXY_IN_DOCKER"); ok && (v == "1" || v == "true") {
+		return "0.0.0.0:8081"
+	}
+	return "127.0.0.1:8081"
 }
 
 func redirHTTPPort(port int) int {

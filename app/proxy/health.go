@@ -1,15 +1,29 @@
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	log "github.com/go-pkgz/lgr"
-	"github.com/go-pkgz/rest"
 
 	"github.com/umputun/reproxy/app/discovery"
 )
+
+// healthCacheTTL is how long one probe run answers /health, so client traffic can't multiply pings.
+const healthCacheTTL = 5 * time.Second
+
+// healthCache holds the last /health answer. Its lock is held across a probe run, so concurrent
+// requests wait for that run instead of starting their own.
+type healthCache struct {
+	sync.Mutex
+	at   time.Time
+	code int
+	body []byte
+}
 
 func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
@@ -27,44 +41,54 @@ func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 }
 
 func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	h.health.Lock()
+	if time.Since(h.health.at) >= healthCacheTTL {
+		h.health.code, h.health.body = h.renderHealth()
+		h.health.at = time.Now()
+	}
+	code, body := h.health.code, h.health.body
+	h.health.Unlock()
 
-	mappers := h.Mappers()
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(code)
+	if _, err := w.Write(body); err != nil {
+		log.Printf("[WARN] failed to send health, %v", err)
+	}
+}
+
+// renderHealth probes the configured ping URLs and renders the public answer. It carries counts only, as probe errors
+// name internal servers and URLs; those go to the log.
+func (h *Http) renderHealth() (code int, body []byte) {
 	total := 0
-	for _, m := range mappers {
+	for _, m := range h.Mappers() {
 		if m.MatchType == discovery.MTProxy {
 			total++
 		}
 	}
 
 	pingErrs := h.CheckHealth()
-
-	var errs []string
+	failed := 0
 	for _, pingErr := range pingErrs {
 		if pingErr != nil {
-			errs = append(errs, pingErr.Error())
+			failed++
+			log.Printf("[WARN] health check failed, %v", pingErr)
 		}
 	}
-
-	if len(errs) > 0 {
-		w.WriteHeader(http.StatusExpectationFailed)
-
-		errResp := struct {
-			Status   string   `json:"status,omitempty"`
-			Services int      `json:"services,omitempty"`
-			Passed   int      `json:"passed,omitempty"`
-			Failed   int      `json:"failed,omitempty"`
-			Errors   []string `json:"errors,omitempty"`
-		}{Status: "failed", Services: total, Passed: len(pingErrs) - len(errs), Failed: len(errs), Errors: errs}
-
-		rest.RenderJSON(w, errResp)
-		return
+	if failed == 0 {
+		return http.StatusOK, fmt.Appendf(nil, `{"status": "ok", "services": %d}`, total)
 	}
-	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprintf(w, `{"status": "ok", "services": %d}`, total)
+
+	resp := struct {
+		Status   string `json:"status,omitempty"`
+		Services int    `json:"services,omitempty"`
+		Passed   int    `json:"passed,omitempty"`
+		Failed   int    `json:"failed,omitempty"`
+	}{Status: "failed", Services: total, Passed: len(pingErrs) - failed, Failed: failed}
+	body, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("[WARN] failed to send health, %v", err)
+		log.Printf("[WARN] failed to marshal health response, %v", err)
 	}
+	return http.StatusExpectationFailed, body
 }
 
 // pingHandler middleware response with pong to /ping. Stops chain if ping request detected
