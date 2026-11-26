@@ -485,8 +485,17 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 
 // CheckHealth starts health-check for service's mappers
 func (s *Service) CheckHealth() (pingResult map[string]error) {
+	// pings run without the lock, a slow backend would otherwise hold off route reloads
 	s.lock.RLock()
-	defer s.lock.RUnlock()
+	var toPing []URLMapper
+	for _, mappers := range s.mappers {
+		for _, m := range mappers {
+			if m.MatchType == MTProxy && m.PingURL != "" {
+				toPing = append(toPing, m)
+			}
+		}
+	}
+	s.lock.RUnlock()
 
 	const concurrent = 8
 	sema := make(chan struct{}, concurrent) // limit health check to 8 concurrent calls
@@ -498,34 +507,22 @@ func (s *Service) CheckHealth() (pingResult map[string]error) {
 	}
 	outCh := make(chan pingError, concurrent)
 
-	services, pinged := 0, 0
 	var wg sync.WaitGroup
-	for _, mappers := range s.mappers {
-		for _, m := range mappers {
-			if m.MatchType != MTProxy {
-				continue
-			}
-			services++
-			if m.PingURL == "" {
-				continue
-			}
-			pinged++
-			wg.Add(1)
+	for _, m := range toPing {
+		wg.Add(1)
+		go func(m URLMapper) {
+			sema <- struct{}{}
+			defer func() {
+				<-sema
+				wg.Done()
+			}()
 
-			go func(m URLMapper) {
-				sema <- struct{}{}
-				defer func() {
-					<-sema
-					wg.Done()
-				}()
-
-				errMsg, err := m.ping()
-				if err != nil {
-					log.Printf("[DEBUG] %s", errMsg)
-				}
-				outCh <- pingError{m.PingURL, err}
-			}(m)
-		}
+			errMsg, err := m.ping()
+			if err != nil {
+				log.Printf("[DEBUG] %s", errMsg)
+			}
+			outCh <- pingError{m.PingURL, err}
+		}(m)
 	}
 
 	go func() {

@@ -1240,6 +1240,32 @@ func TestCheckHealth(t *testing.T) {
 	assert.NoError(t, res[ts2.URL])
 }
 
+func TestCheckHealthReleasesLockDuringPings(t *testing.T) {
+	pinged, release := make(chan struct{}), make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(pinged)
+		<-release
+	}))
+	defer ts.Close()
+
+	svc := matchTestService(t, []URLMapper{{Server: "*", SrcMatch: *regexp.MustCompile("^/(.*)"),
+		Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy, PingURL: ts.URL}})
+
+	done := make(chan struct{})
+	go func() {
+		svc.CheckHealth()
+		close(done)
+	}()
+	<-pinged
+	locked := svc.lock.TryLock()
+	if locked {
+		svc.lock.Unlock()
+	}
+	close(release)
+	<-done
+	assert.True(t, locked, "route table must stay writable while pings are in flight")
+}
+
 func TestParseOnlyFrom(t *testing.T) {
 	tbl := []struct {
 		name     string

@@ -66,6 +66,7 @@ type Http struct { // nolint golint
 	UpstreamMaxConnsPerHost int
 
 	dnsResolvers []string // used to mock DNS resolvers for testing
+	health       healthCache
 }
 
 // Matcher source info (server and route) to the destination url

@@ -175,8 +175,9 @@ var opts struct {
 
 	Management struct {
 		Enabled        bool   `long:"enabled" env:"ENABLED" description:"enable management API"`
-		Listen         string `long:"listen" env:"LISTEN" default:"0.0.0.0:8081" description:"listen on host:port"`
-		LowCardinality bool   `long:"low-cardinality" env:"LOW_CARDINALITY" description:"use route patterns instead of raw paths for metrics labels"`
+		Listen         string `long:"listen" env:"LISTEN" description:"listen on host:port (default: 0.0.0.0:8081 under docker, 127.0.0.1:8081 without)"`
+		RawLabels      bool   `long:"raw-labels" env:"RAW_LABELS" description:"use raw request paths and hosts as metrics labels"`
+		LowCardinality bool   `long:"low-cardinality" env:"LOW_CARDINALITY" description:"deprecated, route pattern labels are the default"`
 	} `group:"mgmt" namespace:"mgmt" env-namespace:"MGMT"`
 
 	ErrorReport struct {
@@ -486,12 +487,15 @@ func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewarePr
 	if !opts.Management.Enabled {
 		return nil
 	}
+	if opts.Management.LowCardinality {
+		log.Printf("[WARN] --mgmt.low-cardinality is deprecated, route pattern labels are the default")
+	}
 	metrics := mgmt.NewMetrics(mgmt.MetricsConfig{
-		LowCardinality: opts.Management.LowCardinality,
+		LowCardinality: !opts.Management.RawLabels,
 	})
 	go func() {
 		mgSrv := mgmt.Server{
-			Listen:         opts.Management.Listen,
+			Listen:         mgmtListenAddress(opts.Management.Listen),
 			Informer:       informer,
 			AssetsLocation: opts.Assets.Location,
 			AssetsWebRoot:  opts.Assets.WebRoot,
@@ -672,6 +676,18 @@ func listenAddress(addr, sslType string) string {
 		return "0.0.0.0:8443"
 	}
 	return "127.0.0.1:443"
+}
+
+// mgmtListenAddress keeps the unauthenticated management api on loopback outside docker, where 0.0.0.0
+// would expose it on every host interface. Under docker it binds 0.0.0.0 so metrics can be scraped.
+func mgmtListenAddress(addr string) string {
+	if addr != "" {
+		return addr
+	}
+	if v, ok := os.LookupEnv("REPROXY_IN_DOCKER"); ok && (v == "1" || v == "true") {
+		return "0.0.0.0:8081"
+	}
+	return "127.0.0.1:8081"
 }
 
 func redirHTTPPort(port int) int {

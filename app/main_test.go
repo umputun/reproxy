@@ -36,12 +36,14 @@ func Test_Main(t *testing.T) {
 	setupLogger()
 
 	port, releasePort := getFreePort(t)
+	mgmtPort, releaseMgmtPort := getFreePort(t)
 	os.Args = []string{"test", "--static.enabled",
 		"--static.rule=*,/svc1/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--static.rule=*,/svc2/(.*), https://echo.umputun.com/$1,https://feedmaster.umputun.com/ping",
 		"--file.enabled", "--file.name=discovery/provider/testdata/config.yml",
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(port), "--signature", "--mgmt.enabled",
+		"--mgmt.listen=127.0.0.1:" + strconv.Itoa(mgmtPort),
 		"--error.enabled", "--error.template=proxy/testdata/errtmpl.html",
 	}
 	defer os.Remove("/tmp/reproxy.log")
@@ -53,6 +55,7 @@ func Test_Main(t *testing.T) {
 	}()
 
 	releasePort()
+	releaseMgmtPort()
 	finished := make(chan struct{})
 	go func() {
 		main()
@@ -105,6 +108,17 @@ func Test_Main(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, "oh my! 502 - Bad Gateway", string(body))
+	}
+	{
+		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", mgmtPort))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.Contains(t, string(body), `path="[unmatched]"`)
+		assert.NotContains(t, string(body), `path="/bad"`)
+		assert.Contains(t, string(body), `path="/svc1/(.*)"`)
+		assert.NotContains(t, string(body), `path="/svc1/test"`)
 	}
 }
 
@@ -273,6 +287,31 @@ func Test_listenAddress(t *testing.T) {
 		})
 	}
 
+}
+
+func Test_mgmtListenAddress(t *testing.T) {
+	tbl := []struct {
+		addr string
+		env  string
+		res  string
+	}{
+		{"", "1", "0.0.0.0:8081"},
+		{"", "true", "0.0.0.0:8081"},
+		{"", "0", "127.0.0.1:8081"},
+		{"", "", "127.0.0.1:8081"},
+		{"0.0.0.0:9090", "", "0.0.0.0:9090"},
+		{"127.0.0.1:9090", "true", "127.0.0.1:9090"},
+	}
+
+	for i, tt := range tbl {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Setenv("REPROXY_IN_DOCKER", tt.env)
+			if tt.env == "" {
+				require.NoError(t, os.Unsetenv("REPROXY_IN_DOCKER"))
+			}
+			assert.Equal(t, tt.res, mgmtListenAddress(tt.addr))
+		})
+	}
 }
 
 func Test_redirHTTPPort(t *testing.T) {

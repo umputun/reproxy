@@ -385,7 +385,7 @@ Another default set in the similar dynamic way is `--ssl.http-port`. For run ins
 reproxy provides two endpoints for this purpose:
 
 - `/ping` responds with `pong` and indicates what reproxy up and running
-- `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns json body with details about passed/failed services.
+- `/health` returns `200 OK` status if all destination servers responded to their ping request with `200` or `417 Expectation Failed` if any of servers responded with non-200 code. It also returns a json body with the number of services and of passed and failed pings. The details of each failure, which name internal servers and ping urls, go to the reproxy log as warnings. One round of pings answers all `/health` requests for 5 seconds, so frequent requests don't multiply the pings sent to destinations.
 
 In addition to the endpoints above, reproxy supports optional live health checks. In this case (if enabled), each destination checked for ping response periodically and excluded failed destination routes. It is possible to return multiple identical destinations from the same or various providers, and the only passed picked. If numerous matches were discovered and passed - the final one picked according to `lb-type` strategy (by default random selection).
 
@@ -398,7 +398,9 @@ Optional, can be turned on with `--mgmt.enabled`. Exposes 2 endpoints on `mgmt.l
 - `GET /routes` - list of all discovered routes
 - `GET /metrics` - returns prometheus metrics (`http_requests_total`, `response_status` and `http_response_time_seconds`)
 
-By default, `http_response_time_seconds` uses raw request paths as labels, which can cause high cardinality with dynamic URLs (e.g., `/api/users/123`, `/api/users/456`). Use `--mgmt.low-cardinality` to switch to route patterns (e.g., `^/api/users/(.*)`) instead, significantly reducing metrics cardinality. In this mode the `server` label of `http_requests_total` is the matched route's server (e.g., `*` or `example.com`) rather than the request's Host, and `[unmatched]` for requests without a route, so clients can't add series by sending new Host values.
+The management API has no authentication and lists every internal destination, so it listens on `127.0.0.1:8081` by default. Under docker (`REPROXY_IN_DOCKER` set, as in the official image) it listens on `0.0.0.0:8081`, so any container on the same docker network can reach it, a published port exposes it on the host, and with `network_mode: host` it listens on every host interface. Set `--mgmt.listen` explicitly when that is wider than you want, and to a private address when scraping metrics from another host without docker.
+
+By default, metrics use route patterns as labels: `http_response_time_seconds` gets the matched route's pattern (e.g., `^/api/users/(.*)`) and the `server` label of `http_requests_total` gets the matched route's server (e.g., `*` or `example.com`), with `[unmatched]` for requests without a route. Paths and Host values sent by clients can't add series beyond those of the configured routes; series of routes removed by a discovery change stay until restart. `--mgmt.raw-labels` switches to raw request paths and hosts as labels; every distinct path and Host then adds a series without limit, so enable it only when clients can't reach reproxy freely. `--mgmt.low-cardinality` is deprecated and ignored, as its behavior is the default.
 
 _see also [examples/metrics](https://github.com/umputun/reproxy/tree/master/examples/metrics)_
 
@@ -635,8 +637,9 @@ timeout:
 
 mgmt:
       --mgmt.enabled                enable management API [$MGMT_ENABLED]
-      --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081) [$MGMT_LISTEN]
-      --mgmt.low-cardinality        use route patterns instead of raw paths for metrics labels [$MGMT_LOW_CARDINALITY]
+      --mgmt.listen=                listen on host:port (default: 0.0.0.0:8081 under docker, 127.0.0.1:8081 without) [$MGMT_LISTEN]
+      --mgmt.raw-labels             use raw request paths and hosts as metrics labels [$MGMT_RAW_LABELS]
+      --mgmt.low-cardinality        deprecated, route pattern labels are the default [$MGMT_LOW_CARDINALITY]
 
 error:
       --error.enabled               enable html errors reporting [$ERROR_ENABLED]
