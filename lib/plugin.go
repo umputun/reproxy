@@ -19,6 +19,7 @@ type Plugin struct {
 	Name    string   `json:"name"`
 	Address string   `json:"address"`
 	Methods []string `json:"methods"`
+	Secret  string   `json:"-"` // sent as a bearer token when reproxy runs with --plugin.secret
 }
 
 // Do register the plugin, send info to reproxy conductor and activate RPC listener.
@@ -98,6 +99,9 @@ func (p *Plugin) send(client *http.Client, conductor, method string) error {
 	req, err := http.NewRequest(method, conductor, bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
+	}
+	if p.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+p.Secret)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

@@ -4,6 +4,7 @@
 package plugin
 
 import (
+	"context"
 	"sync"
 )
 
@@ -17,7 +18,7 @@ var _ RPCDialer = &RPCDialerMock{}
 //
 //		// make and configure a mocked RPCDialer
 //		mockedRPCDialer := &RPCDialerMock{
-//			DialFunc: func(network string, address string) (RPCClient, error) {
+//			DialFunc: func(ctx context.Context, network string, address string) (RPCClient, error) {
 //				panic("mock out the Dial method")
 //			},
 //		}
@@ -28,12 +29,14 @@ var _ RPCDialer = &RPCDialerMock{}
 //	}
 type RPCDialerMock struct {
 	// DialFunc mocks the Dial method.
-	DialFunc func(network string, address string) (RPCClient, error)
+	DialFunc func(ctx context.Context, network string, address string) (RPCClient, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
 		// Dial holds details about calls to the Dial method.
 		Dial []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Network is the network argument value.
 			Network string
 			// Address is the address argument value.
@@ -44,21 +47,23 @@ type RPCDialerMock struct {
 }
 
 // Dial calls DialFunc.
-func (mock *RPCDialerMock) Dial(network string, address string) (RPCClient, error) {
+func (mock *RPCDialerMock) Dial(ctx context.Context, network string, address string) (RPCClient, error) {
 	if mock.DialFunc == nil {
 		panic("RPCDialerMock.DialFunc: method is nil but RPCDialer.Dial was just called")
 	}
 	callInfo := struct {
+		Ctx     context.Context
 		Network string
 		Address string
 	}{
+		Ctx:     ctx,
 		Network: network,
 		Address: address,
 	}
 	mock.lockDial.Lock()
 	mock.calls.Dial = append(mock.calls.Dial, callInfo)
 	mock.lockDial.Unlock()
-	return mock.DialFunc(network, address)
+	return mock.DialFunc(ctx, network, address)
 }
 
 // DialCalls gets all the calls that were made to Dial.
@@ -66,10 +71,12 @@ func (mock *RPCDialerMock) Dial(network string, address string) (RPCClient, erro
 //
 //	len(mockedRPCDialer.DialCalls())
 func (mock *RPCDialerMock) DialCalls() []struct {
+	Ctx     context.Context
 	Network string
 	Address string
 } {
 	var calls []struct {
+		Ctx     context.Context
 		Network string
 		Address string
 	}

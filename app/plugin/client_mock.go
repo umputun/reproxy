@@ -20,6 +20,9 @@ var _ RPCClient = &RPCClientMock{}
 //			CallFunc: func(serviceMethod string, args any, reply any) error {
 //				panic("mock out the Call method")
 //			},
+//			CloseFunc: func() error {
+//				panic("mock out the Close method")
+//			},
 //		}
 //
 //		// use mockedRPCClient in code that requires RPCClient
@@ -29,6 +32,9 @@ var _ RPCClient = &RPCClientMock{}
 type RPCClientMock struct {
 	// CallFunc mocks the Call method.
 	CallFunc func(serviceMethod string, args any, reply any) error
+
+	// CloseFunc mocks the Close method.
+	CloseFunc func() error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -41,8 +47,12 @@ type RPCClientMock struct {
 			// Reply is the reply argument value.
 			Reply any
 		}
+		// Close holds details about calls to the Close method.
+		Close []struct {
+		}
 	}
-	lockCall sync.RWMutex
+	lockCall  sync.RWMutex
+	lockClose sync.RWMutex
 }
 
 // Call calls CallFunc.
@@ -82,5 +92,32 @@ func (mock *RPCClientMock) CallCalls() []struct {
 	mock.lockCall.RLock()
 	calls = mock.calls.Call
 	mock.lockCall.RUnlock()
+	return calls
+}
+
+// Close calls CloseFunc.
+func (mock *RPCClientMock) Close() error {
+	if mock.CloseFunc == nil {
+		panic("RPCClientMock.CloseFunc: method is nil but RPCClient.Close was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockClose.Lock()
+	mock.calls.Close = append(mock.calls.Close, callInfo)
+	mock.lockClose.Unlock()
+	return mock.CloseFunc()
+}
+
+// CloseCalls gets all the calls that were made to Close.
+// Check the length with:
+//
+//	len(mockedRPCClient.CloseCalls())
+func (mock *RPCClientMock) CloseCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockClose.RLock()
+	calls = mock.calls.Close
+	mock.lockClose.RUnlock()
 	return calls
 }

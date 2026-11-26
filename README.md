@@ -515,6 +515,10 @@ By default headers set by a plugin will be mixed with the original headers. In c
 
 To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
 
+Anyone who can reach the registration listener (`--plugin.listen`) can add or remove plugins, and a removed auth plugin means unauthenticated requests pass. When the listener is reachable by anything but reproxy's own plugins, for example on a shared docker network, set `--plugin.secret`. Registration and unregistration without that secret as a bearer token are then refused; `lib.Plugin` sends it when its `Secret` field is set.
+
+All plugin calls of one request, including connecting to a plugin, share a time limit, `--plugin.timeout` (5s by default, also capped by the request's own deadline, 0 for no limit). A request whose plugins don't answer in time fails with 500. Each call uses a connection of its own, so a call that runs out of time closes only that connection and doesn't affect other requests. Up to 16 idle connections per plugin are kept for reuse; the number of open connections to a plugin grows with the number of its concurrent calls.
+
 
 _See [examples/plugin](https://github.com/umputun/reproxy/tree/master/examples/plugin) for more info_
 
@@ -660,6 +664,8 @@ upstream:
 plugin:
       --plugin.enabled              enable plugin support [$PLUGIN_ENABLED]
       --plugin.listen=              registration listen on host:port (default: 127.0.0.1:8081) [$PLUGIN_LISTEN]
+      --plugin.secret=              secret plugins must present to register [$PLUGIN_SECRET]
+      --plugin.timeout=             limit for plugin calls of one request, 0 for none (default: 5s) [$PLUGIN_TIMEOUT]
 
 Help Options:
   -h, --help                        Show this help message

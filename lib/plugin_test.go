@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -41,6 +42,26 @@ func TestPlugin_Do(t *testing.T) {
 	require.EqualError(t, err, "context done: context deadline exceeded")
 	assert.Equal(t, int32(1), postCalls.Load())
 	assert.Equal(t, int32(1), deleteCalls.Load())
+}
+
+func TestPlugin_sendSecret(t *testing.T) {
+	var auth, body string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		b, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		body = string(b)
+	}))
+	defer ts.Close()
+
+	p := Plugin{Name: "Test1", Address: "localhost:12345", Methods: []string{"H1"}, Secret: "s3cret"}
+	require.NoError(t, p.send(ts.Client(), ts.URL, "POST"))
+	assert.Equal(t, "Bearer s3cret", auth)
+	assert.NotContains(t, body, "s3cret")
+
+	p.Secret = ""
+	require.NoError(t, p.send(ts.Client(), ts.URL, "POST"))
+	assert.Empty(t, auth)
 }
 
 func TestPlugin_DoFailed(t *testing.T) {

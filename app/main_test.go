@@ -198,7 +198,7 @@ func Test_MainWithPlugin(t *testing.T) {
 		"--dbg", "--logger.enabled", "--logger.stdout", "--logger.file=/tmp/reproxy.log",
 		"--listen=127.0.0.1:" + strconv.Itoa(proxyPort), "--signature", "--error.enabled",
 		"--header=hh1:vv1",
-		"--plugin.enabled", "--plugin.listen=127.0.0.1:" + strconv.Itoa(conductorPort),
+		"--plugin.enabled", "--plugin.listen=127.0.0.1:" + strconv.Itoa(conductorPort), "--plugin.secret=test-secret",
 	}
 	defer os.Remove("/tmp/reproxy.log")
 	done := make(chan struct{})
@@ -224,7 +224,8 @@ func Test_MainWithPlugin(t *testing.T) {
 	waitForHTTPServerStart(proxyPort)
 
 	pluginPort, releasePluginPort := getFreePort(t)
-	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"}}
+	plugin := lib.Plugin{Name: "TestPlugin", Address: "127.0.0.1:" + strconv.Itoa(pluginPort), Methods: []string{"HeaderThing", "ErrorThing"},
+		Secret: "test-secret"}
 	releasePluginPort()
 	go func() {
 		if err := plugin.Do(context.Background(), fmt.Sprintf("http://127.0.0.1:%d", conductorPort), &TestPlugin{}); err != nil {

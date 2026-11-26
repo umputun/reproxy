@@ -2374,7 +2374,7 @@ func TestHttp_pluginRequest(t *testing.T) {
 
 	conductorPort, releaseConductorPort := getFreePort(t)
 	conductor := &plugin.Conductor{Address: fmt.Sprintf("127.0.0.1:%d", conductorPort),
-		RPCDialer: &plugin.RPCDialerMock{DialFunc: func(network, address string) (plugin.RPCClient, error) {
+		RPCDialer: &plugin.RPCDialerMock{DialFunc: func(_ context.Context, network, address string) (plugin.RPCClient, error) {
 			return rpcClient, nil
 		}}}
 	releaseConductorPort()

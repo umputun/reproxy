@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/rpc"
 	"os"
@@ -201,8 +202,10 @@ var opts struct {
 	} `group:"upstream" namespace:"upstream" env-namespace:"UPSTREAM"`
 
 	Plugin struct {
-		Enabled bool   `long:"enabled" env:"ENABLED" description:"enable plugin support"`
-		Listen  string `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
+		Enabled bool          `long:"enabled" env:"ENABLED" description:"enable plugin support"`
+		Listen  string        `long:"listen" env:"LISTEN" default:"127.0.0.1:8081" description:"registration listen on host:port"`
+		Secret  string        `long:"secret" env:"SECRET" description:"secret plugins must present to register"`
+		Timeout time.Duration `long:"timeout" env:"TIMEOUT" default:"5s" description:"limit for plugin calls of one request, 0 for none"`
 	} `group:"plugin" namespace:"plugin" env-namespace:"PLUGIN"`
 
 	Signature bool `long:"signature" env:"SIGNATURE" description:"enable reproxy signature headers"`
@@ -228,7 +231,11 @@ func main() {
 
 	setupLog(opts.Dbg)
 
-	log.Printf("[DEBUG] options: %+v", opts)
+	dump := opts
+	if dump.Plugin.Secret != "" {
+		dump.Plugin.Secret = "*****"
+	}
+	log.Printf("[DEBUG] options: %+v", dump)
 
 	err := run()
 	if err != nil {
@@ -471,8 +478,14 @@ func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 
 	conductor := &plugin.Conductor{
 		Address: opts.Plugin.Listen,
-		RPCDialer: plugin.RPCDialerFunc(func(_, address string) (plugin.RPCClient, error) {
-			return rpc.Dial("tcp", address)
+		Secret:  opts.Plugin.Secret,
+		Timeout: opts.Plugin.Timeout,
+		RPCDialer: plugin.RPCDialerFunc(func(ctx context.Context, _, address string) (plugin.RPCClient, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+			if err != nil {
+				return nil, fmt.Errorf("dial plugin %s: %w", address, err)
+			}
+			return rpc.NewClient(conn), nil
 		}),
 	}
 	go func() {
