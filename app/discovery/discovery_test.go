@@ -572,6 +572,42 @@ func TestService_MappersCacheBoundedLRU(t *testing.T) {
 	assert.NotContains(t, svc.mappersCache, "host-1.example.com")
 }
 
+func TestService_MatchOverlappingServerPatterns(t *testing.T) {
+	tbl := []struct {
+		name     string
+		servers  []string
+		hostFmt  string
+		wantDest string
+	}{
+		{name: "longer regex beats wildcard", servers: []string{`^admin-\d+\.example\.com$`, "*.example.com"},
+			hostFmt: "admin-%d.example.com", wantDest: "http://winner/x"},
+		{name: "longer wildcard beats regex", servers: []string{"*.admin.example.com", `^.*\.example\.com$`},
+			hostFmt: "h%d.admin.example.com", wantDest: "http://winner/x"},
+		{name: "equal length breaks ties lexically", servers: []string{`^h\d+\.(a|b)\.com$`, `^h\d+\.(b|a)\.com$`},
+			hostFmt: "h%d.a.com", wantDest: "http://winner/x"},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			mappers := make([]URLMapper, 0, len(tt.servers))
+			for i, srv := range tt.servers {
+				dst := "http://loser/$1"
+				if i == 0 {
+					dst = "http://winner/$1"
+				}
+				mappers = append(mappers, URLMapper{Server: srv, SrcMatch: *regexp.MustCompile("^/(.*)"), Dst: dst,
+					MatchType: MTProxy})
+			}
+			svc := matchTestService(t, mappers)
+			for i := range 200 {
+				res := svc.Match(fmt.Sprintf(tt.hostFmt, i), "/x")
+				require.Len(t, res.Routes, 1)
+				require.Equal(t, tt.wantDest, res.Routes[0].Destination, "host %d", i)
+			}
+		})
+	}
+}
+
 func TestService_ServerRegexCompiledAtInstall(t *testing.T) {
 	svc := matchTestService(t, []URLMapper{
 		{Server: "(.*)\\.example\\.com", SrcMatch: *regexp.MustCompile("^/"), Dst: "http://127.0.0.1"},

@@ -334,100 +334,56 @@ func TestConsulCatalog_ListTimeoutThrottle(t *testing.T) {
 }
 
 func TestConsulCatalog_serviceListWasChanged(t *testing.T) {
-	type fields struct {
-		list map[string]struct{}
+	svc := func(id, addr string, port int, labels map[string]string) consulService {
+		return consulService{ServiceID: id, ServiceAddress: addr, ServicePort: port, Labels: labels}
 	}
-	type args struct {
-		services []consulService
-	}
+	open := map[string]string{"reproxy.enabled": "true"}
+	locked := map[string]string{"reproxy.enabled": "true", "reproxy.remote": "10.9.9.9"}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   bool
+		name     string
+		prev     []consulService
+		services []consulService
+		want     bool
 	}{
-		{
-			name: "empty, not changed",
-			fields: fields{
-				list: map[string]struct{}{},
-			},
-			args: args{
-				services: []consulService{},
-			},
-			want: false,
-		},
-		{
-			name: "not changed",
-			fields: fields{
-				list: map[string]struct{}{"1": {}, "2": {}, "3": {}},
-			},
-			args: args{
-				services: []consulService{{ServiceID: "1"}, {ServiceID: "3"}, {ServiceID: "2"}},
-			},
-			want: false,
-		},
-		{
-			name: "changed",
-			fields: fields{
-				list: map[string]struct{}{"1": {}, "2": {}, "3": {}},
-			},
-			args: args{
-				services: []consulService{{ServiceID: "1"}, {ServiceID: "100"}, {ServiceID: "2"}},
-			},
-			want: true,
-		},
-		{
-			name: "new service, changed",
-			fields: fields{
-				list: map[string]struct{}{"1": {}, "2": {}, "3": {}},
-			},
-			args: args{
-				services: []consulService{{ServiceID: "1"}, {ServiceID: "3"}, {ServiceID: "2"}, {ServiceID: "4"}},
-			},
-			want: true,
-		},
-		{
-			name: "remove service, changed",
-			fields: fields{
-				list: map[string]struct{}{"1": {}, "2": {}, "3": {}},
-			},
-			args: args{
-				services: []consulService{{ServiceID: "1"}, {ServiceID: "3"}},
-			},
-			want: true,
-		},
+		{name: "empty, not changed", prev: []consulService{}, services: []consulService{}, want: false},
+		{name: "not changed", prev: []consulService{{ServiceID: "1"}, {ServiceID: "2"}, {ServiceID: "3"}},
+			services: []consulService{{ServiceID: "1"}, {ServiceID: "3"}, {ServiceID: "2"}}, want: false},
+		{name: "changed", prev: []consulService{{ServiceID: "1"}, {ServiceID: "2"}, {ServiceID: "3"}},
+			services: []consulService{{ServiceID: "1"}, {ServiceID: "100"}, {ServiceID: "2"}}, want: true},
+		{name: "new service, changed", prev: []consulService{{ServiceID: "1"}, {ServiceID: "2"}, {ServiceID: "3"}},
+			services: []consulService{{ServiceID: "1"}, {ServiceID: "3"}, {ServiceID: "2"}, {ServiceID: "4"}}, want: true},
+		{name: "remove service, changed", prev: []consulService{{ServiceID: "1"}, {ServiceID: "2"}, {ServiceID: "3"}},
+			services: []consulService{{ServiceID: "1"}, {ServiceID: "3"}}, want: true},
+		{name: "labels changed", prev: []consulService{svc("1", "10.0.0.1", 80, open)},
+			services: []consulService{svc("1", "10.0.0.1", 80, locked)}, want: true},
+		{name: "address changed", prev: []consulService{svc("1", "10.0.0.1", 80, open)},
+			services: []consulService{svc("1", "10.0.0.2", 80, open)}, want: true},
+		{name: "port changed", prev: []consulService{svc("1", "10.0.0.1", 80, open)},
+			services: []consulService{svc("1", "10.0.0.1", 81, open)}, want: true},
+		{name: "same id on two nodes, one changed",
+			prev:     []consulService{svc("1", "10.0.0.1", 80, open), svc("1", "10.0.0.2", 80, open)},
+			services: []consulService{svc("1", "10.0.0.1", 80, open), svc("1", "10.0.0.1", 80, open)}, want: true},
+		{name: "labels in another order, not changed", prev: []consulService{svc("1", "10.0.0.1", 80, locked)},
+			services: []consulService{svc("1", "10.0.0.1", 80,
+				map[string]string{"reproxy.remote": "10.9.9.9", "reproxy.enabled": "true"})}, want: false},
+		{name: "labels with the same unquoted display", prev: []consulService{svc("1", "", 0, map[string]string{"a": "1 b:2"})},
+			services: []consulService{svc("1", "", 0, map[string]string{"a": "1", "b": "2"})}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cc := &ConsulCatalog{
-				list: tt.fields.list,
-			}
-			if got := cc.serviceListWasChanged(tt.args.services); got != tt.want {
-				t.Errorf("serviceListWasChanged() = %v, want %v", got, tt.want)
-			}
+			cc := New(nil, time.Second)
+			cc.updateServices(tt.prev)
+			assert.Equal(t, tt.want, cc.serviceListWasChanged(tt.services))
 		})
 	}
 }
 
 func TestConsulCatalog_updateServices(t *testing.T) {
-	cc := &ConsulCatalog{
-		list: map[string]struct{}{
-			"3":   {},
-			"100": {},
-		},
-	}
-
+	cc := New(nil, time.Second)
+	cc.updateServices([]consulService{{ServiceID: "3"}, {ServiceID: "100"}})
 	cc.updateServices([]consulService{{ServiceID: "1"}, {ServiceID: "2"}, {ServiceID: "3"}})
-	require.Len(t, cc.list, 3)
-
-	_, ok := cc.list["1"]
-	assert.True(t, ok)
-
-	_, ok = cc.list["2"]
-	assert.True(t, ok)
-
-	_, ok = cc.list["3"]
-	assert.True(t, ok)
+	assert.False(t, cc.serviceListWasChanged([]consulService{{ServiceID: "2"}, {ServiceID: "1"}, {ServiceID: "3"}}))
+	assert.True(t, cc.serviceListWasChanged([]consulService{{ServiceID: "3"}, {ServiceID: "100"}}))
 }
 
 func TestConsulCatalog_checkUpdates_http_error(t *testing.T) {
@@ -451,9 +407,7 @@ func TestConsulCatalog_checkUpdates_not_changed(t *testing.T) {
 			return nil, nil
 		},
 	}
-	cc := &ConsulCatalog{
-		client: clientMock,
-	}
+	cc := New(clientMock, time.Second)
 
 	err := cc.checkUpdates(context.Background(), nil)
 	require.NoError(t, err)
@@ -467,21 +421,16 @@ func TestConsulCatalog_checkUpdates_changed(t *testing.T) {
 			return []consulService{{ServiceID: "1"}}, nil
 		},
 	}
-	cc := &ConsulCatalog{
-		list: map[string]struct{}{
-			"2": {},
-		},
-		client: clientMock,
-	}
+	cc := New(clientMock, time.Second)
+	cc.updateServices([]consulService{{ServiceID: "2"}})
 
 	ch := make(chan discovery.ProviderID, 1)
 
 	err := cc.checkUpdates(context.Background(), ch)
 	require.NoError(t, err)
 
-	assert.Len(t, cc.list, 1)
-	_, ok := cc.list["1"]
-	assert.True(t, ok)
+	assert.Equal(t, discovery.PIConsulCatalog, <-ch)
+	assert.False(t, cc.serviceListWasChanged([]consulService{{ServiceID: "1"}}))
 }
 
 func TestConsulCatalog_checkUpdates_canceled(t *testing.T) {
@@ -490,10 +439,8 @@ func TestConsulCatalog_checkUpdates_canceled(t *testing.T) {
 			return []consulService{{ServiceID: "1"}}, nil
 		},
 	}
-	cc := &ConsulCatalog{
-		list:   map[string]struct{}{"2": {}},
-		client: clientMock,
-	}
+	cc := New(clientMock, time.Second)
+	cc.updateServices([]consulService{{ServiceID: "2"}})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // canceled before the send, unbuffered channel has no reader
@@ -521,13 +468,8 @@ func TestConsulCatalog_Events(t *testing.T) {
 			}, nil
 		},
 	}
-	cc := &ConsulCatalog{
-		list: map[string]struct{}{
-			"2": {},
-		},
-		client:          clientMock,
-		refreshInterval: time.Millisecond,
-	}
+	cc := New(clientMock, time.Millisecond)
+	cc.updateServices([]consulService{{ServiceID: "2"}})
 
 	ch := cc.Events(t.Context())
 

@@ -29,6 +29,7 @@ type Service struct {
 	mappersCache  map[string]*list.Element
 	cacheOrder    *list.List
 	serverRegexps map[string]*regexp.Regexp
+	serverOrder   []string // non-default server keys, longest first, so overlapping patterns resolve the same way
 	lock          sync.RWMutex
 	// cacheLock guards mappersCache on the lazy read/write path in findMatchingMappers, which runs under
 	// lock.RLock; the wholesale cache reset in Run runs under the exclusive lock.Lock and so needs no cacheLock
@@ -176,11 +177,16 @@ func (s *Service) Run(ctx context.Context) error {
 			s.mappersCache = make(map[string]*list.Element)
 			s.cacheOrder = list.New()
 			s.serverRegexps = make(map[string]*regexp.Regexp)
+			s.serverOrder = nil
 			for _, m := range lst {
 				s.mappers[m.Server] = append(s.mappers[m.Server], m)
 			}
 			for server := range s.mappers {
-				if isDefaultServer(server) || strings.HasPrefix(server, "*.") {
+				if isDefaultServer(server) {
+					continue
+				}
+				s.serverOrder = append(s.serverOrder, server)
+				if strings.HasPrefix(server, "*.") {
 					continue
 				}
 				re, err := regexp.Compile(server)
@@ -190,6 +196,12 @@ func (s *Service) Run(ctx context.Context) error {
 				}
 				s.serverRegexps[server] = re
 			}
+			sort.Slice(s.serverOrder, func(i, j int) bool {
+				if len(s.serverOrder[i]) != len(s.serverOrder[j]) {
+					return len(s.serverOrder[i]) > len(s.serverOrder[j])
+				}
+				return s.serverOrder[i] < s.serverOrder[j]
+			})
 			s.lock.Unlock()
 		}
 	}
@@ -334,11 +346,8 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 		return mappers
 	}
 
-	// separate RLock-read then Lock-write: two concurrent first-resolvers of the same uncached host may both
-	// compute and both write the key. the write is lock-guarded so there's no torn write, but s.mappers iteration
-	// order is nondeterministic, so if the host matches 2+ server patterns the resolvers may select different
-	// mapper slices and the cached value is last-writer-wins. this is consistent with the pre-existing
-	// nondeterministic match-selection order, not a new defect
+	// a host matching several patterns resolves to the longest key: the route policy (auth, allowlist) comes
+	// with the mappers, so it must not depend on which request filled the cache
 	cachedMapper, isCached := s.cachedMappers(srvName)
 	if isCached {
 		return cachedMapper
@@ -347,19 +356,16 @@ func (s *Service) findMatchingMappers(srvName string) []URLMapper {
 	// host names are case-insensitive and "example.com." is the same host as "example.com", so such a
 	// spelling must still hit its exact server before any wildcard or regex server can claim it
 	host := strings.TrimSuffix(srvName, ".")
-	for mapperServer, mapper := range s.mappers {
-		if !isDefaultServer(mapperServer) && strings.EqualFold(strings.TrimSuffix(mapperServer, "."), host) {
+	for _, mapperServer := range s.serverOrder {
+		if strings.EqualFold(strings.TrimSuffix(mapperServer, "."), host) {
+			mapper := s.mappers[mapperServer]
 			s.cacheMappers(srvName, mapper)
 			return mapper
 		}
 	}
 
-	for mapperServer, mapper := range s.mappers {
-		// * and "" should not be treated as regex and require exact match (above)
-		if isDefaultServer(mapperServer) {
-			continue
-		}
-
+	for _, mapperServer := range s.serverOrder {
+		mapper := s.mappers[mapperServer]
 		// handle *.example.com simple patterns
 		if strings.HasPrefix(mapperServer, "*.") {
 			domainPattern := strings.ToLower(strings.TrimSuffix(mapperServer[1:], ".")) // strip the '*'

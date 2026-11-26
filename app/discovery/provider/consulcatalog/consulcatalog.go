@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"regexp"
 	"sort"
 	"strconv"
@@ -32,7 +33,7 @@ type consulService struct {
 }
 
 // ConsulCatalog provider periodically gets consul services with tags, started with 'reproxy.'
-// It stores service list IDs in the internal storage. If service list was changed, it send signal to the core
+// It keeps a snapshot of the services' route fields. If the snapshot changes, it sends a signal to the core
 // The provider maps services with rules, described in the docker provider documentation
 //
 // reproxy.route sets source route, and reproxy.dest sets the destination.
@@ -40,8 +41,9 @@ type consulService struct {
 type ConsulCatalog struct {
 	client          ConsulClient
 	refreshInterval time.Duration
-	// current services list with ServiceID as map key
-	list map[string]struct{}
+	// count of each service fingerprint in the last snapshot, owned by the watcher; counts keep identical
+	// records registered more than once
+	list map[string]int
 }
 
 // New creates new ConsulCatalog instance
@@ -49,7 +51,7 @@ func New(client ConsulClient, checkInterval time.Duration) *ConsulCatalog {
 	cc := &ConsulCatalog{
 		client:          client,
 		refreshInterval: checkInterval,
-		list:            make(map[string]struct{}),
+		list:            make(map[string]int),
 	}
 
 	return cc
@@ -105,26 +107,21 @@ func (cc *ConsulCatalog) checkUpdates(ctx context.Context, eventsCh chan<- disco
 }
 
 func (cc *ConsulCatalog) serviceListWasChanged(services []consulService) bool {
-	if len(services) != len(cc.list) {
-		return true
-	}
-
-	for _, s := range services {
-		if _, ok := cc.list[s.ServiceID]; !ok {
-			return true
-		}
-	}
-
-	return false
+	return !maps.Equal(cc.list, cc.fingerprints(services))
 }
 
 func (cc *ConsulCatalog) updateServices(services []consulService) {
-	for key := range cc.list {
-		delete(cc.list, key)
-	}
+	cc.list = cc.fingerprints(services)
+}
+
+// fingerprints counts services by every field List turns into a route, so a changed tag, address or port
+// under the same ID reloads the routes. %q keeps label boundaries unambiguous, and fmt sorts map keys.
+func (cc *ConsulCatalog) fingerprints(services []consulService) map[string]int {
+	res := make(map[string]int, len(services))
 	for _, s := range services {
-		cc.list[s.ServiceID] = struct{}{}
+		res[fmt.Sprintf("%q %q %d %q", s.ServiceID, s.ServiceAddress, s.ServicePort, s.Labels)]++
 	}
+	return res
 }
 
 // List all containers and make url mappers
@@ -132,12 +129,12 @@ func (cc *ConsulCatalog) updateServices(services []consulService) {
 func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 	log.Print("[DEBUG] call consul catalog list")
 
-	res := make([]discovery.URLMapper, 0, len(cc.list))
-
 	services, err := cc.client.Get()
 	if err != nil {
 		return nil, fmt.Errorf("error get services list, %w", err)
 	}
+
+	res := make([]discovery.URLMapper, 0, len(services))
 
 	for _, c := range services {
 		enabled := false
