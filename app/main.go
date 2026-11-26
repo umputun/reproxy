@@ -352,6 +352,12 @@ func run() error {
 		return fmt.Errorf("failed to make trusted proxies: %w", tpErr)
 	}
 
+	// bound before makeMetrics starts the mgmt listener, which can default to the same address
+	pluginConductor, err := makePluginConductor(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start plugin conductor: %w", err)
+	}
+
 	px := &proxy.Http{
 		Version:        revision,
 		Matcher:        svc,
@@ -386,7 +392,7 @@ func run() error {
 		},
 		Metrics:                 makeMetrics(ctx, svc),
 		Reporter:                errReporter,
-		PluginConductor:         makePluginConductor(ctx),
+		PluginConductor:         pluginConductor,
 		ThrottleSystem:          opts.Throttle.System * 3,
 		ThrottleUser:            opts.Throttle.User,
 		BasicAuthEnabled:        len(basicAuthAllowed) > 0,
@@ -473,13 +479,18 @@ func makeProviders() ([]discovery.Provider, error) {
 	return res, nil
 }
 
-func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
+// makePluginConductor binds the plugin registration address before serving on it, so a taken address
+// stops startup: with no conductor, plugins such as auth would be skipped on every request.
+func makePluginConductor(ctx context.Context) (proxy.MiddlewareProvider, error) {
 	if !opts.Plugin.Enabled {
-		return nil
+		return nil, nil
 	}
 
+	ln, err := net.Listen("tcp", opts.Plugin.Listen)
+	if err != nil {
+		return nil, fmt.Errorf("plugin conductor listen: %w", err)
+	}
 	conductor := &plugin.Conductor{
-		Address: opts.Plugin.Listen,
 		Secret:  opts.Plugin.Secret,
 		Timeout: opts.Plugin.Timeout,
 		RPCDialer: plugin.RPCDialerFunc(func(ctx context.Context, _, address string) (plugin.RPCClient, error) {
@@ -491,11 +502,11 @@ func makePluginConductor(ctx context.Context) proxy.MiddlewareProvider {
 		}),
 	}
 	go func() {
-		if err := conductor.Run(ctx); err != nil {
+		if err := conductor.Run(ctx, ln); err != nil {
 			log.Printf("[WARN] plugin conductor error, %v", err)
 		}
 	}()
-	return conductor
+	return conductor, nil
 }
 
 func makeMetrics(ctx context.Context, informer mgmt.Informer) proxy.MiddlewareProvider {

@@ -2488,18 +2488,17 @@ func TestHttp_pluginRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conductorPort, releaseConductorPort := getFreePort(t)
-	conductor := &plugin.Conductor{Address: fmt.Sprintf("127.0.0.1:%d", conductorPort),
+	conductorLn, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	conductor := &plugin.Conductor{
 		RPCDialer: &plugin.RPCDialerMock{DialFunc: func(_ context.Context, network, address string) (plugin.RPCClient, error) {
 			return rpcClient, nil
 		}}}
-	releaseConductorPort()
-	go func() { _ = conductor.Run(ctx) }()
-	waitForServer(t, conductor.Address)
+	go func() { _ = conductor.Run(ctx, conductorLn) }()
 
 	data, err := json.Marshal(lib.Plugin{Name: "Probe", Address: "127.0.0.1:1", Methods: []string{"Inspect"}})
 	require.NoError(t, err)
-	resp, err := http.Post("http://"+conductor.Address, "application/json", bytes.NewReader(data))
+	resp, err := http.Post("http://"+conductorLn.Addr().String(), "application/json", bytes.NewReader(data))
 	require.NoError(t, err)
 	resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

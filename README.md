@@ -319,7 +319,7 @@ There are two ways to set cache duration:
 1. A single value for all static assets. This is as simple as `--assets.cache=48h`.
 2. Custom duration for different mime types. It should include two parts - the default value and the pairs of mime:duration. In command line this looks like multiple `--assets.cache` options, i.e. `--assets.cache=48h --assets.cache=text/html:24h --assets.cache=image/png:2h`. Environment values should be comma-separated, i.e. `ASSETS_CACHE=48h,text/html:24h,image/png:2h`
 
-With `--assets.cache` set, assets are sent with `Cache-Control: public` unless access to them is restricted: with global basic auth, and for static routes with per-route auth or an IP allowlist, the header is `Cache-Control: private`, so a shared cache in front of reproxy doesn't keep them and serve them to other clients.
+With `--assets.cache` set, assets are sent with `Cache-Control: public` unless access to them is restricted: with global basic auth, and for static routes with per-route auth or an IP allowlist, the header is `Cache-Control: private`, so a shared cache in front of reproxy doesn't keep them and serve them to other clients. A `Cache-Control` already on the response with `no-store` or a bare `private`, set by a plugin or `--header`, is kept as is.
 
 Custom 404 (not found) page can be set with `--assets.not-found=<path>` parameter. The path should be relative to the assets root.
 
@@ -522,6 +522,8 @@ By default headers set by a plugin will be mixed with the original headers. In c
 To simplify the development process all the building blocks provided. It includes `lib.Plugin` handling registration, listening and dispatching calls as well as `lib.Request` and `lib.Response` defining input and output. Plugin's authors should implement concrete handlers satisfying `func(req lib.Request, res *lib.HandlerResponse) (err error)` signature. Each plugin may contain multiple handlers like this.
 
 Anyone who can reach the registration listener (`--plugin.listen`) can add or remove plugins, and a removed auth plugin means unauthenticated requests pass. When the listener is reachable by anything but reproxy's own plugins, for example on a shared docker network, set `--plugin.secret`. Registration and unregistration without that secret as a bearer token are then refused; `lib.Plugin` sends it when its `Secret` field is set.
+
+reproxy refuses to start when it can't listen on `--plugin.listen`, as running without the registration listener would skip every plugin. Outside docker the management API (`--mgmt.listen`) defaults to the same `127.0.0.1:8081`; with both enabled, give one of them another address, otherwise the management API fails to start with a warning.
 
 All plugin calls of one request, including connecting to a plugin, share a time limit, `--plugin.timeout` (5s by default, also capped by the request's own deadline, 0 for no limit). A request whose plugins don't answer in time fails with 500. Each call uses a connection of its own, so a call that runs out of time closes only that connection and doesn't affect other requests. Up to 16 idle connections per plugin are kept for reuse; the number of open connections to a plugin grows with the number of its concurrent calls.
 

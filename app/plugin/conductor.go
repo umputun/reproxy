@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/rpc"
 	"net/url"
@@ -26,13 +27,13 @@ import (
 
 // Conductor accepts registrations from rpc plugins, keeps list of active/current plugins and provides middleware calling all of them.
 type Conductor struct {
-	Address   string
 	RPCDialer RPCDialer
 	Secret    string        // bearer token required to register or unregister, empty allows anyone
 	Timeout   time.Duration // limit for all plugin calls of one request and for each registration dial, 0 for none
 
 	plugins []Handler
 	lock    sync.RWMutex
+	regLock sync.Mutex // serializes register and unregister, so an unregister can't land inside a dial
 }
 
 // Handler contains information about a plugin's handler
@@ -83,14 +84,14 @@ type RPCClient interface {
 	Close() error
 }
 
-// Run creates and activates http registration server
-func (c *Conductor) Run(ctx context.Context) error {
-	log.Printf("[INFO] start plugin conductor on %s", c.Address)
+// Run serves plugin registrations on ln until ctx is done. The caller binds ln, so a taken address
+// fails at startup instead of leaving the proxy running without its plugins.
+func (c *Conductor) Run(ctx context.Context, ln net.Listener) error {
+	log.Printf("[INFO] start plugin conductor on %s", ln.Addr())
 	if c.Secret == "" {
-		log.Printf("[WARN] plugin registration has no secret, anyone reaching %s can add or remove plugins", c.Address)
+		log.Printf("[WARN] plugin registration has no secret, anyone reaching %s can add or remove plugins", ln.Addr())
 	}
 	httpServer := &http.Server{
-		Addr:              c.Address,
 		Handler:           c.registrationHandler(),
 		ReadHeaderTimeout: 50 * time.Millisecond,
 		WriteTimeout:      c.Timeout + 50*time.Millisecond, // the registration answer follows the plugin dial
@@ -104,7 +105,7 @@ func (c *Conductor) Run(ctx context.Context) error {
 		}
 	}()
 
-	if err := httpServer.ListenAndServe(); err != nil {
+	if err := httpServer.Serve(ln); err != nil {
 		return fmt.Errorf("plugin conductor server failed: %w", err)
 	}
 	return nil
@@ -235,10 +236,12 @@ func (c *Conductor) authorized(r *http.Request) bool {
 }
 
 // register dials the plugin and adds a handler for each of its methods under the full method name.
-// The dial runs without the lock, so a slow or unreachable plugin address doesn't stall requests.
+// The dial runs without the request lock, so a slow or unreachable plugin address doesn't stall requests.
 // It is bounded by Timeout alone, not by the registration request: lib.Plugin retries a POST that
 // takes over 1s, and a dial cut short with it would never finish registering a slow plugin.
 func (c *Conductor) register(p lib.Plugin) error {
+	c.regLock.Lock()
+	defer c.regLock.Unlock()
 	if c.isRegistered(p) {
 		log.Printf("[WARN] plugin %+v already registered", p)
 		return nil
@@ -263,10 +266,6 @@ func (c *Conductor) register(p lib.Plugin) error {
 			if !strings.HasPrefix(h.Method, p.Name+".") {
 				pp = append(pp, h)
 				continue
-			}
-			if h.Address == p.Address { // registered by a concurrent request while this one was dialing
-				replaced = []*pluginConn{conn}
-				return
 			}
 			log.Printf("[WARN] plugin %+v already registered, but address changed to %s", h, p.Address)
 			replaced = append(replaced, h.conn)
@@ -299,6 +298,8 @@ func (c *Conductor) isRegistered(p lib.Plugin) bool {
 // unregister removes all handlers of the plugin and retires their connections.
 func (c *Conductor) unregister(p lib.Plugin) {
 	log.Printf("[INFO] unregister plugin %s, ip: %s", p.Name, p.Address)
+	c.regLock.Lock()
+	defer c.regLock.Unlock()
 	var removed []*pluginConn
 	c.locked(func() {
 		var res []Handler //nolint

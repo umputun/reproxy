@@ -850,3 +850,33 @@ func Test_RunErrorReturnDoesNotDeadlock(t *testing.T) {
 	// context.Background would never close discoveryDone, forcing the full 5s timeout before run() returns.
 	assert.Less(t, time.Since(start), 3*time.Second, "run() too slow - discovery not canceled before the shutdown wait")
 }
+
+func Test_runPluginBindError(t *testing.T) {
+	setupLogger()
+	saved := opts
+	defer func() { opts = saved }()
+
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer occupied.Close()
+	proxyPort, releaseProxyPort := getFreePort(t)
+	releaseProxyPort()
+
+	opts.Static.Rules = nil
+	_, err = flags.NewParser(&opts, flags.Default).ParseArgs([]string{"--static.enabled", "--static.rule=*,/svc1/(.*),https://echo.example.com/$1",
+		"--listen=127.0.0.1:" + strconv.Itoa(proxyPort), "--plugin.enabled", "--plugin.listen=" + occupied.Addr().String()})
+	require.NoError(t, err)
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- run() }()
+	select {
+	case err = <-errCh:
+	case <-time.After(5 * time.Second):
+		require.NoError(t, syscall.Kill(syscall.Getpid(), syscall.SIGTERM))
+		<-errCh
+		t.Fatal("run() kept serving with the plugin registration port taken")
+	}
+	require.ErrorContains(t, err, "address already in use")
+	_, dialErr := net.DialTimeout("tcp", opts.Listen, time.Second)
+	assert.Error(t, dialErr, "the proxy never started listening")
+}

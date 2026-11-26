@@ -45,6 +45,11 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		if c.restricted(w.Header()) { // a plugin or --header already forbade shared caching
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		if len(c.maxAges) == 0 && c.defaultMaxAge > 0 {
 			setMaxAgeHeader(c.defaultMaxAge, w, r)
 			next.ServeHTTP(w, r)
@@ -66,6 +71,42 @@ func (c *CacheControl) Middleware(next http.Handler) http.Handler {
 		setMaxAgeHeader(val, w, r)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// restricted reports whether a Cache-Control value carries a bare no-store or private directive.
+// A qualified private="field" still lets a shared cache store the body, so a directive with an
+// argument doesn't count.
+func (c *CacheControl) restricted(h http.Header) bool {
+	for _, v := range h.Values("Cache-Control") {
+		for _, d := range c.splitDirectives(v) {
+			name, _, qualified := strings.Cut(d, "=")
+			name = strings.ToLower(strings.TrimSpace(name))
+			if !qualified && (name == "no-store" || name == "private") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// splitDirectives splits a Cache-Control value on commas outside quoted strings.
+func (c *CacheControl) splitDirectives(v string) []string {
+	var res []string
+	start, quoted, escaped := 0, false, false
+	for i := 0; i < len(v); i++ {
+		switch {
+		case escaped:
+			escaped = false
+		case quoted && v[i] == '\\':
+			escaped = true
+		case v[i] == '"':
+			quoted = !quoted
+		case v[i] == ',' && !quoted:
+			res = append(res, v[start:i])
+			start = i + 1
+		}
+	}
+	return append(res, v[start:])
 }
 
 // MakeCacheControl creates CacheControl from the list of params.

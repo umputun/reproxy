@@ -43,7 +43,7 @@ func (h *Http) healthMiddleware(next http.Handler) http.Handler {
 func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 	h.health.Lock()
 	if time.Since(h.health.at) >= healthCacheTTL {
-		h.health.code, h.health.body = h.checkHealth()
+		h.health.code, h.health.body = h.renderHealth()
 		h.health.at = time.Now()
 	}
 	code, body := h.health.code, h.health.body
@@ -56,9 +56,9 @@ func (h *Http) healthHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// checkHealth probes the configured ping URLs and renders the public answer. It carries counts only, as probe errors
+// renderHealth probes the configured ping URLs and renders the public answer. It carries counts only, as probe errors
 // name internal servers and URLs; those go to the log.
-func (h *Http) checkHealth() (code int, body []byte) {
+func (h *Http) renderHealth() (code int, body []byte) {
 	total := 0
 	for _, m := range h.Mappers() {
 		if m.MatchType == discovery.MTProxy {

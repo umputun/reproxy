@@ -38,6 +38,44 @@ func TestCacheControl_MiddlewarePrivate(t *testing.T) {
 	}
 }
 
+func TestCacheControl_MiddlewareKeepsRestriction(t *testing.T) {
+	tbl := []struct {
+		name    string
+		values  []string
+		private bool
+		want    []string
+	}{
+		{name: "no-store kept", values: []string{"no-store"}, want: []string{"no-store"}},
+		{name: "directive case ignored", values: []string{"No-Store, max-age=0"}, want: []string{"No-Store, max-age=0"}},
+		{name: "bare private kept", values: []string{"private, max-age=10"}, want: []string{"private, max-age=10"}},
+		{name: "second field value", values: []string{"max-age=60", "no-store"}, want: []string{"max-age=60", "no-store"}},
+		{name: "qualified private replaced", values: []string{`private="Set-Cookie"`}, private: true, want: []string{"private, max-age=3600"}},
+		{name: "qualified no-store replaced", values: []string{`no-store="x"`}, private: true, want: []string{"private, max-age=3600"}},
+		{name: "quoted no-store replaced", values: []string{`no-cache="no-store, private"`}, want: []string{"public, max-age=3600"}},
+		{name: "plain max-age replaced", values: []string{"max-age=60"}, want: []string{"public, max-age=3600"}},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			next := NewCacheControl(time.Hour).Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte("something"))
+			}))
+			h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for _, v := range tt.values {
+					w.Header().Add("Cache-Control", v)
+				}
+				next.ServeHTTP(w, r)
+			})
+			req := httptest.NewRequest("GET", "/file.html", http.NoBody)
+			if tt.private {
+				req = req.WithContext(context.WithValue(req.Context(), ctxPrivateAsset, true))
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			assert.Equal(t, tt.want, w.Header().Values("Cache-Control"))
+		})
+	}
+}
+
 func TestCacheControl_MiddlewareDisabled(t *testing.T) {
 	req := httptest.NewRequest("GET", "/file.html", http.NoBody)
 	w := httptest.NewRecorder()

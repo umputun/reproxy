@@ -5,12 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/rpc"
 	"regexp"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -242,15 +241,16 @@ func TestConductor_Middleware(t *testing.T) {
 		},
 	}
 
-	c := Conductor{RPCDialer: dialer, Address: "127.0.0.1:50100"}
+	c := Conductor{RPCDialer: dialer}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	go func() {
-		c.Run(ctx)
+		c.Run(ctx, ln)
 	}()
-	time.Sleep(time.Millisecond * 50)
 
 	client := http.Client{Timeout: time.Second}
 
@@ -258,7 +258,7 @@ func TestConductor_Middleware(t *testing.T) {
 	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1", "Mw2", "Mw3"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
-	req, err := http.NewRequest("POST", "http://127.0.0.1:50100", bytes.NewReader(data))
+	req, err := http.NewRequest("POST", "http://"+ln.Addr().String(), bytes.NewReader(data))
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
@@ -323,16 +323,16 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 		},
 	}
 
-	port := rand.Intn(30000)
-	c := Conductor{RPCDialer: dialer, Address: "127.0.0.1:" + strconv.Itoa(30000+port)}
+	c := Conductor{RPCDialer: dialer}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	go func() {
-		c.Run(ctx)
+		c.Run(ctx, ln)
 	}()
-	time.Sleep(time.Millisecond * 150)
 
 	client := http.Client{Timeout: time.Second}
 
@@ -340,7 +340,7 @@ func TestConductor_MiddlewarePluginBadStatus(t *testing.T) {
 	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
-	req, err := http.NewRequest("POST", "http://127.0.0.1:"+strconv.Itoa(30000+port), bytes.NewReader(data))
+	req, err := http.NewRequest("POST", "http://"+ln.Addr().String(), bytes.NewReader(data))
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
@@ -392,15 +392,16 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 		},
 	}
 
-	c := Conductor{RPCDialer: dialer, Address: "127.0.0.1:50100"}
+	c := Conductor{RPCDialer: dialer}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	go func() {
-		c.Run(ctx)
+		c.Run(ctx, ln)
 	}()
-	time.Sleep(time.Millisecond * 250)
 
 	client := http.Client{Timeout: time.Second}
 
@@ -408,7 +409,7 @@ func TestConductor_MiddlewarePluginFailed(t *testing.T) {
 	plugin := lib.Plugin{Name: "Test1", Address: "127.0.0.1:8001", Methods: []string{"Mw1"}}
 	data, err := json.Marshal(plugin)
 	require.NoError(t, err)
-	req, err := http.NewRequest("POST", "http://127.0.0.1:50100", bytes.NewReader(data))
+	req, err := http.NewRequest("POST", "http://"+ln.Addr().String(), bytes.NewReader(data))
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
@@ -575,15 +576,10 @@ func TestConductor_registrationDialOutsideLock(t *testing.T) {
 
 func TestConductor_registrationConcurrentSamePlugin(t *testing.T) {
 	release := make(chan struct{})
-	var clients []*RPCClientMock
-	var mu sync.Mutex
+	client := &RPCClientMock{CloseFunc: func() error { return nil }}
 	dialer := &RPCDialerMock{DialFunc: func(context.Context, string, string) (RPCClient, error) {
 		<-release
-		cl := &RPCClientMock{CloseFunc: func() error { return nil }}
-		mu.Lock()
-		clients = append(clients, cl)
-		mu.Unlock()
-		return cl, nil
+		return client, nil
 	}}
 	c := Conductor{RPCDialer: dialer}
 
@@ -593,16 +589,42 @@ func TestConductor_registrationConcurrentSamePlugin(t *testing.T) {
 			assert.NoError(t, c.register(lib.Plugin{Name: "Test1", Address: "127.0.0.1:1", Methods: []string{"Mw1", "Mw2"}}))
 		})
 	}
-	require.Eventually(t, func() bool { return len(dialer.DialCalls()) == 2 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return len(dialer.DialCalls()) == 1 }, time.Second, time.Millisecond)
 	close(release)
 	wg.Wait()
 
+	assert.Len(t, dialer.DialCalls(), 1, "the second registration waits and finds the plugin registered")
 	assert.Len(t, c.plugins, 2)
-	closed := 0
-	for _, cl := range clients {
-		closed += len(cl.CloseCalls())
+	assert.Empty(t, client.CloseCalls())
+}
+
+func TestConductor_unregisterDuringRegistrationDial(t *testing.T) {
+	dialStarted, release := make(chan struct{}), make(chan struct{})
+	client := &RPCClientMock{CloseFunc: func() error { return nil }}
+	dialer := &RPCDialerMock{DialFunc: func(context.Context, string, string) (RPCClient, error) {
+		close(dialStarted)
+		<-release
+		return client, nil
+	}}
+	c := Conductor{RPCDialer: dialer}
+	p := lib.Plugin{Name: "Test1", Address: "127.0.0.1:1", Methods: []string{"Mw1"}}
+
+	registered := make(chan error)
+	go func() { registered <- c.register(p) }()
+	<-dialStarted
+
+	unregistered := make(chan struct{})
+	go func() { c.unregister(p); close(unregistered) }()
+	select {
+	case <-unregistered:
+	case <-time.After(100 * time.Millisecond):
 	}
-	assert.Equal(t, 1, closed, "the client of the losing registration is closed")
+	close(release)
+	require.NoError(t, <-registered)
+	<-unregistered
+
+	assert.Empty(t, c.plugins, "an unregister sent during the dial wins")
+	assert.Len(t, client.CloseCalls(), 1)
 }
 
 func TestConductor_MiddlewarePluginTimeout(t *testing.T) {
@@ -773,6 +795,48 @@ func TestPluginConn_retireDuringDial(t *testing.T) {
 	require.Error(t, <-called)
 	assert.Empty(t, client.CallCalls(), "a retired plugin gets no call on a connection dialed before retirement")
 	assert.Len(t, client.CloseCalls(), 1)
+}
+
+func TestPluginConn_callErrorKeepsOrClosesClient(t *testing.T) {
+	tbl := []struct {
+		name   string
+		err    error
+		closed bool
+	}{
+		{name: "method error keeps the connection", err: rpc.ServerError("bad input"), closed: false},
+		{name: "shutdown closes the connection", err: rpc.ErrShutdown, closed: true},
+		{name: "transport error closes the connection", err: errors.New("read: connection reset"), closed: true},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			failed := false
+			client := &RPCClientMock{
+				CallFunc: func(string, any, any) error {
+					if failed {
+						return nil
+					}
+					failed = true
+					return tt.err
+				},
+				CloseFunc: func() error { return nil },
+			}
+			fresh := &RPCClientMock{CallFunc: func(string, any, any) error { return nil }}
+			dialer := &RPCDialerMock{DialFunc: func(context.Context, string, string) (RPCClient, error) { return fresh, nil }}
+			pc := &pluginConn{address: "127.0.0.1:1", dialer: dialer, idle: []RPCClient{client}}
+
+			require.ErrorIs(t, pc.call(context.Background(), "Test1.Mw1", lib.Request{}, &lib.Response{}), tt.err)
+			require.NoError(t, pc.call(context.Background(), "Test1.Mw1", lib.Request{}, &lib.Response{}))
+			if tt.closed {
+				assert.Len(t, client.CloseCalls(), 1)
+				assert.Len(t, client.CallCalls(), 1)
+				assert.Len(t, dialer.DialCalls(), 1, "the next call dials a fresh connection")
+				return
+			}
+			assert.Empty(t, client.CloseCalls())
+			assert.Len(t, client.CallCalls(), 2, "the next call reuses the connection")
+			assert.Empty(t, dialer.DialCalls())
+		})
+	}
 }
 
 func TestConductor_registerWithoutMethods(t *testing.T) {
