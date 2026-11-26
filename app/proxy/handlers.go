@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,9 +50,6 @@ func headersHandler(addHeaders, dropHeaders []string) func(next http.Handler) ht
 			for k, v := range added {
 				w.Header().Set(k, v)
 			}
-			if len(added) > 0 {
-				w = &headersWriter{ResponseWriter: w, headers: added}
-			}
 
 			// drop headers from request
 			for _, h := range dropHeaders {
@@ -63,16 +61,18 @@ func headersHandler(addHeaders, dropHeaders []string) func(next http.Handler) ht
 	}
 }
 
-// headersWriter puts the configured headers back on the final response when a 1xx response went out
-// first: httputil.ReverseProxy clears the header map after forwarding a 1xx. It doesn't implement
-// io.ReaderFrom, so the access log counts the body in Write.
+// headersWriter wraps the writer given to httputil.ReverseProxy and puts the headers set before the
+// proxy (signature, plugins, --header) back on the final response when a 1xx went out first: the
+// proxy clears the header map after forwarding a 1xx. It sits inside gzip, so compression still sees
+// and adjusts the final headers. It doesn't implement io.ReaderFrom, so the access log counts the
+// body in Write.
 type headersWriter struct {
 	http.ResponseWriter
-	headers map[string]string
+	headers http.Header
 	pending bool // a 1xx went out and the final response hasn't started
 }
 
-// WriteHeader marks a 1xx and restores the configured headers before the final status.
+// WriteHeader marks a 1xx and restores the saved headers before the final status.
 func (w *headersWriter) WriteHeader(code int) {
 	if code >= 100 && code < 200 && code != http.StatusSwitchingProtocols {
 		w.pending = true
@@ -83,21 +83,13 @@ func (w *headersWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// Write restores the configured headers when the body starts the final response.
+// Write restores the saved headers when the body starts the final response.
 func (w *headersWriter) Write(b []byte) (int, error) {
 	w.restore()
 	return w.ResponseWriter.Write(b) //nolint:wrapcheck // pass-through writer keeps the underlying error
 }
 
-// Flush restores the configured headers when a flush starts the final response.
-func (w *headersWriter) Flush() {
-	w.restore()
-	if err := http.NewResponseController(w.ResponseWriter).Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		log.Printf("[DEBUG] flush failed, %v", err)
-	}
-}
-
-// Hijack restores the configured headers, which the reverse proxy writes with the 101 after hijacking.
+// Hijack restores the saved headers, which the reverse proxy writes with the 101 after hijacking.
 func (w *headersWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	conn, brw, err := http.NewResponseController(w.ResponseWriter).Hijack()
 	if err != nil {
@@ -119,7 +111,7 @@ func (w *headersWriter) restore() {
 	w.pending = false
 	h := w.Header()
 	for k, v := range w.headers {
-		h[k] = append([]string{v}, h[k]...)
+		h[k] = slices.Concat(v, h[k])
 	}
 }
 

@@ -869,6 +869,136 @@ func TestHttp_makeHTTPServer(t *testing.T) {
 	assert.Negative(t, srv.IdleTimeout, "zero idle timeout stays unlimited instead of falling back to the read timeout")
 }
 
+func TestHttp_headersAfterInformational(t *testing.T) {
+	text := strings.Repeat("compressible ", 200)
+	release := make(chan struct{})
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Link", "</a.css>; rel=preload")
+		w.WriteHeader(http.StatusEarlyHints)
+		switch r.URL.Path {
+		case "/upgrade":
+			conn, brw, err := http.NewResponseController(w).Hijack()
+			if !assert.NoError(t, err) {
+				return
+			}
+			defer conn.Close()
+			_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n")
+			_ = brw.Flush()
+		case "/text":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Header().Set("Content-Length", strconv.Itoa(len(text)))
+			_, _ = w.Write([]byte(text))
+		case "/stream":
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = w.Write([]byte("data: x\n\n"))
+			_ = http.NewResponseController(w).Flush()
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		default:
+			w.Header().Set("X-Frame-Options", "backend")
+			_, _ = w.Write([]byte("ok"))
+		}
+	}))
+	defer backend.Close()
+
+	svc := discovery.NewService([]discovery.Provider{&provider.Static{Rules: []string{"*,/api/(.*)," + backend.URL + "/$1,"}}}, time.Millisecond*10)
+	go func() { _ = svc.Run(t.Context()) }()
+	time.Sleep(150 * time.Millisecond)
+
+	start := func(t *testing.T, h *Http) string {
+		port, releasePort := getFreePort(t)
+		h.Address = fmt.Sprintf("127.0.0.1:%d", port)
+		h.AccessLog, h.Reporter, h.Matcher = io.Discard, &ErrorReporter{}, svc
+		h.Metrics = mgmt.NewMetrics(mgmt.MetricsConfig{})
+		releasePort()
+		go func() { _ = h.Run(t.Context()) }()
+		waitForServer(t, h.Address)
+		return h.Address
+	}
+	upgrade := func(t *testing.T, addr string) *http.Response {
+		conn, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		_, err = conn.Write([]byte("GET /api/upgrade HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n"))
+		require.NoError(t, err)
+		br := bufio.NewReader(conn)
+		early, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusEarlyHints, early.StatusCode)
+		resp, err := http.ReadResponse(br, nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+		return resp
+	}
+
+	t.Run("signature headers without configured headers", func(t *testing.T) {
+		addr := start(t, &Http{Signature: true, GzEnabled: true})
+		resp, err := http.Get("http://" + addr + "/api/early")
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		assert.Equal(t, "backend", resp.Header.Get("X-Frame-Options"))
+
+		req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/api/text", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err = http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.NotEqual(t, strconv.Itoa(len(text)), resp.Header.Get("Content-Length"), "the backend's length doesn't survive compression")
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+		body, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		assert.Equal(t, text, string(body))
+
+		streamClient := http.Client{Timeout: 3 * time.Second}
+		resp, err = streamClient.Get("http://" + addr + "/api/stream")
+		require.NoError(t, err)
+		assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+		assert.Equal(t, "reproxy", resp.Header.Get("App-Name"))
+		event, err := bufio.NewReader(resp.Body).ReadString('\n')
+		require.NoError(t, err, "the first event arrives while the upstream stream is still open")
+		assert.Equal(t, "data: x\n", event)
+		close(release)
+		resp.Body.Close()
+
+		assert.Equal(t, "reproxy", upgrade(t, addr).Header.Get("App-Name"))
+	})
+
+	t.Run("configured headers", func(t *testing.T) {
+		addr := start(t, &Http{ProxyHeaders: []string{"X-Frame-Options:SAMEORIGIN", "X-Test:a", "X-Test:b"}})
+		resp, err := http.Get("http://" + addr + "/api/early")
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, []string{"SAMEORIGIN", "backend"}, resp.Header.Values("X-Frame-Options"))
+		assert.Equal(t, []string{"b"}, resp.Header.Values("X-Test"))
+		assert.Equal(t, "SAMEORIGIN", upgrade(t, addr).Header.Get("X-Frame-Options"))
+	})
+
+	t.Run("gzip adjusts restored headers", func(t *testing.T) {
+		addr := start(t, &Http{GzEnabled: true, ProxyHeaders: []string{"Content-Length:5"}})
+		req, err := http.NewRequest(http.MethodGet, "http://"+addr+"/api/text", http.NoBody)
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+		assert.NotEqual(t, "5", resp.Header.Get("Content-Length"), "a length set before the proxy is dropped by gzip after the 1xx")
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+		body, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		assert.Equal(t, text, string(body))
+	})
+}
+
 func TestHttp_readBodyTimeout(t *testing.T) {
 	port, releasePort := getFreePort(t)
 	h := Http{Timeouts: Timeouts{ResponseHeader: 2 * time.Second, ReadBody: 300 * time.Millisecond},

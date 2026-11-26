@@ -869,6 +869,47 @@ func TestConductor_reregistrationRetiresOldConn(t *testing.T) {
 	assert.Empty(t, c.plugins)
 }
 
+func TestConductor_unregisterMatchesAddress(t *testing.T) {
+	var clients []*RPCClientMock
+	dialer := &RPCDialerMock{DialFunc: func(context.Context, string, string) (RPCClient, error) {
+		cl := &RPCClientMock{CloseFunc: func() error { return nil }}
+		clients = append(clients, cl)
+		return cl, nil
+	}}
+	c := Conductor{RPCDialer: dialer}
+	old := lib.Plugin{Name: "Auth", Address: "10.0.0.1:9000", Methods: []string{"Check"}}
+	replacement := lib.Plugin{Name: "Auth", Address: "10.0.0.2:9000", Methods: []string{"Check"}}
+
+	require.NoError(t, c.register(old))
+	require.NoError(t, c.register(replacement))
+	require.Len(t, c.plugins, 1)
+
+	c.unregister(old)
+	require.Len(t, c.plugins, 1, "the old instance's exit leaves its replacement registered")
+	assert.Equal(t, replacement.Address, c.plugins[0].Address)
+	assert.Empty(t, clients[1].CloseCalls())
+
+	c.unregister(replacement)
+	assert.Empty(t, c.plugins)
+	assert.Len(t, clients[1].CloseCalls(), 1)
+}
+
+func TestConductor_dottedNamesAreDistinct(t *testing.T) {
+	client := &RPCClientMock{CloseFunc: func() error { return nil }}
+	dialer := &RPCDialerMock{DialFunc: func(context.Context, string, string) (RPCClient, error) { return client, nil }}
+	c := Conductor{RPCDialer: dialer}
+	short := lib.Plugin{Name: "Auth", Address: "10.0.0.1:9000", Methods: []string{"Check"}}
+	dotted := lib.Plugin{Name: "Auth.V2", Address: "10.0.0.1:9000", Methods: []string{"Check"}}
+
+	require.NoError(t, c.register(dotted))
+	require.NoError(t, c.register(short))
+	require.Len(t, c.plugins, 2, "a dotted name doesn't make the shorter one registered")
+
+	c.unregister(short)
+	require.Len(t, c.plugins, 1)
+	assert.Equal(t, "Auth.V2.Check", c.plugins[0].Method)
+}
+
 func TestConductor_makeRequest(t *testing.T) {
 	tbl := []struct {
 		name, target, host, url, server string

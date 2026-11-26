@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
@@ -85,74 +84,6 @@ func Test_headersHandler(t *testing.T) {
 	handler.ServeHTTP(wr, req)
 	assert.Equal(t, "v1", wr.Result().Header.Get("k1"))
 	assert.Equal(t, "v2", wr.Result().Header.Get("k2"))
-}
-
-func Test_headersHandlerAfterInformational(t *testing.T) {
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Link", "</a.css>; rel=preload")
-		w.WriteHeader(http.StatusEarlyHints)
-		if r.URL.Path != "/upgrade" {
-			w.Header().Set("X-Frame-Options", "backend")
-			_, _ = w.Write([]byte("ok"))
-			return
-		}
-		conn, brw, err := http.NewResponseController(w).Hijack()
-		if !assert.NoError(t, err) {
-			return
-		}
-		defer conn.Close()
-		_, _ = brw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n")
-		_ = brw.Flush()
-	}))
-	defer backend.Close()
-	backendURL, err := url.Parse(backend.URL)
-	require.NoError(t, err)
-
-	wrap := headersHandler([]string{"X-Frame-Options:SAMEORIGIN", "X-Test:a", "X-Test:b"}, nil)
-	front := httptest.NewServer(wrap(accessLogHandler(io.Discard)(httputil.NewSingleHostReverseProxy(backendURL))))
-	defer front.Close()
-
-	t.Run("103 then 200", func(t *testing.T) {
-		resp, err := http.Get(front.URL + "/early")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, []string{"SAMEORIGIN", "backend"}, resp.Header.Values("X-Frame-Options"))
-		assert.Equal(t, []string{"b"}, resp.Header.Values("X-Test"))
-	})
-
-	t.Run("103 then 101 upgrade", func(t *testing.T) {
-		conn, err := net.Dial("tcp", front.Listener.Addr().String())
-		require.NoError(t, err)
-		defer conn.Close()
-		_, err = conn.Write([]byte("GET /upgrade HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n"))
-		require.NoError(t, err)
-		br := bufio.NewReader(conn)
-		early, err := http.ReadResponse(br, nil)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusEarlyHints, early.StatusCode)
-		upgraded, err := http.ReadResponse(br, nil)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusSwitchingProtocols, upgraded.StatusCode)
-		assert.Equal(t, "SAMEORIGIN", upgraded.Header.Get("X-Frame-Options"))
-		assert.Equal(t, "test", upgraded.Header.Get("Upgrade"))
-	})
-
-	t.Run("103 then flush", func(t *testing.T) {
-		flushing := httptest.NewServer(wrap(accessLogHandler(io.Discard)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusEarlyHints)
-			clear(w.Header())
-			w.(http.Flusher).Flush()
-			_, _ = w.Write([]byte("ok"))
-		}))))
-		defer flushing.Close()
-		resp, err := http.Get(flushing.URL)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, "SAMEORIGIN", resp.Header.Get("X-Frame-Options"))
-		assert.Equal(t, "b", resp.Header.Get("X-Test"))
-	})
 }
 
 func Test_maxReqSizeHandler(t *testing.T) {

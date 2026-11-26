@@ -433,6 +433,35 @@ func TestConsulCatalog_checkUpdates_changed(t *testing.T) {
 	assert.False(t, cc.serviceListWasChanged([]consulService{{ServiceID: "1"}}))
 }
 
+func TestConsulCatalog_checkUpdates_retryAfterListError(t *testing.T) {
+	fail := false
+	clientMock := &ConsulClientMock{
+		GetFunc: func() ([]consulService, error) {
+			if fail {
+				return nil, fmt.Errorf("consul unavailable")
+			}
+			return []consulService{{ServiceID: "1", Labels: map[string]string{"reproxy.route": "/api/(.*)"}}}, nil
+		},
+	}
+	cc := New(clientMock, time.Second)
+	ch := make(chan discovery.ProviderID, 1)
+
+	require.NoError(t, cc.checkUpdates(context.Background(), ch))
+	assert.Equal(t, discovery.PIConsulCatalog, <-ch)
+
+	fail = true
+	_, err := cc.List()
+	require.Error(t, err)
+
+	fail = false
+	require.NoError(t, cc.checkUpdates(context.Background(), ch))
+	require.Len(t, ch, 1, "a failed list is retried with the catalog unchanged")
+	assert.Equal(t, discovery.PIConsulCatalog, <-ch)
+
+	require.NoError(t, cc.checkUpdates(context.Background(), ch))
+	assert.Empty(t, ch, "one retry per failed list")
+}
+
 func TestConsulCatalog_checkUpdates_canceled(t *testing.T) {
 	clientMock := &ConsulClientMock{
 		GetFunc: func() ([]consulService, error) {

@@ -40,6 +40,7 @@ type Conductor struct {
 type Handler struct {
 	Address string
 	Method  string // full method name for rpc call, i.e. Plugin.Thing
+	name    string // registered plugin name; a method prefix can't tell "A" from a dotted "A.B"
 	Alive   bool
 	conn    *pluginConn
 }
@@ -263,7 +264,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 	c.locked(func() {
 		var pp []Handler //nolint
 		for _, h := range c.plugins {
-			if !strings.HasPrefix(h.Method, p.Name+".") {
+			if h.name != p.Name {
 				pp = append(pp, h)
 				continue
 			}
@@ -271,7 +272,7 @@ func (c *Conductor) register(p lib.Plugin) error {
 			replaced = append(replaced, h.conn)
 		}
 		for _, l := range p.Methods {
-			handler := Handler{conn: conn, Alive: true, Address: p.Address, Method: p.Name + "." + l}
+			handler := Handler{conn: conn, Alive: true, Address: p.Address, Method: p.Name + "." + l, name: p.Name}
 			pp = append(pp, handler)
 			log.Printf("[INFO] register plugin %s, ip: %s, method: %s", p.Name, p.Address, handler.Method)
 		}
@@ -288,14 +289,16 @@ func (c *Conductor) isRegistered(p lib.Plugin) bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	for _, h := range c.plugins {
-		if strings.HasPrefix(h.Method, p.Name+".") && h.Address == p.Address {
+		if h.name == p.Name && h.Address == p.Address {
 			return true
 		}
 	}
 	return false
 }
 
-// unregister removes all handlers of the plugin and retires their connections.
+// unregister removes the plugin's handlers registered from p.Address and retires their connections.
+// The address has to match, so an old instance exiting after its replacement registered from another
+// address leaves the replacement in place.
 func (c *Conductor) unregister(p lib.Plugin) {
 	log.Printf("[INFO] unregister plugin %s, ip: %s", p.Name, p.Address)
 	c.regLock.Lock()
@@ -304,7 +307,7 @@ func (c *Conductor) unregister(p lib.Plugin) {
 	c.locked(func() {
 		var res []Handler //nolint
 		for _, h := range c.plugins {
-			if strings.HasPrefix(h.Method, p.Name+".") {
+			if h.name == p.Name && h.Address == p.Address {
 				removed = append(removed, h.conn)
 				continue
 			}

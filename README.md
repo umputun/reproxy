@@ -523,6 +523,8 @@ To simplify the development process all the building blocks provided. It include
 
 Anyone who can reach the registration listener (`--plugin.listen`) can add or remove plugins, and a removed auth plugin means unauthenticated requests pass. When the listener is reachable by anything but reproxy's own plugins, for example on a shared docker network, set `--plugin.secret`. Registration and unregistration without that secret as a bearer token are then refused; `lib.Plugin` sends it when its `Secret` field is set.
 
+Unregistration (`DELETE`) removes a plugin only when both its name and address match the registration, so an old instance shutting down after its replacement registered from another address leaves the replacement in place. `lib.Plugin` sends the address it registered with; a client calling the registration API directly has to do the same.
+
 reproxy refuses to start when it can't listen on `--plugin.listen`, as running without the registration listener would skip every plugin. Outside docker the management API (`--mgmt.listen`) defaults to the same `127.0.0.1:8081`; with both enabled, give one of them another address, otherwise the management API fails to start with a warning.
 
 All plugin calls of one request, including connecting to a plugin, share a time limit, `--plugin.timeout` (5s by default, also capped by the request's own deadline, 0 for no limit). A request whose plugins don't answer in time fails with 500. Each call uses a connection of its own, so a call that runs out of time closes only that connection and doesn't affect other requests. Up to 16 idle connections per plugin are kept for reuse; the number of open connections to a plugin grows with the number of its concurrent calls.

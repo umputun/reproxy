@@ -1319,6 +1319,33 @@ func TestCheckHealth(t *testing.T) {
 	assert.NoError(t, res[ts2.URL])
 }
 
+func TestCheckHealthSharedPingURL(t *testing.T) {
+	var mu sync.Mutex
+	hits := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		first := hits == 1
+		mu.Unlock()
+		if first {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	defer ts.Close()
+
+	svc := matchTestService(t, []URLMapper{
+		{Server: "*", SrcMatch: *regexp.MustCompile("^/a/(.*)"), Dst: "http://127.0.0.1:8080/$1", MatchType: MTProxy, PingURL: ts.URL},
+		{Server: "*", SrcMatch: *regexp.MustCompile("^/b/(.*)"), Dst: "http://127.0.0.1:8081/$1", MatchType: MTProxy, PingURL: ts.URL},
+	})
+
+	res := svc.CheckHealth()
+	require.Len(t, res, 1)
+	require.Error(t, res[ts.URL], "a failed probe is not overwritten by a later one")
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 1, hits, "a ping url shared by two routes is probed once")
+}
+
 func TestCheckHealthReleasesLockDuringPings(t *testing.T) {
 	pinged, release := make(chan struct{}), make(chan struct{})
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

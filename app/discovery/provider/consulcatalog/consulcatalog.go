@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/umputun/reproxy/app/discovery"
@@ -44,6 +45,9 @@ type ConsulCatalog struct {
 	// count of each service fingerprint in the last snapshot, owned by the watcher; counts keep identical
 	// records registered more than once
 	list map[string]int
+	// set by a failed List, which drops consul routes from the reload; the next successful poll then
+	// signals again even with an unchanged snapshot
+	listFailed atomic.Bool
 }
 
 // New creates new ConsulCatalog instance
@@ -92,7 +96,8 @@ func (cc *ConsulCatalog) checkUpdates(ctx context.Context, eventsCh chan<- disco
 		return fmt.Errorf("unable to get services list, %w", err)
 	}
 
-	if !cc.serviceListWasChanged(services) {
+	retry := cc.listFailed.Swap(false)
+	if !cc.serviceListWasChanged(services) && !retry {
 		return nil
 	}
 
@@ -131,6 +136,7 @@ func (cc *ConsulCatalog) List() ([]discovery.URLMapper, error) {
 
 	services, err := cc.client.Get()
 	if err != nil {
+		cc.listFailed.Store(true)
 		return nil, fmt.Errorf("error get services list, %w", err)
 	}
 

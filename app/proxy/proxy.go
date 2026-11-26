@@ -312,6 +312,9 @@ func (h *Http) proxyHandler() http.HandlerFunc {
 			case discovery.RTNone:
 				uu := r.Context().Value(ctxURL).(*url.URL)
 				log.Printf("[DEBUG] proxy to %s", uu)
+				if len(w.Header()) > 0 {
+					w = &headersWriter{ResponseWriter: w, headers: w.Header().Clone()}
+				}
 				reverseProxy.ServeHTTP(w, r)
 			case discovery.RTPerm:
 				log.Printf("[DEBUG] redirect (301) to %s", match.Destination)

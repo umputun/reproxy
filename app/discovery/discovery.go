@@ -487,11 +487,14 @@ func (s *Service) Mappers() (mappers []URLMapper) {
 // CheckHealth starts health-check for service's mappers
 func (s *Service) CheckHealth() (pingResult map[string]error) {
 	// pings run without the lock, a slow backend would otherwise hold off route reloads
+	// one probe per url: results are keyed by it, and a second probe could replace a failure with a success
 	s.lock.RLock()
 	var toPing []URLMapper
+	seen := map[string]bool{}
 	for _, mappers := range s.mappers {
 		for _, m := range mappers {
-			if m.MatchType == MTProxy && m.PingURL != "" {
+			if m.MatchType == MTProxy && m.PingURL != "" && !seen[m.PingURL] {
+				seen[m.PingURL] = true
 				toPing = append(toPing, m)
 			}
 		}
